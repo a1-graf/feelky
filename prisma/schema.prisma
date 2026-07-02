@@ -1,0 +1,490 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Currency {
+  UAH
+  USDT
+  USD
+}
+
+enum AccountType {
+  EXCHANGE
+  EXCHANGE_SUBACCOUNT
+  BANK_CARD
+  CASH
+  CRYPTO_WALLET
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  P2P_WITHDRAWAL
+  CASH_WITHDRAWAL
+  TRANSFER
+  MANUAL_ADJUSTMENT
+  EXPECTED_MONEY_RECEIVED
+  FUNDS_FROZEN
+  FUNDS_RELEASED
+}
+
+enum FrozenFundStatus {
+  FROZEN
+  RELEASED
+  LOST
+}
+
+enum ExpectedMoneyStatus {
+  EXPECTED
+  NEED_TO_COLLECT
+  IN_PROGRESS
+  RECEIVED
+  LOST
+  SCAMMED
+}
+
+enum RateMode {
+  AUTO
+  P2P_AVERAGE
+  MANUAL
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum SteamResaleInvestmentStatus {
+  ACTIVE
+  RETURNED
+  ARCHIVED
+}
+
+enum SteamArbitrageRoundStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum SteamArbitrageResidualStatus {
+  OPEN
+  WITHDRAWN
+  LOST
+}
+
+model User {
+  id                       String                     @id @default(cuid())
+  name                     String?
+  email                    String                     @unique
+  emailVerified            DateTime?
+  image                    String?
+  passwordHash             String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  accounts                 Account[]
+  categories               Category[]
+  incomeSources            IncomeSource[]
+  transactions             Transaction[]
+  frozenFunds              FrozenFund[]
+  expectedMoney            ExpectedMoney[]
+  settings                 Settings?
+  balanceHistory           BalanceHistory[]
+  auditLogs                AuditLog[]
+  recurringTransactions    RecurringTransaction[]
+  expectedStatusDefinitions ExpectedStatusDefinition[]
+  steamResaleAccounts      SteamResaleAccount[]
+  steamResaleSnapshots     SteamResaleBalanceSnapshot[]
+  steamResaleInvestments   SteamResaleInvestment[]
+  steamResaleWithdrawals   SteamResaleWithdrawal[]
+  steamArbitrageSchemes    SteamArbitrageScheme[]
+  steamArbitrageRounds     SteamArbitrageRound[]
+  steamArbitrageResiduals  SteamArbitrageResidual[]
+  steamExpenseAllocations  SteamExpenseAllocation[]
+  flips                    Flip[]
+}
+
+model Account {
+  id                String                  @id @default(cuid())
+  userId            String
+  type              AccountType
+  name              String
+  provider          String?
+  currency          Currency
+  initialBalance    Decimal                 @default(0) @db.Decimal(18, 6)
+  currentBalance    Decimal                 @default(0) @db.Decimal(18, 6)
+  note              String?
+  parentAccountId   String?
+  isActive          Boolean                 @default(true)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentAccount     Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts     Account[]               @relation("AccountHierarchy")
+  sourceTransactions Transaction[]           @relation("SourceAccount")
+  destinationTransactions Transaction[]      @relation("DestinationAccount")
+  frozenFunds       FrozenFund[]
+  balanceHistory    BalanceHistory[]
+  recurringTransactions RecurringTransaction[]
+  steamResaleInvestmentSources SteamResaleInvestment[] @relation("SteamResaleInvestmentSourceAccount")
+  steamResaleWithdrawalDestinations SteamResaleWithdrawal[] @relation("SteamResaleWithdrawalDestinationAccount")
+  steamArbitrageRoundSources SteamArbitrageRound[] @relation("SteamArbitrageRoundSourceAccount")
+  steamArbitrageRoundDestinations SteamArbitrageRound[] @relation("SteamArbitrageRoundDestinationAccount")
+  steamArbitrageResidualDestinations SteamArbitrageResidual[] @relation("SteamArbitrageResidualDestinationAccount")
+
+  @@index([userId, type])
+  @@index([userId, currency])
+}
+
+model Category {
+  id             String                 @id @default(cuid())
+  userId         String
+  name           String
+  sortOrder      Int                    @default(0)
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  recurringTransactions RecurringTransaction[]
+
+  @@unique([userId, name])
+}
+
+model IncomeSource {
+  id            String        @id @default(cuid())
+  userId        String
+  name          String
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+
+  @@unique([userId, name])
+}
+
+model Flip {
+  id        String   @id @default(cuid())
+  userId    String
+  setup     String
+  pnl       Decimal  @db.Decimal(18, 6)
+  tradeDate DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tradeDate])
+  @@index([userId, setup])
+}
+
+model Transaction {
+  id                    String          @id @default(cuid())
+  userId                String
+  type                  TransactionType
+  amount                Decimal         @db.Decimal(18, 6)
+  currency              Currency
+  convertedAmount       Decimal?        @db.Decimal(18, 6)
+  convertedCurrency     Currency?
+  exchangeRate          Decimal?        @db.Decimal(18, 6)
+  sourceAccountId       String?
+  destinationAccountId  String?
+  categoryId            String?
+  incomeSourceId        String?
+  note                  String?
+  transactionDate       DateTime
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  archivedAt            DateTime?
+  metadata              Json?
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceAccount         Account?        @relation("SourceAccount", fields: [sourceAccountId], references: [id])
+  destinationAccount    Account?        @relation("DestinationAccount", fields: [destinationAccountId], references: [id])
+  category              Category?       @relation(fields: [categoryId], references: [id])
+  incomeSource          IncomeSource?   @relation(fields: [incomeSourceId], references: [id])
+  steamResaleWithdrawal SteamResaleWithdrawal? @relation("SteamResaleWithdrawalTransaction")
+  steamArbitrageRound   SteamArbitrageRound?   @relation("SteamArbitrageRoundTransaction")
+  steamExpenseAllocation SteamExpenseAllocation? @relation("SteamExpenseAllocationTransaction")
+
+  @@index([userId, type])
+  @@index([userId, transactionDate])
+  @@index([userId, archivedAt])
+}
+
+model FrozenFund {
+  id          String            @id @default(cuid())
+  userId      String
+  accountId   String
+  amount      Decimal           @db.Decimal(18, 6)
+  currency    Currency
+  frozenDate  DateTime
+  note        String?
+  status      FrozenFundStatus  @default(FROZEN)
+  createdAt   DateTime          @default(now())
+  resolvedAt  DateTime?
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account           @relation(fields: [accountId], references: [id])
+
+  @@index([userId, status])
+}
+
+model ExpectedMoney {
+  id            String               @id @default(cuid())
+  userId        String
+  title         String               @default("Заморожені бабки")
+  amount        Decimal              @db.Decimal(18, 6)
+  currency      Currency
+  status        ExpectedMoneyStatus  @default(EXPECTED)
+  note          String?
+  expectedDate  DateTime?
+  createdAt     DateTime             @default(now())
+  resolvedAt    DateTime?
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model ExpectedStatusDefinition {
+  id        String              @id @default(cuid())
+  userId    String
+  status    ExpectedMoneyStatus
+  label     String
+  sortOrder Int                 @default(0)
+  isActive  Boolean             @default(true)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, status])
+}
+
+model BalanceHistory {
+  id              String   @id @default(cuid())
+  userId          String
+  accountId       String
+  previousBalance Decimal  @db.Decimal(18, 6)
+  newBalance      Decimal  @db.Decimal(18, 6)
+  difference      Decimal  @db.Decimal(18, 6)
+  note            String?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         Account  @relation(fields: [accountId], references: [id])
+
+  @@index([userId, accountId])
+}
+
+model Settings {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  baseDisplayCurrency   Currency  @default(USDT)
+  p2pSourceAccountId    String?
+  p2pDestinationAccountId String?
+  expenseDefaultSourceId String?
+  cashExchangePlace     String    @default("Cashalot")
+  rateMode              RateMode  @default(P2P_AVERAGE)
+  manualUahUsdtRate     Decimal?  @db.Decimal(18, 6)
+  greenMax              Decimal   @default(20000) @db.Decimal(18, 6)
+  yellowMax             Decimal   @default(40000) @db.Decimal(18, 6)
+  hideAmounts           Boolean   @default(false)
+  theme                 String    @default("system")
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      String
+  oldData     Json?
+  newData     Json?
+  userId      String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entityType, entityId])
+}
+
+model RecurringTransaction {
+  id              String              @id @default(cuid())
+  userId          String
+  name            String
+  amount          Decimal             @db.Decimal(18, 6)
+  currency        Currency
+  categoryId      String
+  sourceAccountId String
+  frequency       RecurringFrequency
+  nextRunAt       DateTime
+  isActive        Boolean             @default(true)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category            @relation(fields: [categoryId], references: [id])
+  sourceAccount   Account             @relation(fields: [sourceAccountId], references: [id])
+
+  @@index([userId, isActive])
+}
+
+model SteamResaleAccount {
+  id                     String                       @id @default(cuid())
+  userId                 String
+  name                   String
+  note                   String?
+  currentSoftwareBalance Decimal                      @default(0) @db.Decimal(18, 6)
+  currency               Currency                     @default(USDT)
+  isActive               Boolean                      @default(true)
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  archivedAt             DateTime?
+  user                   User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots              SteamResaleBalanceSnapshot[]
+  investments            SteamResaleInvestment[]
+  withdrawals            SteamResaleWithdrawal[]
+
+  @@index([userId, isActive])
+}
+
+model SteamResaleBalanceSnapshot {
+  id              String             @id @default(cuid())
+  userId          String
+  resaleAccountId String
+  balance         Decimal            @db.Decimal(18, 6)
+  snapshotDate    DateTime
+  note            String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resaleAccount   SteamResaleAccount @relation(fields: [resaleAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([resaleAccountId, snapshotDate])
+  @@index([userId, snapshotDate])
+}
+
+model SteamResaleInvestment {
+  id                  String                      @id @default(cuid())
+  userId              String
+  resaleAccountId     String
+  sourceAccountId     String
+  externalAmount      Decimal                     @db.Decimal(18, 6)
+  receivedSteamAmount Decimal                     @db.Decimal(18, 6)
+  startedAt           DateTime
+  completedAt         DateTime?
+  note                String?
+  status              SteamResaleInvestmentStatus @default(ACTIVE)
+  archivedAt          DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  user                User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resaleAccount       SteamResaleAccount          @relation(fields: [resaleAccountId], references: [id])
+  sourceAccount       Account                     @relation("SteamResaleInvestmentSourceAccount", fields: [sourceAccountId], references: [id])
+
+  @@index([userId, status])
+  @@index([sourceAccountId])
+}
+
+model SteamResaleWithdrawal {
+  id                  String             @id @default(cuid())
+  userId              String
+  resaleAccountId     String
+  destinationAccountId String
+  transactionId        String?            @unique
+  softwareAmountSpent Decimal            @db.Decimal(18, 6)
+  amountReceived      Decimal            @db.Decimal(18, 6)
+  currency            Currency           @default(USDT)
+  withdrawalDate      DateTime
+  note                String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  archivedAt          DateTime?
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resaleAccount       SteamResaleAccount @relation(fields: [resaleAccountId], references: [id])
+  destinationAccount  Account            @relation("SteamResaleWithdrawalDestinationAccount", fields: [destinationAccountId], references: [id])
+  transaction         Transaction?       @relation("SteamResaleWithdrawalTransaction", fields: [transactionId], references: [id])
+
+  @@index([userId, withdrawalDate])
+  @@index([destinationAccountId])
+}
+
+model SteamArbitrageScheme {
+  id         String                @id @default(cuid())
+  userId     String
+  name       String
+  isActive   Boolean               @default(true)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  archivedAt DateTime?
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rounds     SteamArbitrageRound[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+}
+
+model SteamArbitrageRound {
+  id                   String                    @id @default(cuid())
+  userId               String
+  schemeId             String
+  siteName             String?
+  sourceAccountId      String
+  destinationAccountId String?
+  transactionId         String?                   @unique
+  investedAmount       Decimal                   @db.Decimal(18, 6)
+  finalAmountReceived  Decimal?                  @db.Decimal(18, 6)
+  remainingAmount      Decimal                   @default(0) @db.Decimal(18, 6)
+  startedAt            DateTime
+  completedAt          DateTime?
+  status               SteamArbitrageRoundStatus @default(ACTIVE)
+  note                 String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  archivedAt           DateTime?
+  user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheme               SteamArbitrageScheme      @relation(fields: [schemeId], references: [id])
+  sourceAccount        Account                   @relation("SteamArbitrageRoundSourceAccount", fields: [sourceAccountId], references: [id])
+  destinationAccount   Account?                  @relation("SteamArbitrageRoundDestinationAccount", fields: [destinationAccountId], references: [id])
+  transaction          Transaction?              @relation("SteamArbitrageRoundTransaction", fields: [transactionId], references: [id])
+  residuals            SteamArbitrageResidual[]
+  expenseAllocations   SteamExpenseAllocation[]
+
+  @@index([userId, status])
+  @@index([schemeId])
+}
+
+model SteamArbitrageResidual {
+  id                   String                       @id @default(cuid())
+  userId               String
+  roundId              String
+  amount               Decimal                      @db.Decimal(18, 6)
+  status               SteamArbitrageResidualStatus @default(OPEN)
+  destinationAccountId String?
+  resolvedAmount       Decimal?                     @db.Decimal(18, 6)
+  resolvedAt           DateTime?
+  note                 String?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  user                 User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  round                SteamArbitrageRound          @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  destinationAccount   Account?                     @relation("SteamArbitrageResidualDestinationAccount", fields: [destinationAccountId], references: [id])
+
+  @@index([userId, status])
+  @@index([roundId])
+}
+
+model SteamExpenseAllocation {
+  id                   String                @id @default(cuid())
+  userId               String
+  expenseTransactionId String                @unique
+  resalePercent        Decimal               @default(0) @db.Decimal(5, 2)
+  arbitragePercent     Decimal               @default(0) @db.Decimal(5, 2)
+  arbitrageRoundId     String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenseTransaction   Transaction           @relation("SteamExpenseAllocationTransaction", fields: [expenseTransactionId], references: [id], onDelete: Cascade)
+  arbitrageRound       SteamArbitrageRound?  @relation(fields: [arbitrageRoundId], references: [id])
+
+  @@index([userId])
+  @@index([arbitrageRoundId])
+}

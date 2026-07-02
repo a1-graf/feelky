@@ -1,0 +1,56 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { DashboardStatistics } from "@/components/dashboard-statistics";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageTitle } from "@/components/page-title";
+import { Card } from "@/components/ui/card";
+import { getDashboard } from "@/lib/dashboard";
+import { formatMoney } from "@/lib/money";
+import { requireUserId } from "@/lib/session";
+
+const sections = [
+  { href: "/income", label: "Доходи", description: "Всі надходження і джерела" },
+  { href: "/expenses", label: "Витрати", description: "Категорії, суми і історія трат" },
+  { href: "/withdrawals", label: "Виводи", description: "P2P та готівкові виводи" },
+  { href: "/crypto", label: "Мейн гаманець", description: "Основні USDT в одному місці" },
+  { href: "/expected", label: "Заморожені бабки", description: "Де лежать гроші і що треба забрати" },
+  { href: "/settings", label: "Налаштування", description: "Курс, тема, довідники і backup" }
+];
+
+export default async function StatisticsPage() {
+  const userId = await requireUserId();
+  const data = await getDashboard(userId);
+  const hidden = Boolean(data.settings?.hideAmounts);
+
+  return (
+    <AppShell>
+      <PageTitle title="Статистика" subtitle={`Деталі банку, витрат і доходів · курс ${data.rate} UAH/USDT`} />
+
+      <Card className="p-5 sm:p-6">
+        <div className="text-sm font-medium text-[hsl(var(--card-muted-foreground))]">Доступний банк</div>
+        <div className="mt-2 break-words text-3xl font-semibold leading-none text-success sm:text-4xl">
+          {formatMoney(data.totals.availableBankUsdt, "USDT", hidden)}
+        </div>
+        <div className="mt-3 text-sm text-[hsl(var(--card-muted-foreground))]">
+          Потенційний банк: <span className="font-semibold text-[hsl(var(--card-foreground))]">{formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)}</span>
+        </div>
+      </Card>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {sections.map((section) => (
+          <Link key={section.href} href={section.href} className="group rounded-lg border border-border bg-card p-4 text-[hsl(var(--card-foreground))] shadow-soft hover:bg-muted">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold">{section.label}</div>
+                <div className="mt-1 text-sm text-[hsl(var(--card-muted-foreground))]">{section.description}</div>
+              </div>
+              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--card-muted-foreground))] transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <DashboardStatistics data={data} />
+    </AppShell>
+  );
+}

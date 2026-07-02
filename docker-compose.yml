@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: feelky
+      POSTGRES_USER: feelky
+      POSTGRES_PASSWORD: feelky
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feelky -d feelky"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: feelky
+    volumes:
+      - ./backups:/backups
+    command: >
+      sh -c "while true; do
+      pg_dump -h db -U feelky -d feelky > /backups/feelky-$$(date +%Y%m%d-%H%M%S).sql;
+      sleep 86400;
+      done"
+
+volumes:
+  postgres-data:

@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 24 13% 13%;
+  --foreground: 36 28% 94%;
+  --muted: 229 12% 24%;
+  --muted-foreground: 34 20% 76%;
+  --card: 38 34% 92%;
+  --card-foreground: 226 18% 16%;
+  --card-muted-foreground: 226 10% 42%;
+  --border: 34 25% 76%;
+  --primary: 16 72% 64%;
+  --primary-foreground: 228 18% 13%;
+  --danger: 348 62% 58%;
+  --success: 207 48% 38%;
+  --warning: 33 82% 54%;
+}
+
+.dark {
+  --background: 154 22% 9%;
+  --foreground: 144 24% 92%;
+  --muted: 154 18% 16%;
+  --muted-foreground: 144 12% 70%;
+  --card: 154 20% 12%;
+  --border: 154 16% 23%;
+  --primary: 150 45% 58%;
+  --primary-foreground: 154 24% 9%;
+  --danger: 352 62% 64%;
+  --success: 150 45% 58%;
+  --warning: 38 78% 64%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.dark body {
+  background: hsl(var(--background));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid hsl(34 20% 72%);
+  border-radius: 8px;
+  background: hsl(38 36% 97%);
+  color: hsl(var(--card-foreground));
+  padding: 0.72rem 0.82rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: hsl(var(--muted-foreground));
+}
+
+[class*="bg-card"] {
+  color: hsl(var(--card-foreground));
+}
+
+[class*="bg-card"] .text-muted-foreground,
+[class*="bg-card"] label {
+  color: hsl(var(--card-muted-foreground));
+}
+
+[class*="bg-card"] .text-foreground {
+  color: hsl(var(--card-foreground));
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+}
