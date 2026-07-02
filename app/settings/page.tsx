@@ -11,8 +11,8 @@ export default async function SettingsPage() {
   const userId = await requireUserId();
   const [settings, categories, incomeSources, accounts] = await Promise.all([
     prisma.settings.findUnique({ where: { userId } }),
-    prisma.category.findMany({ where: { userId }, orderBy: { sortOrder: "asc" } }),
-    prisma.incomeSource.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+    prisma.category.findMany({ where: { userId, isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.incomeSource.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } }),
     prisma.account.findMany({ where: { userId }, orderBy: { createdAt: "asc" } })
   ]);
   return (
