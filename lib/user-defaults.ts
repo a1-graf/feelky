@@ -87,8 +87,10 @@ export async function ensureUserDefaults(userId: string) {
       p2pDestinationAccountId: card.id,
       expenseDefaultSourceId: card.id,
       cashExchangePlace: "Cashalot",
+      monthlyExpenseLimit: "40000",
       greenMax: "20000",
-      yellowMax: "40000"
+      yellowMax: "40000",
+      theme: "light"
     }
   });
 }

@@ -19,17 +19,19 @@
 }
 
 .dark {
-  --background: 154 22% 9%;
-  --foreground: 144 24% 92%;
-  --muted: 154 18% 16%;
-  --muted-foreground: 144 12% 70%;
-  --card: 154 20% 12%;
-  --border: 154 16% 23%;
-  --primary: 150 45% 58%;
-  --primary-foreground: 154 24% 9%;
-  --danger: 352 62% 64%;
-  --success: 150 45% 58%;
-  --warning: 38 78% 64%;
+  --background: 220 18% 7%;
+  --foreground: 38 28% 92%;
+  --muted: 222 14% 16%;
+  --muted-foreground: 38 12% 70%;
+  --card: 222 16% 12%;
+  --card-foreground: 38 28% 92%;
+  --card-muted-foreground: 38 12% 67%;
+  --border: 222 12% 24%;
+  --primary: 160 58% 46%;
+  --primary-foreground: 220 18% 7%;
+  --danger: 350 72% 62%;
+  --success: 152 48% 54%;
+  --warning: 35 88% 58%;
 }
 
 * {
@@ -73,6 +75,14 @@ textarea {
   background: hsl(38 36% 97%);
   color: hsl(var(--card-foreground));
   padding: 0.72rem 0.82rem;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  border-color: hsl(var(--border));
+  background: hsl(222 16% 9%);
+  color: hsl(var(--card-foreground));
 }
 
 label {

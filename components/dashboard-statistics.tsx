@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/money";
 
 type DashboardStatsData = {
   rate: string;
-  settings: { hideAmounts: boolean } | null;
+  settings: { hideAmounts: boolean; monthlyExpenseLimit?: { toString(): string } | string | null } | null;
   expenseCategories: { name: string; value: string }[];
   incomeSourcesUah: { name: string; value: string }[];
   incomeSourcesUsdt: { name: string; value: string }[];
@@ -29,15 +29,33 @@ type DashboardStatsData = {
   };
 };
 
+function mixColor(from: [number, number, number], to: [number, number, number], progress: number) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const [r, g, b] = from.map((value, index) => Math.round(value + (to[index] - value) * clamped));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function expenseLimitColor(expense: string, limit?: { toString(): string } | string | null) {
+  const spent = Number(expense);
+  const max = Number(limit?.toString() || 0);
+  if (!Number.isFinite(spent) || !Number.isFinite(max) || max <= 0) return undefined;
+  const ratio = spent / max;
+  const green: [number, number, number] = [45, 154, 103];
+  const gray: [number, number, number] = [116, 118, 126];
+  const red: [number, number, number] = [224, 77, 101];
+  return ratio <= 1 ? mixColor(green, gray, ratio) : mixColor(gray, red, Math.min(1, ratio - 1));
+}
+
 export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const hidden = Boolean(data.settings?.hideAmounts);
+  const monthExpenseColor = expenseLimitColor(data.totals.monthExpenseUah, data.settings?.monthlyExpenseLimit);
   const metricItems = [
     { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden) },
     { label: "Заморожено", value: formatMoney(data.totals.frozenCrypto, "USDT", hidden), tone: "warn" as const },
     { label: "Картки UAH", value: formatMoney(data.totals.cardUah, "UAH", hidden) },
     { label: "Cash UAH", value: formatMoney(data.totals.cashUah, "UAH", hidden) },
     { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden) },
-    { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), tone: "danger" as const },
+    { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
     { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), tone: "warn" as const },
     { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), tone: "ok" as const }
   ];

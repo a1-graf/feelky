@@ -23,8 +23,7 @@ export default async function SettingsPage() {
           baseDisplayCurrency: settings.baseDisplayCurrency,
           rateMode: settings.rateMode,
           manualUahUsdtRate: settings.manualUahUsdtRate?.toString() || "",
-          greenMax: settings.greenMax.toString(),
-          yellowMax: settings.yellowMax.toString(),
+          monthlyExpenseLimit: settings.monthlyExpenseLimit.toString(),
           hideAmounts: settings.hideAmounts,
           theme: settings.theme
         } : null} />

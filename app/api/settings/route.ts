@@ -23,10 +23,11 @@ export async function PATCH(request: Request) {
       baseDisplayCurrency: body.baseDisplayCurrency,
       rateMode: body.rateMode,
       manualUahUsdtRate: body.manualUahUsdtRate || null,
-      greenMax: body.greenMax,
-      yellowMax: body.yellowMax,
+      monthlyExpenseLimit: body.monthlyExpenseLimit || "40000",
+      greenMax: body.monthlyExpenseLimit || "40000",
+      yellowMax: body.monthlyExpenseLimit || "40000",
       hideAmounts: body.hideAmounts,
-      theme: body.theme
+      theme: body.theme === "dark" ? "dark" : "light"
     }
   });
   return NextResponse.json(settings);

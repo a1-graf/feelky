@@ -40,8 +40,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       }
     : null;
 
+  const themeClass = rawSettings?.theme === "dark" ? "dark" : "";
+
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[244px_1fr]">
+    <div className={`${themeClass} min-h-screen bg-background text-foreground md:grid md:grid-cols-[244px_1fr]`}>
       <aside className="hidden border-r border-border bg-card md:block">
         <div className="sticky top-0 flex h-screen flex-col p-4">
           <div className="mb-6">

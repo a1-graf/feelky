@@ -8,8 +8,7 @@ type SettingsPayload = {
   baseDisplayCurrency: string;
   rateMode: string;
   manualUahUsdtRate: string;
-  greenMax: string;
-  yellowMax: string;
+  monthlyExpenseLimit: string;
   hideAmounts: boolean;
   theme: string;
 };
@@ -48,20 +47,11 @@ export function SettingsForm({ settings }: { settings: SettingsPayload | null })
           </select>
         </label>
         <label>Ручний курс UAH/USDT<input name="manualUahUsdtRate" inputMode="decimal" defaultValue={settings?.manualUahUsdtRate || ""} /></label>
-        <div className="grid gap-2">
-          <div className="text-sm text-muted-foreground">
-            Пороги для кольорового статусу витрат: до зеленої межі показується зелений стан, до жовтої - попередження, вище - червоний.
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label>Зелена межа UAH<input name="greenMax" inputMode="decimal" defaultValue={settings?.greenMax || "20000"} /></label>
-            <label>Жовта межа UAH<input name="yellowMax" inputMode="decimal" defaultValue={settings?.yellowMax || "40000"} /></label>
-          </div>
-        </div>
+        <label>Ліміт витрат на місяць UAH<input name="monthlyExpenseLimit" inputMode="decimal" defaultValue={settings?.monthlyExpenseLimit || "40000"} /></label>
         <label>Тема
-          <select name="theme" defaultValue={settings?.theme || "system"}>
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+          <select name="theme" defaultValue={settings?.theme === "dark" ? "dark" : "light"}>
+            <option value="light">Світла</option>
+            <option value="dark">Темна</option>
           </select>
         </label>
         <label className="flex flex-row items-center gap-2 text-foreground">
