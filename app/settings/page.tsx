@@ -2,6 +2,7 @@ import { BackToStatistics } from "@/components/back-to-statistics";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "@/components/forms/settings-form";
+import { ReferenceManager } from "@/components/forms/reference-manager";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
@@ -27,6 +28,18 @@ export default async function SettingsPage() {
           hideAmounts: settings.hideAmounts,
           theme: settings.theme
         } : null} />
+        <ReferenceManager
+          title="Категорії витрат"
+          addLabel="Нова категорія"
+          kind="category"
+          items={categories.map((item) => ({ id: item.id, name: item.name, isActive: item.isActive }))}
+        />
+        <ReferenceManager
+          title="Джерела доходів"
+          addLabel="Нове джерело"
+          kind="incomeSource"
+          items={incomeSources.map((item) => ({ id: item.id, name: item.name, isActive: item.isActive }))}
+        />
         <Card>
           <div className="font-semibold">Довідники</div>
           <div className="mt-3 grid gap-3 text-sm">
