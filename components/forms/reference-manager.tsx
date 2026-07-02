@@ -23,7 +23,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
   const [message, setMessage] = useState("");
   const [newName, setNewName] = useState("");
 
-  async function request(method: "POST" | "PATCH", body: Record<string, unknown>) {
+  async function request(method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>) {
     setMessage("");
     const response = await fetch("/api/references", {
       method,
@@ -45,6 +45,12 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
 
   async function updateItem(formData: FormData) {
     const id = String(formData.get("id") || "");
+    const intent = String(formData.get("intent") || "save");
+    if (intent === "delete") {
+      if (!id) return;
+      await request("DELETE", { kind, id });
+      return;
+    }
     const name = String(formData.get("name") || "").trim();
     const isActive = formData.get("isActive") === "on";
     if (!id || !name) return;
@@ -56,7 +62,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
       <div className="mb-3 font-semibold">{title}</div>
       <div className="grid gap-2">
         {items.map((item) => (
-          <form key={item.id} action={updateItem} className="grid gap-2 rounded-lg border border-border bg-muted p-2.5 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <form key={item.id} action={updateItem} className="grid gap-2 rounded-lg border border-border bg-muted p-2.5 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
             <input type="hidden" name="id" value={item.id} />
             <label>
               Назва
@@ -66,7 +72,8 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
               <input className="h-5 w-5" type="checkbox" name="isActive" defaultChecked={item.isActive} />
               Активне
             </label>
-            <Button className="min-h-10">Зберегти</Button>
+            <Button className="min-h-10" name="intent" value="save">Зберегти</Button>
+            <Button className="min-h-10 bg-danger text-white hover:bg-danger/90" name="intent" value="delete">Видалити</Button>
           </form>
         ))}
       </div>
