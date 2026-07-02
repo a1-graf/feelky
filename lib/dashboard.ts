@@ -32,12 +32,13 @@ export async function resolveUahUsdtRate(userId: string) {
 }
 
 export async function getDashboard(userId: string) {
-  const [accounts, frozenFunds, expectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, flips] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
       where: { userId, status: { in: [ExpectedMoneyStatus.EXPECTED, ExpectedMoneyStatus.NEED_TO_COLLECT, ExpectedMoneyStatus.IN_PROGRESS] } }
     }),
+    prisma.expectedMoney.findMany({ where: { userId } }),
     prisma.settings.findUnique({ where: { userId } }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
@@ -56,6 +57,11 @@ export async function getDashboard(userId: string) {
       orderBy: { transactionDate: "desc" },
       take: 60,
       include: { incomeSource: true }
+    }),
+    prisma.transaction.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: { transactionDate: "desc" },
+      take: 240
     }),
     prisma.flip.findMany({
       where: { userId },
@@ -91,6 +97,7 @@ export async function getDashboard(userId: string) {
   }, new Decimal(0));
   const steamFrozenCapital = D(steam.totals.frozenCapital);
   const potentialBankUsdt = availableBankUsdt.plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
+  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
 
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -176,6 +183,73 @@ export async function getDashboard(userId: string) {
       usdt: value.usdt.toNumber(),
       uah: value.uah.toNumber()
     }));
+
+  const asUsdt = (amount: Decimal.Value, currency: string) => {
+    if (currency === "UAH") return D(amount).div(rate);
+    return D(amount);
+  };
+  const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
+  for (const transaction of balanceTransactions) {
+    const amount = asUsdt(transaction.amount, transaction.currency);
+    if (transaction.type === TransactionType.INCOME) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: amount });
+    } else if (transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount });
+    } else if (transaction.type === TransactionType.EXPENSE) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount.negated(), availableDelta: amount.negated() });
+    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: amount });
+    } else if (transaction.type === TransactionType.FUNDS_FROZEN) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount.negated() });
+    } else if (transaction.type === TransactionType.FUNDS_RELEASED) {
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount });
+    }
+  }
+  for (const item of allExpectedMoney) {
+    balanceEvents.push({ date: item.createdAt, fullDelta: asUsdt(item.amount, item.currency), availableDelta: new Decimal(0) });
+    if ((item.status === ExpectedMoneyStatus.LOST || item.status === ExpectedMoneyStatus.SCAMMED) && item.resolvedAt) {
+      balanceEvents.push({ date: item.resolvedAt, fullDelta: asUsdt(item.amount, item.currency).negated(), availableDelta: new Decimal(0) });
+    }
+  }
+  const totalFullDelta = balanceEvents.reduce((sum, event) => sum.plus(event.fullDelta), new Decimal(0));
+  const totalAvailableDelta = balanceEvents.reduce((sum, event) => sum.plus(event.availableDelta), new Decimal(0));
+  let runningFull = potentialBankUsdt.minus(totalFullDelta);
+  let runningAvailable = availableWithTurnoverUsdt.minus(totalAvailableDelta);
+  const balanceTimelineMap = new Map<string, { label: string; fullDelta: Decimal; availableDelta: Decimal }>();
+  for (const event of balanceEvents) {
+    const key = event.date.toISOString().slice(0, 10);
+    const point =
+      balanceTimelineMap.get(key) ||
+      {
+        label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(event.date),
+        fullDelta: new Decimal(0),
+        availableDelta: new Decimal(0)
+      };
+    point.fullDelta = point.fullDelta.plus(event.fullDelta);
+    point.availableDelta = point.availableDelta.plus(event.availableDelta);
+    balanceTimelineMap.set(key, point);
+  }
+  const balanceTimeline = Array.from(balanceTimelineMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, event]) => {
+      runningFull = runningFull.plus(event.fullDelta);
+      runningAvailable = runningAvailable.plus(event.availableDelta);
+      return {
+        date,
+        label: event.label,
+        full: runningFull.toNumber(),
+        available: runningAvailable.toNumber()
+      };
+    });
+  if (!balanceTimeline.length) {
+    const today = new Date();
+    balanceTimeline.push({
+      date: today.toISOString().slice(0, 10),
+      label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(today),
+      full: potentialBankUsdt.toNumber(),
+      available: availableWithTurnoverUsdt.toNumber()
+    });
+  }
   return {
     settings,
     rate: rate.toString(),
@@ -188,6 +262,7 @@ export async function getDashboard(userId: string) {
     incomeSourcesUah,
     incomeSourcesUsdt,
     incomeTimeline,
+    balanceTimeline,
     flips: {
       totalPnl: flipTotalPnl.toString(),
       monthPnl: flipMonthPnl.toString(),

@@ -1,3 +1,4 @@
+import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
 import { IncomeLineChart } from "@/components/income-line-chart";
@@ -13,6 +14,7 @@ type DashboardStatsData = {
   incomeSourcesUah: { name: string; value: string }[];
   incomeSourcesUsdt: { name: string; value: string }[];
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
+  balanceTimeline: { date: string; label: string; full: number; available: number }[];
   recentTransactions: Parameters<typeof TransactionList>[0]["items"];
   steam: {
     frozenCapital: string;
@@ -64,6 +66,12 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
     <section className="mt-5">
       <div className="mb-3 text-sm font-semibold text-muted-foreground">Статистика</div>
       <MetricGrid items={metricItems} />
+
+      <Card className="mt-5">
+        <div className="mb-1 font-semibold">Ріст балансу</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Повний банк і доступний банк з урахуванням Steam в обороті</div>
+        <BalanceGrowthChart data={data.balanceTimeline} hidden={hidden} />
+      </Card>
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Куди йдуть витрати</div>
