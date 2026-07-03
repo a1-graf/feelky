@@ -43,8 +43,6 @@ export default async function SettingsPage() {
         <Card>
           <div className="font-semibold">Довідники</div>
           <div className="mt-3 grid gap-3 text-sm">
-            <div><b>Категорії:</b> {categories.map((item) => item.name).join(", ")}</div>
-            <div><b>Джерела доходів:</b> {incomeSources.map((item) => item.name).join(", ")}</div>
             <div><b>Рахунки:</b> {accounts.map((item) => `${item.name} ${item.currency}`).join(", ")}</div>
             <a className="inline-flex min-h-11 items-center rounded-lg bg-muted px-4" href="/api/backup">Експорт JSON</a>
           </div>

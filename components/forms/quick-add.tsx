@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -45,8 +45,10 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const [action, setAction] = useState("withdrawal");
   const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
   const [incomeCurrency, setIncomeCurrency] = useState("UAH");
+  const [categoryOptions, setCategoryOptions] = useState(categories);
+  const [incomeSourceOptions, setIncomeSourceOptions] = useState(incomeSources);
   const [selectedExpenseSourceId, setSelectedExpenseSourceId] = useState(settings?.expenseDefaultSourceId || "");
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || "");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(categoryOptions[0]?.id || "");
   const [steamExpenseMode, setSteamExpenseMode] = useState<"split" | "resale" | "arbitrage">("split");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -56,9 +58,9 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const defaultCard = settings?.p2pDestinationAccountId || uahAccounts[0]?.id || "";
   const defaultExpense = settings?.expenseDefaultSourceId || defaultCard;
   const defaultSteamExpense = usdtAccounts.find((account) => account.name === "Мейн гаманець")?.id || usdtAccounts[0]?.id || "";
-  const defaultIncomeSource = incomeSources[0]?.id || "";
-  const defaultCategory = categories[0]?.id || "";
-  const steamCategoryId = categories.find((category) => category.name.toLowerCase() === "steam")?.id || "";
+  const defaultIncomeSource = incomeSourceOptions[0]?.id || "";
+  const defaultCategory = categoryOptions[0]?.id || "";
+  const steamCategoryId = categoryOptions.find((category) => category.name.toLowerCase() === "steam")?.id || "";
   const isSteamExpense = action === "expense" && selectedCategoryId === steamCategoryId;
   const expenseSourceAccounts = accounts.filter((account) => account.currency === "UAH" || account.currency === "USDT");
   const selectedExpenseSource =
@@ -71,6 +73,30 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const cashTarget = useMemo(() => {
     return (currency: string) => cashAccounts.find((account) => account.currency === currency)?.id || "";
   }, [cashAccounts]);
+
+  useEffect(() => {
+    setCategoryOptions(categories);
+  }, [categories]);
+
+  useEffect(() => {
+    setIncomeSourceOptions(incomeSources);
+  }, [incomeSources]);
+
+  useEffect(() => {
+    function handleReferencesChanged(event: Event) {
+      const detail = (event as CustomEvent<{ kind: "category" | "incomeSource"; items: RefOption[] }>).detail;
+      if (!detail) return;
+      if (detail.kind === "category") {
+        setCategoryOptions(detail.items);
+        setSelectedCategoryId((current) => detail.items.some((item) => item.id === current) ? current : detail.items[0]?.id || "");
+      }
+      if (detail.kind === "incomeSource") {
+        setIncomeSourceOptions(detail.items);
+      }
+    }
+    window.addEventListener("feelky:references-changed", handleReferencesChanged);
+    return () => window.removeEventListener("feelky:references-changed", handleReferencesChanged);
+  }, []);
 
   async function submit(formData: FormData) {
     setLoading(true);
@@ -168,7 +194,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                     </label>
                   </div>
                   <DateField />
-                  <Select name="incomeSourceId" label="Джерело" options={incomeSources} defaultValue={defaultIncomeSource} />
+                  <Select name="incomeSourceId" label="Джерело" options={incomeSourceOptions} defaultValue={defaultIncomeSource} />
                   <Select key={incomeCurrency} name="destinationAccountId" label="Куди зарахувати" options={incomeDestinationAccounts} defaultValue={defaultIncomeDestination} />
                 </>
               )}
@@ -196,7 +222,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                   <label>
                     Категорія
                     <select name="categoryId" value={selectedCategoryId || defaultCategory} onChange={(event) => setSelectedCategoryId(event.target.value)} required>
-                      {categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                      {categoryOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
                     </select>
                   </label>
                   {isSteamExpense ? (
