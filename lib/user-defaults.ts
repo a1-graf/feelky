@@ -34,6 +34,10 @@ async function ensureAccount(userId: string, input: { idSuffix: string; name: st
 
 export async function ensureUserDefaults(userId: string) {
   const existingAccounts = await prisma.account.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
+  const [existingCategoryCount, existingIncomeSourceCount] = await Promise.all([
+    prisma.category.count({ where: { userId } }),
+    prisma.incomeSource.count({ where: { userId } })
+  ]);
   const oldBinance = existingAccounts.find((account) => account.name.toLowerCase() === "binance" && account.currency === "USDT");
   const mainWallet =
     oldBinance
@@ -50,17 +54,12 @@ export async function ensureUserDefaults(userId: string) {
   await ensureAccount(userId, { idSuffix: "cash-usd", name: "Cash USD", type: AccountType.CASH, currency: "USD", provider: "Cash" });
 
   await Promise.all([
-    ...categories.map((name, sortOrder) =>
-      prisma.category.upsert({
-        where: { userId_name: { userId, name } },
-        update: { sortOrder },
-        create: { userId, name, sortOrder }
-      })
-    ),
-    ...incomeSources.map(async (name) => {
-      const existing = await prisma.incomeSource.findUnique({ where: { userId_name: { userId, name } } });
-      return existing || prisma.incomeSource.create({ data: { userId, name } });
-    }),
+    ...(existingCategoryCount === 0
+      ? categories.map((name, sortOrder) => prisma.category.create({ data: { userId, name, sortOrder } }))
+      : []),
+    ...(existingIncomeSourceCount === 0
+      ? incomeSources.map((name) => prisma.incomeSource.create({ data: { userId, name } }))
+      : []),
     ...expectedLabels.map(([status, label], sortOrder) =>
       prisma.expectedStatusDefinition.upsert({
         where: { userId_status: { userId, status } },
