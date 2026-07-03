@@ -1,6 +1,7 @@
 ﻿import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, RateMode, TransactionType } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { syncUnpostedFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
@@ -33,6 +34,7 @@ export async function resolveUahUsdtRate(userId: string) {
 }
 
 export async function getDashboard(userId: string) {
+  await syncUnpostedFlips(userId);
   const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
