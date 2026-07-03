@@ -53,17 +53,14 @@ export async function ensureUserDefaults(userId: string) {
     ...categories.map((name, sortOrder) =>
       prisma.category.upsert({
         where: { userId_name: { userId, name } },
-        update: { sortOrder, isActive: true },
+        update: { sortOrder },
         create: { userId, name, sortOrder }
       })
     ),
-    ...incomeSources.map((name) =>
-      prisma.incomeSource.upsert({
-        where: { userId_name: { userId, name } },
-        update: { isActive: true },
-        create: { userId, name }
-      })
-    ),
+    ...incomeSources.map(async (name) => {
+      const existing = await prisma.incomeSource.findUnique({ where: { userId_name: { userId, name } } });
+      return existing || prisma.incomeSource.create({ data: { userId, name } });
+    }),
     ...expectedLabels.map(([status, label], sortOrder) =>
       prisma.expectedStatusDefinition.upsert({
         where: { userId_status: { userId, status } },
