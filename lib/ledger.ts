@@ -41,7 +41,7 @@ export class LedgerService {
     amount: Decimal.Value;
     currency: Currency;
     transactionDate: Date;
-    incomeSourceId: string;
+    incomeSourceId?: string | null;
     destinationAccountId: string;
     note?: string | null;
     type?: TransactionType;
@@ -61,7 +61,7 @@ export class LedgerService {
           amount: amount.toString(),
           currency: input.currency,
           destinationAccountId: input.destinationAccountId,
-          incomeSourceId: input.incomeSourceId,
+          incomeSourceId: input.isOpeningBalance ? null : input.incomeSourceId,
           note: input.note,
           transactionDate: input.isOpeningBalance ? OPENING_BALANCE_DATE : input.transactionDate,
           metadata: input.isOpeningBalance ? { isOpeningBalance: true } : undefined

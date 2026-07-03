@@ -5,6 +5,7 @@ describe("transaction utilities", () => {
   it("recognizes zero dates as opening balance input", () => {
     expect(isOpeningBalanceDateInput("00.00.0000")).toBe(true);
     expect(isOpeningBalanceDateInput("0000-00-00")).toBe(true);
+    expect(isOpeningBalanceDateInput("00 00 0000")).toBe(true);
   });
 
   it("parses Ukrainian date input", () => {

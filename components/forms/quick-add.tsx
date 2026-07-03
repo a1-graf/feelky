@@ -44,7 +44,8 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState("withdrawal");
   const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
-  const [incomeCurrency, setIncomeCurrency] = useState("UAH");
+  const [incomeCurrency, setIncomeCurrency] = useState("USDT");
+  const [incomeDate, setIncomeDate] = useState(today());
   const [categoryOptions, setCategoryOptions] = useState(categories);
   const [incomeSourceOptions, setIncomeSourceOptions] = useState(incomeSources);
   const [selectedExpenseSourceId, setSelectedExpenseSourceId] = useState(settings?.expenseDefaultSourceId || "");
@@ -70,6 +71,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const expenseCurrency = isSteamExpense ? "USDT" : selectedExpenseSource?.currency === "USDT" ? "USDT" : "UAH";
   const incomeDestinationAccounts = accounts.filter((account) => account.currency === incomeCurrency);
   const defaultIncomeDestination = incomeDestinationAccounts[0]?.id || "";
+  const isOpeningBalanceIncome = incomeDate.replace(/\D/g, "") === "00000000";
   const cashTarget = useMemo(() => {
     return (currency: string) => cashAccounts.find((account) => account.currency === currency)?.id || "";
   }, [cashAccounts]);
@@ -193,8 +195,14 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                       </select>
                     </label>
                   </div>
-                  <IncomeDateField />
-                  <Select name="incomeSourceId" label="Джерело" options={incomeSourceOptions} defaultValue={defaultIncomeSource} />
+                  <IncomeDateField value={incomeDate} onChange={setIncomeDate} />
+                  {isOpeningBalanceIncome ? (
+                    <div className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
+                      Початковий баланс: гроші просто додаються на рахунок, без джерела доходу і без статистики доходів.
+                    </div>
+                  ) : (
+                    <Select name="incomeSourceId" label="Джерело" options={incomeSourceOptions} defaultValue={defaultIncomeSource} />
+                  )}
                   <Select key={incomeCurrency} name="destinationAccountId" label="Куди зарахувати" options={incomeDestinationAccounts} defaultValue={defaultIncomeDestination} />
                 </>
               )}
@@ -273,11 +281,11 @@ function DateField({ name = "transactionDate" }: { name?: string }) {
   return <label>Дата<input name={name} type="date" defaultValue={today()} /></label>;
 }
 
-function IncomeDateField() {
+function IncomeDateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <label>
       Дата
-      <input name="transactionDate" inputMode="numeric" defaultValue={today()} placeholder="00.00.0000 = початковий баланс" />
+      <input name="transactionDate" inputMode="numeric" value={value} onChange={(event) => onChange(event.target.value)} placeholder="00.00.0000 = початковий баланс" />
     </label>
   );
 }

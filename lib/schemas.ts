@@ -18,11 +18,14 @@ export const incomeSchema = z.object({
   amount: z.coerce.number().positive(),
   currency: z.enum(["UAH", "USDT"]),
   transactionDate: z.union([z.string(), z.date()]).optional().nullable(),
-  incomeSourceId: z.string().min(1),
+  incomeSourceId: z.string().optional().nullable(),
   destinationAccountId: z.string().min(1),
   note: z.string().optional().nullable()
 }).transform((input, context) => {
   const isOpeningBalance = isOpeningBalanceDateInput(input.transactionDate);
+  if (!isOpeningBalance && !input.incomeSourceId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Вкажи джерело доходу" });
+  }
   const transactionDate = isOpeningBalance ? OPENING_BALANCE_DATE : parseDateInput(input.transactionDate);
   if (Number.isNaN(transactionDate.getTime())) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Некоректна дата" });

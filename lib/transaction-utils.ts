@@ -4,8 +4,7 @@ export const OPENING_BALANCE_DATE = new Date("1970-01-01T00:00:00.000Z");
 
 export function isOpeningBalanceDateInput(value: unknown) {
   if (typeof value !== "string") return false;
-  const normalized = value.trim().replace(/\//g, ".").replace(/-/g, ".");
-  return normalized === "00.00.0000" || normalized === "0000.00.00";
+  return value.replace(/\D/g, "") === "00000000";
 }
 
 export function parseDateInput(value: unknown, fallback = new Date()) {
