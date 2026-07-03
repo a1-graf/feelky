@@ -265,7 +265,6 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                   <label>Назва / де лежить<input name="title" required placeholder="Наприклад: Bybit, P2P, борг, сайт" /></label>
                   <MoneyFields currencies={["UAH", "USDT", "USD"]} />
                   <label>Статус<select name="status" defaultValue="EXPECTED"><option value="EXPECTED">Заморожено</option><option value="NEED_TO_COLLECT">Потрібно забрати</option><option value="IN_PROGRESS">В процесі</option></select></label>
-                  <label>Контрольна дата<input name="expectedDate" type="date" /></label>
                 </>
               )}
               <details className="rounded-lg border border-border p-2.5">

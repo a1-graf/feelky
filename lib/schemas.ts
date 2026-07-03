@@ -64,7 +64,7 @@ export const expectedMoneySchema = z.object({
   currency: currencySchema,
   status: z.enum(["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS", "RECEIVED", "LOST", "SCAMMED"]).default("EXPECTED"),
   note: z.string().optional().nullable(),
-  expectedDate: z.coerce.date().optional().nullable()
+  expectedDate: z.preprocess((value) => value === "" ? null : value, z.coerce.date().optional().nullable())
 });
 
 export const freezeFundsSchema = z.object({
