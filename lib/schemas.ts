@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isOpeningBalanceDateInput, OPENING_BALANCE_DATE, parseDateInput } from "@/lib/transaction-utils";
 
 export const currencySchema = z.enum(["UAH", "USDT", "USD"]);
 export const dateString = z.coerce.date();
@@ -16,10 +17,17 @@ export const accountSchema = z.object({
 export const incomeSchema = z.object({
   amount: z.coerce.number().positive(),
   currency: z.enum(["UAH", "USDT"]),
-  transactionDate: dateString.default(() => new Date()),
+  transactionDate: z.union([z.string(), z.date()]).optional().nullable(),
   incomeSourceId: z.string().min(1),
   destinationAccountId: z.string().min(1),
   note: z.string().optional().nullable()
+}).transform((input, context) => {
+  const isOpeningBalance = isOpeningBalanceDateInput(input.transactionDate);
+  const transactionDate = isOpeningBalance ? OPENING_BALANCE_DATE : parseDateInput(input.transactionDate);
+  if (Number.isNaN(transactionDate.getTime())) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Некоректна дата" });
+  }
+  return { ...input, transactionDate, isOpeningBalance };
 });
 
 export const expenseSchema = z.object({

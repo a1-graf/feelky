@@ -1,6 +1,7 @@
 import { TransactionType } from "@prisma/client";
 import { ArchiveAction } from "@/components/archive-action";
 import { formatMoney } from "@/lib/money";
+import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
 
 type Item = {
   id: string;
@@ -16,6 +17,7 @@ type Item = {
   destinationAccount?: { name: string } | null;
   category?: { name: string } | null;
   incomeSource?: { name: string } | null;
+  metadata?: unknown;
 };
 
 const labels: Record<string, string> = {
@@ -37,12 +39,14 @@ export function TransactionList({ items, archiveMode = false, compact = false }:
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      {items.map((item) => (
+      {items.map((item) => {
+        const isOpeningBalance = isOpeningBalanceTransaction(item);
+        return (
         <div key={item.id} className={`grid border-b border-border last:border-b-0 ${compact ? "grid-cols-[1fr_auto] items-center gap-2 p-2.5" : "gap-2 p-4 md:grid-cols-[1fr_auto_auto] md:items-center"}`}>
           <div>
-            <div className={compact ? "text-sm font-medium leading-tight" : "font-medium"}>{labels[item.type] || item.type}</div>
+            <div className={compact ? "text-sm font-medium leading-tight" : "font-medium"}>{isOpeningBalance ? "Початковий баланс" : labels[item.type] || item.type}</div>
             <div className={`text-muted-foreground ${compact ? "text-xs leading-tight" : "text-sm"}`}>
-              {new Intl.DateTimeFormat("uk-UA").format(new Date(item.transactionDate))}
+              {isOpeningBalance ? "Без дати" : new Intl.DateTimeFormat("uk-UA").format(new Date(item.transactionDate))}
               {item.category?.name ? ` · ${item.category.name}` : ""}
               {item.incomeSource?.name ? ` · ${item.incomeSource.name}` : ""}
               {item.note ? ` · ${item.note}` : ""}
@@ -54,7 +58,8 @@ export function TransactionList({ items, archiveMode = false, compact = false }:
           </div>
           {compact ? null : <ArchiveAction transactionId={item.id} archived={Boolean(item.archivedAt || archiveMode)} />}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

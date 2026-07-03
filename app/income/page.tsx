@@ -7,6 +7,7 @@ import { TransactionList } from "@/components/transaction-list";
 import { prisma } from "@/lib/db";
 import { formatMoney, sumDecimals } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
+import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
 
 export default async function IncomePage() {
   const userId = await requireUserId();
@@ -15,8 +16,9 @@ export default async function IncomePage() {
     include: { destinationAccount: true, incomeSource: true },
     orderBy: { transactionDate: "desc" }
   });
-  const totalUah = sumDecimals(transactions.filter((item) => item.currency === "UAH").map((item) => item.amount));
-  const totalUsdt = sumDecimals(transactions.filter((item) => item.currency === "USDT").map((item) => item.amount));
+  const realIncomeTransactions = transactions.filter((item) => !isOpeningBalanceTransaction(item));
+  const totalUah = sumDecimals(realIncomeTransactions.filter((item) => item.currency === "UAH").map((item) => item.amount));
+  const totalUsdt = sumDecimals(realIncomeTransactions.filter((item) => item.currency === "USDT").map((item) => item.amount));
   return (
     <AppShell>
       <BackToStatistics />

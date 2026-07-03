@@ -3,6 +3,7 @@ import type { Currency } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
+import { OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 
 type Tx = Prisma.TransactionClient;
@@ -44,6 +45,7 @@ export class LedgerService {
     destinationAccountId: string;
     note?: string | null;
     type?: TransactionType;
+    isOpeningBalance?: boolean;
   }) {
     return this.db.$transaction(async (tx) => {
       const amount = roundCurrency(input.amount, input.currency as CurrencyCode);
@@ -61,7 +63,8 @@ export class LedgerService {
           destinationAccountId: input.destinationAccountId,
           incomeSourceId: input.incomeSourceId,
           note: input.note,
-          transactionDate: input.transactionDate
+          transactionDate: input.isOpeningBalance ? OPENING_BALANCE_DATE : input.transactionDate,
+          metadata: input.isOpeningBalance ? { isOpeningBalance: true } : undefined
         }
       });
     });

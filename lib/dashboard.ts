@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
+import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
 
 export async function resolveUahUsdtRate(userId: string) {
   const settings = await prisma.settings.findUnique({ where: { userId } });
@@ -43,7 +44,7 @@ export async function getDashboard(userId: string) {
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
       orderBy: { transactionDate: "desc" },
-      take: 8,
+      take: 20,
       include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
@@ -106,7 +107,7 @@ export async function getDashboard(userId: string) {
     where: { userId, archivedAt: null, transactionDate: { gte: monthStart } }
   });
   const monthIncome = monthlyTransactions
-    .filter((t) => t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED)
+    .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
     .reduce((sum, t) => sum.plus(t.currency === "UAH" ? D(t.amount).div(rate) : t.amount), new Decimal(0));
   const monthExpenseUah = monthlyTransactions
     .filter((t) => t.type === TransactionType.EXPENSE && t.currency === "UAH")
@@ -150,7 +151,7 @@ export async function getDashboard(userId: string) {
   const incomeSourceUahMap = new Map<string, Decimal>();
   const incomeSourceUsdtMap = new Map<string, Decimal>();
   const incomeTimelineMap = new Map<string, { label: string; usdt: Decimal; uah: Decimal }>();
-  for (const transaction of incomeTransactions) {
+  for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item))) {
     const label = transaction.incomeSource?.name || "\u0411\u0435\u0437 \u0434\u0436\u0435\u0440\u0435\u043b\u0430";
     const dateKey = transaction.transactionDate.toISOString().slice(0, 10);
     const timelinePoint =
@@ -257,7 +258,7 @@ export async function getDashboard(userId: string) {
     accounts,
     frozenByAccount,
     expectedMoney,
-    recentTransactions,
+    recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 8),
     expenseCategories,
     incomeSourcesUah,
     incomeSourcesUsdt,

@@ -193,7 +193,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                       </select>
                     </label>
                   </div>
-                  <DateField />
+                  <IncomeDateField />
                   <Select name="incomeSourceId" label="Джерело" options={incomeSourceOptions} defaultValue={defaultIncomeSource} />
                   <Select key={incomeCurrency} name="destinationAccountId" label="Куди зарахувати" options={incomeDestinationAccounts} defaultValue={defaultIncomeDestination} />
                 </>
@@ -271,6 +271,15 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
 
 function DateField({ name = "transactionDate" }: { name?: string }) {
   return <label>Дата<input name={name} type="date" defaultValue={today()} /></label>;
+}
+
+function IncomeDateField() {
+  return (
+    <label>
+      Дата
+      <input name="transactionDate" inputMode="numeric" defaultValue={today()} placeholder="00.00.0000 = початковий баланс" />
+    </label>
+  );
 }
 
 function MoneyFields({ currencies }: { currencies: string[] }) {
