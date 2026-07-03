@@ -12,6 +12,15 @@ type RefItem = {
   isActive: boolean;
 };
 
+type SettingsResponse = {
+  categories?: RefItem[];
+  incomeSources?: RefItem[];
+};
+
+type DeleteResponse = {
+  activeAfterDelete?: boolean;
+};
+
 type ReferenceManagerProps = {
   title: string;
   addLabel: string;
@@ -36,12 +45,22 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
     const response = await fetch("/api/references", {
       method,
       headers: { "Content-Type": "application/json" },
+      cache: "no-store",
       body: JSON.stringify(body)
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Не вдалося зберегти");
     setMessage("Збережено");
     return data as T;
+  }
+
+  async function refreshFromServer() {
+    const response = await fetch("/api/settings", { cache: "no-store" });
+    const data = (await response.json().catch(() => ({}))) as SettingsResponse;
+    if (!response.ok) throw new Error("Не вдалося оновити список після видалення");
+    const nextItems = kind === "category" ? data.categories : data.incomeSources;
+    if (!Array.isArray(nextItems)) throw new Error("Сервер повернув некоректний список");
+    publishItems(nextItems.map((item) => ({ id: item.id, name: item.name, isActive: item.isActive })));
   }
 
   async function addItem(formData: FormData) {
@@ -103,7 +122,9 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
     setPendingKey(`delete:${id}`);
     publishItems(nextItems);
     try {
-      await request("DELETE", { kind, id });
+      const result = await request<DeleteResponse>("DELETE", { kind, id });
+      if (result.activeAfterDelete) throw new Error("Запис лишився активним після видалення");
+      await refreshFromServer();
     } catch (error) {
       deletingIds.current.delete(id);
       publishItems(previousItems);
@@ -161,11 +182,14 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
               variant="danger"
               type="button"
               disabled={pendingKey === `delete:${item.id}`}
-              onMouseDown={() => deletingIds.current.add(item.id)}
-              onMouseLeave={() => {
+              onPointerDown={() => deletingIds.current.add(item.id)}
+              onPointerCancel={() => {
                 if (pendingKey !== `delete:${item.id}`) deletingIds.current.delete(item.id);
               }}
-              onMouseUp={() => {
+              onPointerLeave={() => {
+                if (pendingKey !== `delete:${item.id}`) deletingIds.current.delete(item.id);
+              }}
+              onPointerUp={() => {
                 if (pendingKey !== `delete:${item.id}`) deletingIds.current.delete(item.id);
               }}
               onClick={() => deleteItem(item.id)}

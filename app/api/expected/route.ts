@@ -7,6 +7,9 @@ import { expectedMoneySchema } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const releaseToMainWalletSchema = z.object({
   action: z.literal("releaseToMainWallet"),
   expectedMoneyId: z.string().min(1),
@@ -38,11 +41,9 @@ export async function POST(request: Request) {
       if (!mainWallet) return NextResponse.json({ error: "Мейн гаманець не знайдено" }, { status: 400 });
       const actualAmount = input.actualAmount ?? (expected.currency === "USDT" ? Number(expected.amount) : undefined);
       if (!actualAmount) return NextResponse.json({ error: "Вкажи фактичну суму в USDT для мейн гаманця" }, { status: 400 });
-      const incomeSource = await prisma.incomeSource.upsert({
-        where: { userId_name: { userId, name: "Повернення заморожених" } },
-        update: { isActive: true },
-        create: { userId, name: "Повернення заморожених" }
-      });
+      const incomeSourceName = "Повернення заморожених";
+      const incomeSource = await prisma.incomeSource.findUnique({ where: { userId_name: { userId, name: incomeSourceName } } })
+        || await prisma.incomeSource.create({ data: { userId, name: incomeSourceName } });
       return NextResponse.json(await ledger.receiveExpectedMoney(userId, {
         expectedMoneyId: expected.id,
         actualAmount,

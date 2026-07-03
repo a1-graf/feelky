@@ -3,6 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireApiUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const kindSchema = z.enum(["category", "incomeSource"]);
 
 const createSchema = z.object({
@@ -90,13 +93,15 @@ export async function DELETE(request: Request) {
       const current = await prisma.category.findFirst({ where: { id: input.id, userId } });
       if (!current) return NextResponse.json({ error: "Category not found" }, { status: 404 });
       const item = await prisma.category.update({ where: { id: input.id }, data: { isActive: false } });
-      return NextResponse.json({ item, mode: "disabled" });
+      const activeAfterDelete = await prisma.category.count({ where: { id: input.id, userId, isActive: true } });
+      return NextResponse.json({ item, mode: "disabled", activeAfterDelete: activeAfterDelete > 0 });
     }
 
     const current = await prisma.incomeSource.findFirst({ where: { id: input.id, userId } });
     if (!current) return NextResponse.json({ error: "Income source not found" }, { status: 404 });
     const item = await prisma.incomeSource.update({ where: { id: input.id }, data: { isActive: false } });
-    return NextResponse.json({ item, mode: "disabled" });
+    const activeAfterDelete = await prisma.incomeSource.count({ where: { id: input.id, userId, isActive: true } });
+    return NextResponse.json({ item, mode: "disabled", activeAfterDelete: activeAfterDelete > 0 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Reference delete error" }, { status: 400 });
   }

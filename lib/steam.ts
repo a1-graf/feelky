@@ -173,11 +173,8 @@ export class SteamResaleService {
   }
 
   private async ensureIncomeSource(tx: Tx, userId: string, name: string) {
-    return tx.incomeSource.upsert({
-      where: { userId_name: { userId, name } },
-      update: { isActive: true },
-      create: { userId, name }
-    });
+    const existing = await tx.incomeSource.findUnique({ where: { userId_name: { userId, name } } });
+    return existing || tx.incomeSource.create({ data: { userId, name } });
   }
 
   private async audit(tx: Tx, userId: string, entityType: string, entityId: string, action: string, oldData: unknown, newData: unknown) {
@@ -342,11 +339,8 @@ export class SteamArbitrageService {
   }
 
   private async ensureIncomeSource(tx: Tx, userId: string, name: string) {
-    return tx.incomeSource.upsert({
-      where: { userId_name: { userId, name } },
-      update: { isActive: true },
-      create: { userId, name }
-    });
+    const existing = await tx.incomeSource.findUnique({ where: { userId_name: { userId, name } } });
+    return existing || tx.incomeSource.create({ data: { userId, name } });
   }
 
   private async audit(tx: Tx, userId: string, entityType: string, entityId: string, action: string, oldData: unknown, newData: unknown) {
@@ -371,11 +365,8 @@ export class SteamExpenseService {
       if (source.currency !== "USDT") throw new Error("Steam expenses must be paid in USDT");
       const amount = roundCurrency(input.amount, "USDT");
       const nextBalance = D(source.currentBalance).minus(amount);
-      const category = await tx.category.upsert({
-        where: { userId_name: { userId, name: "Steam" } },
-        update: { isActive: true },
-        create: { userId, name: "Steam" }
-      });
+      const category = await tx.category.findUnique({ where: { userId_name: { userId, name: "Steam" } } })
+        || await tx.category.create({ data: { userId, name: "Steam" } });
       await tx.account.update({ where: { id: source.id }, data: { currentBalance: nextBalance.toString() } });
       return tx.transaction.create({
         data: {

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireApiUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   const userId = await requireApiUserId();
   const [settings, categories, incomeSources, accounts, statusLabels] = await Promise.all([

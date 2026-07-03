@@ -7,6 +7,9 @@ import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function SettingsPage() {
   const userId = await requireUserId();
   const [settings, categories, incomeSources, accounts] = await Promise.all([
