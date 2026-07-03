@@ -63,8 +63,8 @@ export async function getDashboard(userId: string) {
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
-      orderBy: { transactionDate: "desc" },
-      take: 240
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      take: 2000
     }),
     prisma.flip.findMany({
       where: { userId },
@@ -218,28 +218,18 @@ export async function getDashboard(userId: string) {
   const totalAvailableDelta = balanceEvents.reduce((sum, event) => sum.plus(event.availableDelta), new Decimal(0));
   let runningFull = potentialBankUsdt.minus(totalFullDelta);
   let runningAvailable = availableWithTurnoverUsdt.minus(totalAvailableDelta);
-  const balanceTimelineMap = new Map<string, { label: string; fullDelta: Decimal; availableDelta: Decimal }>();
-  for (const event of balanceEvents) {
-    const key = event.date.toISOString().slice(0, 10);
-    const point =
-      balanceTimelineMap.get(key) ||
-      {
-        label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(event.date),
-        fullDelta: new Decimal(0),
-        availableDelta: new Decimal(0)
-      };
-    point.fullDelta = point.fullDelta.plus(event.fullDelta);
-    point.availableDelta = point.availableDelta.plus(event.availableDelta);
-    balanceTimelineMap.set(key, point);
-  }
-  const balanceTimeline = Array.from(balanceTimelineMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, event]) => {
+  const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
+  const balanceTimeline = balanceEvents
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((event, index) => {
       runningFull = runningFull.plus(event.fullDelta);
       runningAvailable = runningAvailable.plus(event.availableDelta);
       return {
-        date,
-        label: event.label,
+        date: event.date.toISOString(),
+        label: dateFormatter.format(event.date),
+        tooltipLabel: dateTimeFormatter.format(event.date),
+        eventIndex: index + 1,
         full: runningFull.toNumber(),
         available: runningAvailable.toNumber()
       };
@@ -247,8 +237,10 @@ export async function getDashboard(userId: string) {
   if (!balanceTimeline.length) {
     const today = new Date();
     balanceTimeline.push({
-      date: today.toISOString().slice(0, 10),
-      label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(today),
+      date: today.toISOString(),
+      label: dateFormatter.format(today),
+      tooltipLabel: dateTimeFormatter.format(today),
+      eventIndex: 1,
       full: potentialBankUsdt.toNumber(),
       available: availableWithTurnoverUsdt.toNumber()
     });

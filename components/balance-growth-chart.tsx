@@ -1,44 +1,98 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
 type BalancePoint = {
   date: string;
   label: string;
+  tooltipLabel?: string;
+  eventIndex?: number;
   full: number;
   available: number;
 };
 
+const ranges = [
+  { label: "7д", days: 7 },
+  { label: "1м", days: 30 },
+  { label: "3м", days: 90 },
+  { label: "6м", days: 180 },
+  { label: "12м", days: 365 },
+  { label: "Все", days: null }
+];
+
 export function BalanceGrowthChart({ data, hidden = false }: { data: BalancePoint[]; hidden?: boolean }) {
+  const [rangeDays, setRangeDays] = useState<number | null>(30);
+  const visibleData = useMemo(() => {
+    const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (!rangeDays || sorted.length <= 1) return sorted;
+
+    const endDate = new Date();
+    const cutoff = new Date(endDate);
+    cutoff.setDate(cutoff.getDate() - rangeDays);
+    const firstInRangeIndex = sorted.findIndex((point) => new Date(point.date).getTime() >= cutoff.getTime());
+
+    if (firstInRangeIndex === 0) return sorted;
+    if (firstInRangeIndex === -1) {
+      const previous = sorted[sorted.length - 1];
+      return [
+        { ...previous, date: cutoff.toISOString(), label: "Старт", tooltipLabel: "Початок періоду", eventIndex: 0 },
+        { ...previous, date: endDate.toISOString(), label: "Зараз", tooltipLabel: "Зараз", eventIndex: 1 }
+      ];
+    }
+
+    const previous = sorted[firstInRangeIndex - 1];
+    return [
+      { ...previous, date: cutoff.toISOString(), label: "Старт", tooltipLabel: "Початок періоду", eventIndex: 0 },
+      ...sorted.slice(firstInRangeIndex)
+    ];
+  }, [data, rangeDays]);
+
   if (!data.length) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає даних</div>;
   }
 
+  const showDots = visibleData.length <= 120;
+
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-0.5 w-8 rounded-full bg-[#2563eb]" />
-          Повний
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-0.5 w-8 rounded-full bg-[#16a34a]" />
-          Доступний + в обороті
-        </span>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-0.5 w-8 rounded-full bg-[#2563eb]" />
+            Повний
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-0.5 w-8 rounded-full bg-[#16a34a]" />
+            Доступний + в обороті
+          </span>
+        </div>
+        <div className="inline-flex overflow-hidden rounded-lg border border-border bg-muted p-1">
+          {ranges.map((range) => (
+            <button
+              key={range.label}
+              type="button"
+              className={`min-h-8 rounded-md px-3 text-xs font-semibold transition ${rangeDays === range.days ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-card"}`}
+              onClick={() => setRangeDays(range.days)}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="h-72 w-full">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+          <LineChart data={visibleData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "****" : `${value}`)} width={48} />
             <Tooltip
               formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name === "full" ? "Повний" : "Доступний + в обороті"]}
-              labelFormatter={(label) => `Дата: ${label}`}
+              labelFormatter={(_, payload) => `Дата: ${payload?.[0]?.payload?.tooltipLabel || payload?.[0]?.payload?.label || ""}`}
             />
-            <Line type="monotone" dataKey="full" name="full" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-            <Line type="monotone" dataKey="available" name="available" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            <Line type="linear" dataKey="full" name="full" stroke="#2563eb" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line type="linear" dataKey="available" name="available" stroke="#16a34a" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
