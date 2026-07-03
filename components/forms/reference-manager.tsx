@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -24,6 +24,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
   const [newName, setNewName] = useState("");
   const [visibleItems, setVisibleItems] = useState(items);
   const [pendingKey, setPendingKey] = useState("");
+  const deletingIds = useRef(new Set<string>());
 
   function publishItems(nextItems: RefItem[]) {
     setVisibleItems(nextItems);
@@ -69,6 +70,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
   }
 
   async function saveItem(id: string, patch: Partial<RefItem> = {}) {
+    if (deletingIds.current.has(id)) return;
     const previousItems = visibleItems;
     const currentItem = visibleItems.find((item) => item.id === id);
     if (!currentItem || pendingKey === `save:${id}`) return;
@@ -86,6 +88,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
         : visibleItems.filter((current) => current.id !== id);
       publishItems(nextItems);
     } catch (error) {
+      if (deletingIds.current.has(id)) return;
       setVisibleItems(previousItems);
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
@@ -94,6 +97,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
   }
 
   async function deleteItem(id: string) {
+    deletingIds.current.add(id);
     const previousItems = visibleItems;
     const nextItems = previousItems.filter((item) => item.id !== id);
     setPendingKey(`delete:${id}`);
@@ -101,9 +105,11 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
     try {
       await request("DELETE", { kind, id });
     } catch (error) {
+      deletingIds.current.delete(id);
       publishItems(previousItems);
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
+      deletingIds.current.delete(id);
       setPendingKey("");
     }
   }
@@ -120,7 +126,9 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
               <input
                 name="name"
                 value={item.name}
-                onBlur={(event) => saveItem(item.id, { name: event.currentTarget.value })}
+                onBlur={(event) => {
+                  if (!deletingIds.current.has(item.id)) void saveItem(item.id, { name: event.currentTarget.value });
+                }}
                 onChange={(event) => editItem(item.id, { name: event.target.value })}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -148,7 +156,20 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
             <Button className="min-h-10" name="intent" value="save" disabled={pendingKey === `save:${item.id}`}>
               {pendingKey === `save:${item.id}` ? "Зберігаю..." : "Зберегти"}
             </Button>
-            <Button className="min-h-10" variant="danger" type="button" disabled={pendingKey === `delete:${item.id}`} onClick={() => deleteItem(item.id)}>
+            <Button
+              className="min-h-10"
+              variant="danger"
+              type="button"
+              disabled={pendingKey === `delete:${item.id}`}
+              onMouseDown={() => deletingIds.current.add(item.id)}
+              onMouseLeave={() => {
+                if (pendingKey !== `delete:${item.id}`) deletingIds.current.delete(item.id);
+              }}
+              onMouseUp={() => {
+                if (pendingKey !== `delete:${item.id}`) deletingIds.current.delete(item.id);
+              }}
+              onClick={() => deleteItem(item.id)}
+            >
               {pendingKey === `delete:${item.id}` ? "Видаляю..." : "Видалити"}
             </Button>
           </form>
