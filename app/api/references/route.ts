@@ -56,6 +56,8 @@ export async function PATCH(request: Request) {
     if (input.kind === "category") {
       const current = await prisma.category.findFirst({ where: { id: input.id, userId } });
       if (!current) return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      const duplicate = await prisma.category.findFirst({ where: { userId, name: input.name, id: { not: input.id } } });
+      if (duplicate) return NextResponse.json({ error: "Така категорія вже є" }, { status: 409 });
       const item = await prisma.category.update({
         where: { id: input.id },
         data: { name: input.name, isActive: input.isActive }
@@ -65,6 +67,8 @@ export async function PATCH(request: Request) {
 
     const current = await prisma.incomeSource.findFirst({ where: { id: input.id, userId } });
     if (!current) return NextResponse.json({ error: "Income source not found" }, { status: 404 });
+    const duplicate = await prisma.incomeSource.findFirst({ where: { userId, name: input.name, id: { not: input.id } } });
+    if (duplicate) return NextResponse.json({ error: "Таке джерело вже є" }, { status: 409 });
     const item = await prisma.incomeSource.update({
       where: { id: input.id },
       data: { name: input.name, isActive: input.isActive }

@@ -60,9 +60,24 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
 
   async function updateItem(formData: FormData) {
     const id = String(formData.get("id") || "");
-    const name = String(formData.get("name") || "").trim();
-    const isActive = formData.get("isActive") === "on";
-    if (!id || !name) return;
+    if (!id) return;
+    await saveItem(id);
+  }
+
+  function editItem(id: string, patch: Partial<RefItem>) {
+    setVisibleItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  async function saveItem(id: string, patch: Partial<RefItem> = {}) {
+    const previousItems = visibleItems;
+    const currentItem = visibleItems.find((item) => item.id === id);
+    if (!currentItem || pendingKey === `save:${id}`) return;
+    const name = String(patch.name ?? currentItem.name).trim();
+    const isActive = patch.isActive ?? currentItem.isActive;
+    if (!name) {
+      setMessage("Назва не може бути пустою");
+      return;
+    }
     setPendingKey(`save:${id}`);
     try {
       const item = await request<RefItem>("PATCH", { kind, id, name, isActive });
@@ -71,6 +86,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
         : visibleItems.filter((current) => current.id !== id);
       publishItems(nextItems);
     } catch (error) {
+      setVisibleItems(previousItems);
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
       setPendingKey("");
@@ -101,10 +117,32 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
             <input type="hidden" name="id" value={item.id} />
             <label>
               Назва
-              <input name="name" defaultValue={item.name} required />
+              <input
+                name="name"
+                value={item.name}
+                onBlur={(event) => saveItem(item.id, { name: event.currentTarget.value })}
+                onChange={(event) => editItem(item.id, { name: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                }}
+                required
+              />
             </label>
             <label className="flex min-h-10 flex-row items-center gap-2 text-[hsl(var(--card-foreground))]">
-              <input className="h-5 w-5" type="checkbox" name="isActive" defaultChecked={item.isActive} />
+              <input
+                className="h-5 w-5"
+                type="checkbox"
+                name="isActive"
+                checked={item.isActive}
+                onChange={(event) => {
+                  const isActive = event.target.checked;
+                  editItem(item.id, { isActive });
+                  void saveItem(item.id, { isActive });
+                }}
+              />
               Активне
             </label>
             <Button className="min-h-10" name="intent" value="save" disabled={pendingKey === `save:${item.id}`}>
