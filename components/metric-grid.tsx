@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 type MetricItem = {
   label: string;
   value: string;
+  subValue?: string;
   tone?: "ok" | "warn" | "danger";
   valueStyle?: CSSProperties;
 };
@@ -20,6 +21,7 @@ export function MetricGrid({ items }: { items: MetricItem[] }) {
           >
             {item.value}
           </div>
+          {item.subValue && <div className="mt-1 text-xs font-medium text-[hsl(var(--card-muted-foreground))] sm:text-sm">{item.subValue}</div>}
         </Card>
       ))}
     </div>

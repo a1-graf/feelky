@@ -22,8 +22,9 @@ const ranges = [
   { label: "Все", days: null }
 ];
 
-export function BalanceGrowthChart({ data, hidden = false }: { data: BalancePoint[]; hidden?: boolean }) {
+export function BalanceGrowthChart({ data, rate, hidden = false }: { data: BalancePoint[]; rate: string; hidden?: boolean }) {
   const [rangeDays, setRangeDays] = useState<number | null>(30);
+  const uahRate = Number(rate);
   const visibleData = useMemo(() => {
     const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (!rangeDays || sorted.length <= 1) return sorted;
@@ -88,7 +89,10 @@ export function BalanceGrowthChart({ data, hidden = false }: { data: BalancePoin
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "****" : `${value}`)} width={48} />
             <Tooltip
-              formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name === "full" ? "Повний" : "Доступний + в обороті"]}
+              formatter={(value, name) => {
+                const amount = Number(value);
+                return [`${formatMoney(amount, "USDT", hidden)} · ${formatMoney(amount * uahRate, "UAH", hidden)}`, name === "full" ? "Повний" : "Доступний + в обороті"];
+              }}
               labelFormatter={(_, payload) => `Дата: ${payload?.[0]?.payload?.tooltipLabel || payload?.[0]?.payload?.label || ""}`}
             />
             <Line type="linear" dataKey="full" name="full" stroke="#2563eb" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />

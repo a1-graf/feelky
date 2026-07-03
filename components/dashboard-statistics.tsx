@@ -14,7 +14,7 @@ type DashboardStatsData = {
   incomeSourcesUah: { name: string; value: string }[];
   incomeSourcesUsdt: { name: string; value: string }[];
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
-  balanceTimeline: { date: string; label: string; full: number; available: number }[];
+  balanceTimeline: { date: string; label: string; tooltipLabel?: string; eventIndex?: number; full: number; available: number }[];
   recentTransactions: Parameters<typeof TransactionList>[0]["items"];
   steam: {
     frozenCapital: string;
@@ -50,16 +50,18 @@ function expenseLimitColor(expense: string, limit?: { toString(): string } | str
 
 export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const hidden = Boolean(data.settings?.hideAmounts);
+  const rate = Number(data.rate);
+  const asUah = (value: string) => formatMoney(Number(value) * rate, "UAH", hidden);
   const monthExpenseColor = expenseLimitColor(data.totals.monthExpenseUah, data.settings?.monthlyExpenseLimit);
   const metricItems = [
-    { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden) },
-    { label: "Заморожено", value: formatMoney(data.totals.frozenCrypto, "USDT", hidden), tone: "warn" as const },
+    { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), subValue: asUah(data.totals.cryptoTotal) },
+    { label: "Заморожено", value: formatMoney(data.totals.frozenCrypto, "USDT", hidden), subValue: asUah(data.totals.frozenCrypto), tone: "warn" as const },
     { label: "Картки UAH", value: formatMoney(data.totals.cardUah, "UAH", hidden) },
     { label: "Cash UAH", value: formatMoney(data.totals.cashUah, "UAH", hidden) },
-    { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden) },
+    { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden), subValue: asUah(data.totals.cashUsd) },
     { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
-    { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), tone: "warn" as const },
-    { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), tone: "ok" as const }
+    { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), subValue: asUah(data.steam.frozenCapital), tone: "warn" as const },
+    { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), subValue: asUah(data.steam.profit), tone: "ok" as const }
   ];
 
   return (
@@ -70,7 +72,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Ріст балансу</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Повний банк і доступний банк з урахуванням Steam в обороті</div>
-        <BalanceGrowthChart data={data.balanceTimeline} hidden={hidden} />
+        <BalanceGrowthChart data={data.balanceTimeline} rate={data.rate} hidden={hidden} />
       </Card>
 
       <Card className="mt-5">

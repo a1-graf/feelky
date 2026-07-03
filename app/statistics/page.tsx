@@ -21,6 +21,9 @@ export default async function StatisticsPage() {
   const userId = await requireUserId();
   const data = await getDashboard(userId);
   const hidden = Boolean(data.settings?.hideAmounts);
+  const rate = Number(data.rate);
+  const availableBankUah = Number(data.totals.availableBankUsdt) * rate;
+  const potentialBankUah = Number(data.totals.potentialBankUsdt) * rate;
 
   return (
     <AppShell>
@@ -31,8 +34,11 @@ export default async function StatisticsPage() {
         <div className="mt-2 break-words text-3xl font-semibold leading-none text-success sm:text-4xl">
           {formatMoney(data.totals.availableBankUsdt, "USDT", hidden)}
         </div>
+        <div className="mt-2 text-base font-semibold text-[hsl(var(--card-foreground))] sm:text-lg">
+          {formatMoney(availableBankUah, "UAH", hidden)}
+        </div>
         <div className="mt-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          Потенційний банк: <span className="font-semibold text-[hsl(var(--card-foreground))]">{formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)}</span>
+          Потенційний банк: <span className="font-semibold text-[hsl(var(--card-foreground))]">{formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)} · {formatMoney(potentialBankUah, "UAH", hidden)}</span>
         </div>
       </Card>
 
