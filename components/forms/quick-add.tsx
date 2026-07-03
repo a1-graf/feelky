@@ -69,7 +69,12 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
     expenseSourceAccounts.find((account) => account.id === defaultExpense) ||
     expenseSourceAccounts[0];
   const expenseCurrency = isSteamExpense ? "USDT" : selectedExpenseSource?.currency === "USDT" ? "USDT" : "UAH";
-  const incomeDestinationAccounts = accounts.filter((account) => account.currency === incomeCurrency);
+  const incomeDestinationAccounts = accounts
+    .filter((account) => account.currency === incomeCurrency || (incomeCurrency === "USDT" && account.type === "CASH" && account.currency === "USD"))
+    .map((account) => ({
+      ...account,
+      name: incomeCurrency === "USDT" && account.type === "CASH" && account.currency === "USD" ? `${account.name} (cash USD)` : account.name
+    }));
   const defaultIncomeDestination = incomeDestinationAccounts[0]?.id || "";
   const isOpeningBalanceIncome = incomeDate.replace(/\D/g, "") === "00000000";
   const cashTarget = useMemo(() => {

@@ -48,23 +48,28 @@ export class LedgerService {
     isOpeningBalance?: boolean;
   }) {
     return this.db.$transaction(async (tx) => {
-      const amount = roundCurrency(input.amount, input.currency as CurrencyCode);
       const destinationAccount = await this.requireAccount(tx, userId, input.destinationAccountId);
-      if (destinationAccount.currency !== input.currency) {
+      const isCashUsdIncome = input.currency === "USDT" && destinationAccount.type === AccountType.CASH && destinationAccount.currency === "USD";
+      if (destinationAccount.currency !== input.currency && !isCashUsdIncome) {
         throw new Error(`Income currency ${input.currency} does not match ${destinationAccount.name} ${destinationAccount.currency}`);
       }
+      const transactionCurrency = isCashUsdIncome ? "USD" : input.currency;
+      const amount = roundCurrency(input.amount, transactionCurrency as CurrencyCode);
       await this.adjustAccount(tx, userId, input.destinationAccountId, amount, false);
       return tx.transaction.create({
         data: {
           userId,
           type: input.type || TransactionType.INCOME,
           amount: amount.toString(),
-          currency: input.currency,
+          currency: transactionCurrency,
           destinationAccountId: input.destinationAccountId,
           incomeSourceId: input.isOpeningBalance ? null : input.incomeSourceId,
           note: input.note,
           transactionDate: input.isOpeningBalance ? OPENING_BALANCE_DATE : input.transactionDate,
-          metadata: input.isOpeningBalance ? { isOpeningBalance: true } : undefined
+          metadata: {
+            ...(input.isOpeningBalance ? { isOpeningBalance: true } : {}),
+            ...(isCashUsdIncome ? { enteredCurrency: input.currency, treatedAsCashUsd: true } : {})
+          }
         }
       });
     });

@@ -19,11 +19,12 @@ export default async function IncomePage() {
   const realIncomeTransactions = transactions.filter((item) => !isOpeningBalanceTransaction(item));
   const totalUah = sumDecimals(realIncomeTransactions.filter((item) => item.currency === "UAH").map((item) => item.amount));
   const totalUsdt = sumDecimals(realIncomeTransactions.filter((item) => item.currency === "USDT").map((item) => item.amount));
+  const totalUsd = sumDecimals(realIncomeTransactions.filter((item) => item.currency === "USD").map((item) => item.amount));
   return (
     <AppShell>
       <BackToStatistics />
       <PageTitle title="Доходи" subtitle="Надходження за джерелами без подвійного врахування" />
-      <MetricGrid items={[{ label: "UAH", value: formatMoney(totalUah, "UAH") }, { label: "USDT", value: formatMoney(totalUsdt, "USDT") }, { label: "Операцій", value: String(transactions.length) }]} />
+      <MetricGrid items={[{ label: "UAH", value: formatMoney(totalUah, "UAH") }, { label: "USDT", value: formatMoney(totalUsdt, "USDT") }, { label: "USD cash", value: formatMoney(totalUsd, "USD") }, { label: "Операцій", value: String(transactions.length) }]} />
       <div className="mt-5">
         <TransactionList items={transactions} />
       </div>
