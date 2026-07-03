@@ -5,6 +5,9 @@ import { ledger } from "@/lib/ledger";
 import { accountSchema } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const userId = await requireApiUserId();
