@@ -3,7 +3,7 @@ import { Currency, ExpectedMoneyStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
-import { expectedMoneySchema } from "@/lib/schemas";
+import { decimalInput, expectedMoneySchema } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 
@@ -13,7 +13,7 @@ export const revalidate = 0;
 const releaseToMainWalletSchema = z.object({
   action: z.literal("releaseToMainWallet"),
   expectedMoneyId: z.string().min(1),
-  actualAmount: z.coerce.number().positive().optional(),
+  actualAmount: decimalInput(z.coerce.number().positive()).optional(),
   note: z.string().optional().nullable()
 });
 

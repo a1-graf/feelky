@@ -3,19 +3,27 @@ import { isOpeningBalanceDateInput, OPENING_BALANCE_DATE, parseDateInput } from 
 
 export const currencySchema = z.enum(["UAH", "USDT", "USD"]);
 export const dateString = z.coerce.date();
+function normalizeDecimalInput(value: unknown) {
+  if (typeof value !== "string") return value;
+  return value.trim().replace(/\s/g, "").replace(",", ".");
+}
+
+export function decimalInput<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess(normalizeDecimalInput, schema);
+}
 
 export const accountSchema = z.object({
   type: z.enum(["EXCHANGE", "EXCHANGE_SUBACCOUNT", "BANK_CARD", "CASH", "CRYPTO_WALLET", "OTHER"]),
   name: z.string().min(1),
   provider: z.string().optional().nullable(),
   currency: currencySchema,
-  initialBalance: z.coerce.number().default(0),
+  initialBalance: decimalInput(z.coerce.number()).default(0),
   note: z.string().optional().nullable(),
   parentAccountId: z.string().optional().nullable()
 });
 
 export const incomeSchema = z.object({
-  amount: z.coerce.number().positive(),
+  amount: decimalInput(z.coerce.number().positive()),
   currency: z.enum(["UAH", "USDT"]),
   transactionDate: z.union([z.string(), z.date()]).optional().nullable(),
   incomeSourceId: z.string().optional().nullable(),
@@ -34,7 +42,7 @@ export const incomeSchema = z.object({
 });
 
 export const expenseSchema = z.object({
-  amount: z.coerce.number().positive(),
+  amount: decimalInput(z.coerce.number().positive()),
   currency: z.enum(["UAH", "USDT"]).default("UAH"),
   transactionDate: dateString.default(() => new Date()),
   categoryId: z.string().min(1),
@@ -43,16 +51,16 @@ export const expenseSchema = z.object({
 });
 
 export const p2pWithdrawalSchema = z.object({
-  receivedUah: z.coerce.number().positive(),
-  rateUahPerUsdt: z.coerce.number().positive(),
+  receivedUah: decimalInput(z.coerce.number().positive()),
+  rateUahPerUsdt: decimalInput(z.coerce.number().positive()),
   transactionDate: dateString.default(() => new Date()),
   note: z.string().optional().nullable()
 });
 
 export const cashWithdrawalSchema = z.object({
-  receivedAmount: z.coerce.number().positive(),
+  receivedAmount: decimalInput(z.coerce.number().positive()),
   receivedCurrency: z.enum(["UAH", "USD"]),
-  rate: z.coerce.number().positive(),
+  rate: decimalInput(z.coerce.number().positive()),
   transactionDate: dateString.default(() => new Date()),
   exchangePlace: z.string().default("Cashalot"),
   note: z.string().optional().nullable()
@@ -60,7 +68,7 @@ export const cashWithdrawalSchema = z.object({
 
 export const expectedMoneySchema = z.object({
   title: z.string().trim().min(1).default("Заморожені бабки"),
-  amount: z.coerce.number().positive(),
+  amount: decimalInput(z.coerce.number().positive()),
   currency: currencySchema,
   status: z.enum(["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS", "RECEIVED", "LOST", "SCAMMED"]).default("EXPECTED"),
   note: z.string().optional().nullable(),
@@ -69,7 +77,7 @@ export const expectedMoneySchema = z.object({
 
 export const freezeFundsSchema = z.object({
   accountId: z.string().min(1),
-  amount: z.coerce.number().positive(),
+  amount: decimalInput(z.coerce.number().positive()),
   currency: currencySchema,
   frozenDate: dateString.default(() => new Date()),
   note: z.string().optional().nullable()
@@ -77,13 +85,13 @@ export const freezeFundsSchema = z.object({
 
 export const manualAdjustmentSchema = z.object({
   accountId: z.string().min(1),
-  newBalance: z.coerce.number().min(0),
+  newBalance: decimalInput(z.coerce.number().min(0)),
   note: z.string().optional().nullable()
 });
 
 export const flipSchema = z.object({
   setup: z.string().trim().min(1),
-  pnl: z.coerce.number(),
+  pnl: decimalInput(z.coerce.number()),
   tradeDate: dateString.default(() => new Date()),
   note: z.string().optional().nullable()
 });
