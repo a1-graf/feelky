@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 import { steamAnalytics, steamArbitrage } from "@/lib/steam";
 import {
+  addSteamResaleInvestmentAmountAction,
   completeSteamRoundAction,
   createSteamResaleAccountAction,
   createSteamResaleInvestmentAction,
@@ -223,7 +224,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
             <div className="mb-3 font-semibold">Активні вкладення перепродажу</div>
             <div className="grid gap-2">
               {data.resaleInvestments.filter((item) => item.status === SteamResaleInvestmentStatus.ACTIVE).map((item) => (
-                <div key={item.id} className="grid gap-3 border-b border-border py-3 last:border-b-0 lg:grid-cols-[1fr_360px] lg:items-end">
+                <div key={item.id} className="grid gap-3 border-b border-border py-3 last:border-b-0 xl:grid-cols-[1fr_360px_420px] xl:items-end">
                   <div className="grid gap-1 sm:grid-cols-[1fr_auto_auto] sm:items-center">
                     <span>{new Intl.DateTimeFormat("uk-UA").format(item.startedAt)}</span>
                     <span>{formatMoney(item.externalAmount.toString(), "USDT")}</span>
@@ -231,6 +232,18 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                       Steam: {formatMoney(item.receivedSteamAmount.toString(), "USDT")} · <b className="text-success">{bonusLabel(item.externalAmount, item.receivedSteamAmount)}</b>
                     </span>
                   </div>
+                  <form action={addSteamResaleInvestmentAmountAction} className="grid gap-2 sm:grid-cols-[1fr_120px_auto] sm:items-end">
+                    <input type="hidden" name="investmentId" value={item.id} />
+                    <Field label="+ до завозу">
+                      <input name="extraExternalAmount" inputMode="decimal" placeholder="200" required />
+                    </Field>
+                    <Field label="Звідки">
+                      <select name="sourceAccountId" defaultValue={defaultAccount} required>
+                        {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                      </select>
+                    </Field>
+                    <button className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">Додати</button>
+                  </form>
                   <form action={updateSteamResaleInvestmentReceivedAction} className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                     <input type="hidden" name="investmentId" value={item.id} />
                     <Field label="Зайшло в софт">

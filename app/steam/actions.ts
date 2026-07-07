@@ -57,6 +57,18 @@ export async function updateSteamResaleInvestmentReceivedAction(formData: FormDa
   revalidatePath("/statistics");
 }
 
+export async function addSteamResaleInvestmentAmountAction(formData: FormData) {
+  const userId = await requireUserId();
+  await steamResale.addInvestmentAmount(userId, {
+    investmentId: required(formData, "investmentId"),
+    sourceAccountId: required(formData, "sourceAccountId"),
+    extraExternalAmount: required(formData, "extraExternalAmount"),
+    note: text(formData, "note")
+  });
+  revalidatePath("/steam");
+  revalidatePath("/statistics");
+}
+
 export async function createSteamSnapshotAction(formData: FormData) {
   const userId = await requireUserId();
   await steamResale.createSnapshot(userId, {

@@ -39,6 +39,9 @@ export async function POST(request: Request) {
         completedAt: body.completedAt ? asDate(body.completedAt) : new Date()
       }));
     }
+    if (action === "resaleInvestmentTopUp") {
+      return NextResponse.json(await steamResale.addInvestmentAmount(userId, body));
+    }
     if (action === "resaleSnapshot") {
       return NextResponse.json(await steamResale.createSnapshot(userId, {
         ...body,

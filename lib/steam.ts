@@ -113,6 +113,34 @@ export class SteamResaleService {
     });
   }
 
+  async addInvestmentAmount(userId: string, input: {
+    investmentId: string;
+    sourceAccountId: string;
+    extraExternalAmount: Decimal.Value;
+    note?: string | null;
+  }) {
+    return this.db.$transaction(async (tx) => {
+      const investment = await tx.steamResaleInvestment.findFirst({ where: { id: input.investmentId, userId, archivedAt: null } });
+      if (!investment) throw new Error("Steam resale investment not found");
+      await this.requireResaleAccount(tx, userId, investment.resaleAccountId);
+      const source = await this.requireAccount(tx, userId, input.sourceAccountId);
+      if (source.currency !== "USDT") throw new Error("Steam resale top ups must use a USDT source account");
+      const extraExternalAmount = roundCurrency(input.extraExternalAmount, "USDT");
+      if (extraExternalAmount.lte(0)) throw new Error("Top up amount must be positive");
+      await this.adjustAccount(tx, userId, source.id, extraExternalAmount.negated(), false);
+      const updatedInvestment = await tx.steamResaleInvestment.update({
+        where: { id: investment.id },
+        data: {
+          sourceAccountId: source.id,
+          externalAmount: D(investment.externalAmount).plus(extraExternalAmount).toString(),
+          note: input.note ?? investment.note
+        }
+      });
+      await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "TOP_UP", investment, updatedInvestment);
+      return updatedInvestment;
+    });
+  }
+
   async createSnapshot(userId: string, input: { resaleAccountId: string; balance: Decimal.Value; snapshotDate: Date; note?: string | null }) {
     return this.db.$transaction(async (tx) => {
       const account = await this.requireResaleAccount(tx, userId, input.resaleAccountId);
