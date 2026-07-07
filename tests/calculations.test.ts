@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { archiveEffect, availableBankUsdt, cashWithdrawalCalculation, editEffect, p2pCalculation, potentialBankUsdt, restoreEffect } from "@/lib/calculations";
+import { D } from "@/lib/money";
 
 describe("financial calculations", () => {
+  it("parses comma decimal money input", () => {
+    expect(D("1 234,56").toString()).toBe("1234.56");
+  });
+
   it("calculates P2P spent USDT with decimal rounding", () => {
     const result = p2pCalculation("4100", "41");
     expect(result.spentUsdt.toString()).toBe("100");

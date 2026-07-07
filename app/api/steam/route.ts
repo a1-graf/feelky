@@ -33,6 +33,12 @@ export async function POST(request: Request) {
         completedAt: body.completedAt ? asDate(body.completedAt) : null
       }), { status: 201 });
     }
+    if (action === "resaleInvestmentReceived") {
+      return NextResponse.json(await steamResale.updateInvestmentReceived(userId, {
+        ...body,
+        completedAt: body.completedAt ? asDate(body.completedAt) : new Date()
+      }));
+    }
     if (action === "resaleSnapshot") {
       return NextResponse.json(await steamResale.createSnapshot(userId, {
         ...body,

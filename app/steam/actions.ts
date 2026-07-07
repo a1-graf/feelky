@@ -36,9 +36,21 @@ export async function createSteamResaleInvestmentAction(formData: FormData) {
     resaleAccountId: required(formData, "resaleAccountId"),
     sourceAccountId: required(formData, "sourceAccountId"),
     externalAmount: required(formData, "externalAmount"),
-    receivedSteamAmount: required(formData, "receivedSteamAmount"),
+    receivedSteamAmount: text(formData, "receivedSteamAmount") || "0",
     startedAt: dateValue(formData, "startedAt"),
     completedAt: text(formData, "completedAt") ? dateValue(formData, "completedAt") : null,
+    note: text(formData, "note")
+  });
+  revalidatePath("/steam");
+  revalidatePath("/statistics");
+}
+
+export async function updateSteamResaleInvestmentReceivedAction(formData: FormData) {
+  const userId = await requireUserId();
+  await steamResale.updateInvestmentReceived(userId, {
+    investmentId: required(formData, "investmentId"),
+    receivedSteamAmount: required(formData, "receivedSteamAmount"),
+    completedAt: dateValue(formData, "completedAt"),
     note: text(formData, "note")
   });
   revalidatePath("/steam");

@@ -2,7 +2,12 @@ import Decimal from "decimal.js";
 
 export type MoneyInput = Decimal.Value;
 
-export const D = (value: MoneyInput) => new Decimal(value || 0);
+function normalizeMoneyInput(value: MoneyInput) {
+  if (typeof value !== "string") return value;
+  return value.trim().replace(/\s/g, "").replace(",", ".");
+}
+
+export const D = (value: MoneyInput) => new Decimal(normalizeMoneyInput(value || 0));
 
 export function roundCurrency(value: MoneyInput, currency: "UAH" | "USDT" | "USD" = "UAH") {
   const places = currency === "USDT" ? 4 : 2;

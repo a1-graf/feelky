@@ -52,6 +52,12 @@ export class SteamResaleService {
       const externalAmount = roundCurrency(input.externalAmount, "USDT");
       const receivedSteamAmount = roundCurrency(input.receivedSteamAmount, "USDT");
       await this.adjustAccount(tx, userId, source.id, externalAmount.negated(), false);
+      const updatedAccount = receivedSteamAmount.gt(0)
+        ? await tx.steamResaleAccount.update({
+          where: { id: resaleAccount.id },
+          data: { currentSoftwareBalance: D(resaleAccount.currentSoftwareBalance).plus(receivedSteamAmount).toString() }
+        })
+        : resaleAccount;
       const investment = await tx.steamResaleInvestment.create({
         data: {
           userId,
@@ -65,7 +71,45 @@ export class SteamResaleService {
         }
       });
       await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "CREATE", null, investment);
+      if (receivedSteamAmount.gt(0)) {
+        await this.audit(tx, userId, "SteamResaleAccount", resaleAccount.id, "SOFTWARE_BALANCE_CREDIT", resaleAccount, updatedAccount);
+      }
       return investment;
+    });
+  }
+
+  async updateInvestmentReceived(userId: string, input: {
+    investmentId: string;
+    receivedSteamAmount: Decimal.Value;
+    completedAt?: Date | null;
+    note?: string | null;
+  }) {
+    return this.db.$transaction(async (tx) => {
+      const investment = await tx.steamResaleInvestment.findFirst({ where: { id: input.investmentId, userId, archivedAt: null } });
+      if (!investment) throw new Error("Steam resale investment not found");
+      const account = await this.requireResaleAccount(tx, userId, investment.resaleAccountId);
+      const previousReceived = D(investment.receivedSteamAmount);
+      const nextReceived = roundCurrency(input.receivedSteamAmount, "USDT");
+      const delta = nextReceived.minus(previousReceived);
+      const nextBalance = D(account.currentSoftwareBalance).plus(delta);
+      if (nextBalance.lt(0)) throw new Error("Software balance cannot be negative");
+      const updatedAccount = await tx.steamResaleAccount.update({
+        where: { id: account.id },
+        data: { currentSoftwareBalance: nextBalance.toString() }
+      });
+      const updatedInvestment = await tx.steamResaleInvestment.update({
+        where: { id: investment.id },
+        data: {
+          receivedSteamAmount: nextReceived.toString(),
+          completedAt: input.completedAt || investment.completedAt || new Date(),
+          note: input.note ?? investment.note
+        }
+      });
+      await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "RECEIVED_UPDATE", investment, updatedInvestment);
+      if (!delta.isZero()) {
+        await this.audit(tx, userId, "SteamResaleAccount", account.id, "SOFTWARE_BALANCE_CREDIT", account, updatedAccount);
+      }
+      return updatedInvestment;
     });
   }
 
@@ -469,11 +513,14 @@ export class SteamAnalyticsService {
       .filter((residual) => inPeriod(residual.resolvedAt))
       .reduce((sum, residual) => sum.plus(residual.resolvedAmount || 0), new Decimal(0));
     const arbitrageProfit = completedProfit.plus(residualProfit).minus(arbitrageUnboundExpenses);
-    const activeResaleCapital = activeResaleInvestments.reduce((sum, item) => sum.plus(item.externalAmount), new Decimal(0));
+    const pendingResaleCapital = activeResaleInvestments
+      .filter((item) => D(item.receivedSteamAmount).lte(0))
+      .reduce((sum, item) => sum.plus(item.externalAmount), new Decimal(0));
+    const softwareBalance = resaleAccounts.reduce((sum, item) => sum.plus(item.currentSoftwareBalance), new Decimal(0));
+    const activeResaleCapital = pendingResaleCapital.plus(softwareBalance);
     const activeArbitrageCapital = activeRounds.reduce((sum, item) => sum.plus(item.investedAmount), new Decimal(0));
     const openResidualCapital = openResiduals.reduce((sum, item) => sum.plus(item.amount), new Decimal(0));
     const frozenCapital = activeResaleCapital.plus(activeArbitrageCapital).plus(openResidualCapital);
-    const softwareBalance = resaleAccounts.reduce((sum, item) => sum.plus(item.currentSoftwareBalance), new Decimal(0));
     const withdrawnClean = resaleWithdrawn.plus(completedRounds.reduce((sum, item) => sum.plus(item.finalAmountReceived || 0), new Decimal(0)));
     const completedWithProfit = completedRounds.filter((round) => D(round.investedAmount).gt(0) && round.finalAmountReceived && inPeriod(round.completedAt));
     const roiRows = completedWithProfit.map((round) => pct(D(round.finalAmountReceived || 0).minus(round.investedAmount).minus(roundExpenseMap.get(round.id) || 0), round.investedAmount));
