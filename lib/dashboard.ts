@@ -98,6 +98,7 @@ export async function getDashboard(userId: string) {
     if (item.currency === "UAH") return sum.plus(D(item.amount).div(rate));
     return sum.plus(item.amount);
   }, new Decimal(0));
+  const frozenTotalUsdt = frozenCrypto.plus(potentialExpected);
   const steamFrozenCapital = D(steam.totals.frozenCapital);
   const potentialBankUsdt = availableBankUsdt.plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
   const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
@@ -282,6 +283,7 @@ export async function getDashboard(userId: string) {
       cryptoTotal: cryptoTotal.toString(),
       availableCrypto: availableCrypto.toString(),
       frozenCrypto: frozenCrypto.toString(),
+      frozenTotalUsdt: frozenTotalUsdt.toString(),
       cardUah: cardUah.toString(),
       cashUah: cashUah.toString(),
       cashUsd: cashUsd.toString(),

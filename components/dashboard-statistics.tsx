@@ -23,6 +23,7 @@ type DashboardStatsData = {
     cryptoTotal: string;
     availableCrypto: string;
     frozenCrypto: string;
+    frozenTotalUsdt: string;
     cardUah: string;
     cashUah: string;
     cashUsd: string;
@@ -54,7 +55,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const monthExpenseColor = expenseLimitColor(data.totals.monthExpenseUah, data.settings?.monthlyExpenseLimit);
   const metricItems = [
     { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), subValue: asUah(data.totals.cryptoTotal) },
-    { label: "Заморожено", value: formatMoney(data.totals.frozenCrypto, "USDT", hidden), subValue: asUah(data.totals.frozenCrypto), tone: "warn" as const },
+    { label: "Заморожено", value: formatMoney(data.totals.frozenTotalUsdt, "USDT", hidden), subValue: asUah(data.totals.frozenTotalUsdt), tone: "warn" as const },
     { label: "Картки UAH", value: formatMoney(data.totals.cardUah, "UAH", hidden) },
     { label: "Cash UAH", value: formatMoney(data.totals.cashUah, "UAH", hidden) },
     { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden), subValue: asUah(data.totals.cashUsd) },
@@ -103,7 +104,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
             { name: "В обороті", value: Number(data.steam.frozenCapital) },
             { name: "UAH", value: Number(data.totals.cardUah) / Number(data.rate) },
             { name: "Cash USD", value: Number(data.totals.cashUsd) },
-            { name: "Заморожено", value: Number(data.totals.frozenCrypto) }
+            { name: "Заморожено", value: Number(data.totals.frozenTotalUsdt) }
           ]}
         />
       </Card>
