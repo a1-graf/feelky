@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
@@ -10,47 +11,58 @@ type IncomeTimelinePoint = {
   uah: number;
 };
 
-type IncomeLineChartProps = {
-  data: IncomeTimelinePoint[];
-  hidden?: boolean;
+type IncomeSourceTimelinePoint = {
+  date: string;
+  label: string;
+  sources: { name: string; value: number }[];
 };
 
-const tooltipFormatter = (hidden: boolean) => (value: number, name: string) => {
-  const currency = name === "USDT" ? "USDT" : "UAH";
-  return [formatMoney(value, currency, hidden), name];
-};
+const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
 
-export function IncomeLineChart({ data, hidden = false }: IncomeLineChartProps) {
-  const hasIncome = data.some((item) => item.usdt > 0 || item.uah > 0);
+function axisValue(value: number, hidden: boolean) {
+  if (hidden) return "****";
+  return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
 
-  if (!data.length || !hasIncome) {
+export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTimelinePoint[]; rate: string; hidden?: boolean }) {
+  const uahRate = Number(rate);
+  const cumulativeData = useMemo(() => {
+    let usdt = 0;
+    let uah = 0;
+    return [...data]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => {
+        usdt += point.usdt;
+        uah += point.uah;
+        return { ...point, usdt, uah, totalUsdt: usdt + uah / uahRate };
+      });
+  }, [data, uahRate]);
+  const latest = cumulativeData[cumulativeData.length - 1];
+
+  if (!latest || (!latest.usdt && !latest.uah)) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає доходів</div>;
   }
 
+  const showDots = cumulativeData.length <= 100;
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-0.5 w-8 rounded-full bg-[#2563eb]" />
-          USDT
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="h-0 w-8 border-t-2 border-dashed border-[#e8795f]" />
-          UAH
-        </span>
+        <ChartTotal color="#2563eb" label="USDT" value={formatMoney(latest.usdt, "USDT", hidden)} />
+        <ChartTotal color="#e8795f" label="UAH" value={formatMoney(latest.uah, "UAH", hidden)} />
+        <ChartTotal color="#16a34a" label="Загальний" value={formatMoney(latest.totalUsdt, "USDT", hidden)} />
       </div>
-      <div className="h-72 w-full">
+      <div className="h-80 w-full">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+          <LineChart data={cumulativeData} margin={{ left: 0, right: 0, top: 16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis
               yAxisId="usdt"
               tickLine={false}
               axisLine={false}
               tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-              tickFormatter={(value) => (hidden ? "****" : `${value}`)}
-              width={44}
+              tickFormatter={(value) => axisValue(Number(value), hidden)}
+              width={54}
             />
             <YAxis
               yAxisId="uah"
@@ -58,15 +70,79 @@ export function IncomeLineChart({ data, hidden = false }: IncomeLineChartProps) 
               tickLine={false}
               axisLine={false}
               tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-              tickFormatter={(value) => (hidden ? "****" : `${value}`)}
-              width={44}
+              tickFormatter={(value) => axisValue(Number(value), hidden)}
+              width={58}
             />
-            <Tooltip formatter={tooltipFormatter(hidden)} labelFormatter={(label) => `Дата: ${label}`} />
-            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-            <Line yAxisId="uah" type="monotone" dataKey="uah" name="UAH" stroke="#e8795f" strokeWidth={2.5} strokeDasharray="7 5" dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            <Tooltip
+              formatter={(value, name) => [
+                formatMoney(Number(value), name === "UAH" ? "UAH" : "USDT", hidden),
+                name === "TOTAL" ? "Загальний дохід" : name
+              ]}
+              labelFormatter={(label) => `Дата: ${label}`}
+            />
+            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line yAxisId="uah" type="monotone" dataKey="uah" name="UAH" stroke="#e8795f" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="TOTAL" stroke="#16a34a" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
+  );
+}
+
+export function IncomeSourceGrowthChart({ data, hidden = false }: { data: IncomeSourceTimelinePoint[]; hidden?: boolean }) {
+  const prepared = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const point of data) {
+      for (const source of point.sources) totals.set(source.name, (totals.get(source.name) || 0) + source.value);
+    }
+    const series = Array.from(totals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, total], index) => ({ name, total, key: `source${index}`, color: SOURCE_COLORS[index] }));
+    const running = new Map<string, number>();
+    const points = [...data]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => {
+        for (const source of point.sources) running.set(source.name, (running.get(source.name) || 0) + source.value);
+        const chartPoint: Record<string, string | number> = { date: point.date, label: point.label };
+        for (const item of series) chartPoint[item.key] = running.get(item.name) || 0;
+        return chartPoint;
+      });
+    return { series, points };
+  }, [data]);
+
+  if (!prepared.series.length) return null;
+  const showDots = prepared.points.length <= 100;
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
+        {prepared.series.map((item) => (
+          <ChartTotal key={item.key} color={item.color} label={item.name} value={formatMoney(item.total, "USDT", hidden)} />
+        ))}
+      </div>
+      <div className="h-72 w-full">
+        <ResponsiveContainer>
+          <LineChart data={prepared.points} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
+            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={54} />
+            <Tooltip formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name]} labelFormatter={(label) => `Дата: ${label}`} />
+            {prepared.series.map((item) => (
+              <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function ChartTotal({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="h-0.5 w-8" style={{ backgroundColor: color }} />
+      <span>{label}: <b className="text-[hsl(var(--card-foreground))]">{value}</b></span>
+    </span>
   );
 }

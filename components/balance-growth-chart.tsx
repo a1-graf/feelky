@@ -49,6 +49,21 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
       ...sorted.slice(firstInRangeIndex)
     ];
   }, [data, rangeDays]);
+  const yDomain = useMemo<[number, number]>(() => {
+    const values = visibleData.flatMap((point) => [point.full, point.available]).filter(Number.isFinite);
+    if (!values.length) return [0, 1000];
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    const observedSpan = maximum - minimum;
+    const padding = Math.max(600, maximum * 0.55, observedSpan * 0.8);
+    const roughMinimum = Math.max(0, minimum - padding);
+    const roughMaximum = maximum + padding;
+    const rounding = roughMaximum >= 10000 ? 1000 : roughMaximum >= 2000 ? 500 : 100;
+    return [
+      Math.max(0, Math.floor(roughMinimum / rounding) * rounding),
+      Math.ceil(roughMaximum / rounding) * rounding
+    ];
+  }, [visibleData]);
 
   if (!data.length) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає даних</div>;
@@ -82,12 +97,21 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
           ))}
         </div>
       </div>
-      <div className="h-72 w-full">
+      <div className="h-80 w-full">
         <ResponsiveContainer>
-          <LineChart data={visibleData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+          <LineChart data={visibleData} margin={{ left: 0, right: 8, top: 24, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "****" : `${value}`)} width={48} />
+            <YAxis
+              domain={yDomain}
+              allowDataOverflow
+              tickCount={6}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
+              tickFormatter={(value) => hidden ? "****" : new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value))}
+              width={56}
+            />
             <Tooltip
               formatter={(value, name) => {
                 const amount = Number(value);

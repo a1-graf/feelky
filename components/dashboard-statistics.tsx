@@ -1,7 +1,7 @@
 import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
-import { IncomeDonutChart } from "@/components/income-donut-chart";
+import { IncomeLineChart, IncomeSourceGrowthChart } from "@/components/income-line-chart";
 import { MetricGrid } from "@/components/metric-grid";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ type DashboardStatsData = {
   incomeSourcesUah: { name: string; value: string }[];
   incomeSourcesUsdt: { name: string; value: string }[];
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
+  incomeSourceTimeline: { date: string; label: string; sources: { name: string; value: number }[] }[];
   balanceTimeline: { date: string; label: string; tooltipLabel?: string; eventIndex?: number; full: number; available: number }[];
   recentTransactions: Parameters<typeof TransactionList>[0]["items"];
   steam: {
@@ -86,9 +87,13 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
       </Card>
 
       <Card className="mt-4">
-        <div className="mb-1 font-semibold">Доходи</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT — зовнішнє суцільне кільце, UAH — внутрішнє пунктирне</div>
-        <IncomeDonutChart usdtData={data.incomeSourcesUsdt} uahData={data.incomeSourcesUah} hidden={hidden} />
+        <div className="mb-1 font-semibold">Наростаючий дохід</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT, UAH та загальний дохід у перерахунку на USDT</div>
+        <IncomeLineChart data={data.incomeTimeline} rate={data.rate} hidden={hidden} />
+        <div className="my-5 border-t border-border" />
+        <div className="mb-1 font-semibold">Що приносить дохід</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючий результат топ-5 напрямків у перерахунку на USDT</div>
+        <IncomeSourceGrowthChart data={data.incomeSourceTimeline} hidden={hidden} />
       </Card>
 
       <Card className="mt-4">

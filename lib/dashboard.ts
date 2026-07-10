@@ -59,7 +59,7 @@ export async function getDashboard(userId: string) {
     prisma.transaction.findMany({
       where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] } },
       orderBy: { transactionDate: "desc" },
-      take: 60,
+      take: 2000,
       include: { incomeSource: true }
     }),
     prisma.transaction.findMany({
@@ -158,17 +158,22 @@ export async function getDashboard(userId: string) {
   const incomeSourceUahMap = new Map<string, Decimal>();
   const incomeSourceUsdtMap = new Map<string, Decimal>();
   const incomeTimelineMap = new Map<string, { label: string; usdt: Decimal; uah: Decimal }>();
+  const incomeSourceTimelineMap = new Map<string, { label: string; sources: Map<string, Decimal> }>();
   for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item))) {
     const label = transaction.incomeSource?.name || "\u0411\u0435\u0437 \u0434\u0436\u0435\u0440\u0435\u043b\u0430";
     const dateKey = transaction.transactionDate.toISOString().slice(0, 10);
+    const formattedDate = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(transaction.transactionDate);
     const timelinePoint =
       incomeTimelineMap.get(dateKey) ||
       {
-        label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" }).format(transaction.transactionDate),
+        label: formattedDate,
         usdt: new Decimal(0),
         uah: new Decimal(0)
       };
-    if (transaction.currency === "USDT") {
+    const sourceTimelinePoint = incomeSourceTimelineMap.get(dateKey) || { label: formattedDate, sources: new Map<string, Decimal>() };
+    const amountInUsdt = transaction.currency === "UAH" ? D(transaction.amount).div(rate) : D(transaction.amount);
+    sourceTimelinePoint.sources.set(label, D(sourceTimelinePoint.sources.get(label) || 0).plus(amountInUsdt));
+    if (transaction.currency === "USDT" || transaction.currency === "USD") {
       incomeSourceUsdtMap.set(label, D(incomeSourceUsdtMap.get(label) || 0).plus(transaction.amount));
       timelinePoint.usdt = timelinePoint.usdt.plus(transaction.amount);
     } else if (transaction.currency === "UAH") {
@@ -176,6 +181,7 @@ export async function getDashboard(userId: string) {
       timelinePoint.uah = timelinePoint.uah.plus(transaction.amount);
     }
     incomeTimelineMap.set(dateKey, timelinePoint);
+    incomeSourceTimelineMap.set(dateKey, sourceTimelinePoint);
   }
   const incomeSourcesUah = Array.from(incomeSourceUahMap.entries())
     .map(([name, value]) => ({ name, value: value.toString() }))
@@ -190,6 +196,13 @@ export async function getDashboard(userId: string) {
       label: value.label,
       usdt: value.usdt.toNumber(),
       uah: value.uah.toNumber()
+    }));
+  const incomeSourceTimeline = Array.from(incomeSourceTimelineMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, value]) => ({
+      date,
+      label: value.label,
+      sources: Array.from(value.sources.entries()).map(([name, amount]) => ({ name, value: amount.toNumber() }))
     }));
 
   const asUsdt = (amount: Decimal.Value, currency: string) => {
@@ -270,6 +283,7 @@ export async function getDashboard(userId: string) {
     incomeSourcesUah,
     incomeSourcesUsdt,
     incomeTimeline,
+    incomeSourceTimeline,
     balanceTimeline,
     flips: {
       totalPnl: flipTotalPnl.toString(),
