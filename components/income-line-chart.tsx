@@ -24,22 +24,48 @@ function axisValue(value: number, hidden: boolean) {
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+function calendarDates(start: string, end: string) {
+  const dates: { date: string; label: string }[] = [];
+  const current = new Date(`${start}T00:00:00.000Z`);
+  const last = new Date(`${end}T00:00:00.000Z`);
+  while (current <= last) {
+    dates.push({
+      date: current.toISOString().slice(0, 10),
+      label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(current)
+    });
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function fillIncomeDates(data: IncomeTimelinePoint[]) {
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  if (!sorted.length) return sorted;
+  const byDate = new Map(sorted.map((point) => [point.date, point]));
+  return calendarDates(sorted[0].date, sorted[sorted.length - 1].date).map((day) => byDate.get(day.date) || { ...day, usdt: 0, uah: 0 });
+}
+
+function fillSourceDates(data: IncomeSourceTimelinePoint[]) {
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  if (!sorted.length) return sorted;
+  const byDate = new Map(sorted.map((point) => [point.date, point]));
+  return calendarDates(sorted[0].date, sorted[sorted.length - 1].date).map((day) => byDate.get(day.date) || { ...day, sources: [] });
+}
+
 export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTimelinePoint[]; rate: string; hidden?: boolean }) {
   const uahRate = Number(rate);
   const cumulativeData = useMemo(() => {
     let usdt = 0;
-    let uah = 0;
-    return [...data]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((point) => {
+    let uahUsdt = 0;
+    return fillIncomeDates(data).map((point) => {
         usdt += point.usdt;
-        uah += point.uah;
-        return { ...point, usdt, uah, totalUsdt: usdt + uah / uahRate };
+        uahUsdt += point.uah / uahRate;
+        return { ...point, usdt, uahUsdt, totalUsdt: usdt + uahUsdt };
       });
   }, [data, uahRate]);
   const latest = cumulativeData[cumulativeData.length - 1];
 
-  if (!latest || (!latest.usdt && !latest.uah)) {
+  if (!latest || (!latest.usdt && !latest.uahUsdt)) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає доходів</div>;
   }
 
@@ -48,12 +74,12 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
         <ChartTotal color="#2563eb" label="USDT" value={formatMoney(latest.usdt, "USDT", hidden)} />
-        <ChartTotal color="#e8795f" label="UAH" value={formatMoney(latest.uah, "UAH", hidden)} />
+        <ChartTotal color="#e8795f" label="UAH → USDT" value={formatMoney(latest.uahUsdt, "USDT", hidden)} />
         <ChartTotal color="#16a34a" label="Загальний" value={formatMoney(latest.totalUsdt, "USDT", hidden)} />
       </div>
       <div className="h-80 w-full">
         <ResponsiveContainer>
-          <LineChart data={cumulativeData} margin={{ left: 0, right: 0, top: 16, bottom: 0 }}>
+          <LineChart data={cumulativeData} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis
@@ -62,26 +88,17 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
               axisLine={false}
               tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
               tickFormatter={(value) => axisValue(Number(value), hidden)}
-              width={54}
-            />
-            <YAxis
-              yAxisId="uah"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-              tickFormatter={(value) => axisValue(Number(value), hidden)}
-              width={58}
+              width={62}
             />
             <Tooltip
               formatter={(value, name) => [
-                formatMoney(Number(value), name === "UAH" ? "UAH" : "USDT", hidden),
+                formatMoney(Number(value), "USDT", hidden),
                 name === "TOTAL" ? "Загальний дохід" : name
               ]}
               labelFormatter={(label) => `Дата: ${label}`}
             />
             <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
-            <Line yAxisId="uah" type="monotone" dataKey="uah" name="UAH" stroke="#e8795f" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line yAxisId="usdt" type="monotone" dataKey="uahUsdt" name="UAH → USDT" stroke="#e8795f" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
             <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="TOTAL" stroke="#16a34a" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </LineChart>
         </ResponsiveContainer>
@@ -101,9 +118,7 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
       .slice(0, 5)
       .map(([name, total], index) => ({ name, total, key: `source${index}`, color: SOURCE_COLORS[index] }));
     const running = new Map<string, number>();
-    const points = [...data]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((point) => {
+    const points = fillSourceDates(data).map((point) => {
         for (const source of point.sources) running.set(source.name, (running.get(source.name) || 0) + source.value);
         const chartPoint: Record<string, string | number> = { date: point.date, label: point.label };
         for (const item of series) chartPoint[item.key] = running.get(item.name) || 0;

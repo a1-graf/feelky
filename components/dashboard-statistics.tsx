@@ -88,7 +88,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Наростаючий дохід</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT, UAH та загальний дохід у перерахунку на USDT</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Усі лінії та ліва шкала показані в USDT</div>
         <IncomeLineChart data={data.incomeTimeline} rate={data.rate} hidden={hidden} />
         <div className="my-5 border-t border-border" />
         <div className="mb-1 font-semibold">Що приносить дохід</div>
