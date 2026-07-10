@@ -1,7 +1,7 @@
 import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
-import { IncomeLineChart } from "@/components/income-line-chart";
+import { IncomeDonutChart } from "@/components/income-donut-chart";
 import { MetricGrid } from "@/components/metric-grid";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -87,8 +87,8 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Доходи</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT — суцільна лінія, UAH — пунктирна</div>
-        <IncomeLineChart data={data.incomeTimeline} hidden={hidden} />
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT — зовнішнє суцільне кільце, UAH — внутрішнє пунктирне</div>
+        <IncomeDonutChart usdtData={data.incomeSourcesUsdt} uahData={data.incomeSourcesUah} hidden={hidden} />
       </Card>
 
       <Card className="mt-4">
