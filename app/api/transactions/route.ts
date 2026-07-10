@@ -9,7 +9,8 @@ import {
   manualAdjustmentSchema,
   p2pWithdrawalSchema,
   savingsDepositSchema,
-  transactionFiltersSchema
+  transactionFiltersSchema,
+  workExpenseSchema
 } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
 
@@ -62,6 +63,14 @@ export async function POST(request: Request) {
       return NextResponse.json(await ledger.createExpense(userId, {
         ...input,
         currency: input.currency as Currency
+      }), { status: 201 });
+    }
+    if (action === "workExpense") {
+      const input = workExpenseSchema.parse(body);
+      return NextResponse.json(await ledger.createExpense(userId, {
+        ...input,
+        currency: input.currency as Currency,
+        isWorkExpense: true
       }), { status: 201 });
     }
     if (action === "savings") {

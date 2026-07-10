@@ -37,6 +37,7 @@ const actionOptions = [
   { value: "withdrawal", label: "Вивід" },
   { value: "income", label: "Дохід" },
   { value: "expense", label: "Витрата" },
+  { value: "workExpense", label: "Робоча витрата" },
   { value: "savings", label: "Відкладення" },
   { value: "flip", label: "Фліп" },
   { value: "expected", label: "Заморожені бабки" }
@@ -276,6 +277,29 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                       </select>
                     </label>
                   )}
+                </>
+              )}
+              {action === "workExpense" && (
+                <>
+                  <div className="grid grid-cols-[1fr_120px] gap-2">
+                    <label>Сума<input name="amount" inputMode="decimal" required /></label>
+                    <label>
+                      Валюта
+                      <select value={expenseCurrency} onChange={(event) => setExpenseCurrency(event.target.value as "UAH" | "USDT")}>
+                        <option>UAH</option>
+                        <option>USDT</option>
+                      </select>
+                    </label>
+                  </div>
+                  <input type="hidden" name="currency" value={expenseCurrency} />
+                  <DateField />
+                  <Select name="incomeSourceId" label="Напрямок доходу" options={incomeSourceOptions} defaultValue={defaultIncomeSource} />
+                  <label>
+                    Звідки списати
+                    <select name="sourceAccountId" value={selectedExpenseSource?.id || ""} onChange={(event) => setSelectedExpenseSourceId(event.target.value)} required>
+                      {expenseSourceAccounts.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </select>
+                  </label>
                 </>
               )}
               {action === "expected" && (

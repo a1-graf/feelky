@@ -50,6 +50,15 @@ export const expenseSchema = z.object({
   note: z.string().optional().nullable()
 });
 
+export const workExpenseSchema = z.object({
+  amount: decimalInput(z.coerce.number().positive()),
+  currency: z.enum(["UAH", "USDT"]),
+  transactionDate: dateString.default(() => new Date()),
+  incomeSourceId: z.string().min(1),
+  sourceAccountId: z.string().min(1),
+  note: z.string().optional().nullable()
+});
+
 export const savingsDepositSchema = z.object({
   amount: decimalInput(z.coerce.number().positive()),
   sourceAccountId: z.string().min(1),

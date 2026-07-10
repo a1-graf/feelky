@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { syncUnpostedFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
-import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
+import { isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 export async function resolveUahUsdtRate(userId: string) {
@@ -51,10 +51,10 @@ export async function getDashboard(userId: string) {
       include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null, type: TransactionType.EXPENSE, currency: "UAH" },
+      where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
       orderBy: { transactionDate: "desc" },
-      take: 60,
-      include: { category: true }
+      take: 2000,
+      include: { category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] } },
@@ -148,11 +148,21 @@ export async function getDashboard(userId: string) {
     }))
     .sort((a, b) => Number(b.pnl) - Number(a.pnl));
   const expenseCategoryMap = new Map<string, Decimal>();
+  const workExpenseSourceMap = new Map<string, Decimal>();
   for (const transaction of expenseTransactions) {
-    const label = transaction.category?.name || "Без категорії";
-    expenseCategoryMap.set(label, D(expenseCategoryMap.get(label) || 0).plus(transaction.amount));
+    if (isWorkExpenseTransaction(transaction)) {
+      const label = transaction.incomeSource?.name || "Без напрямку";
+      const amountUsdt = transaction.currency === "UAH" ? D(transaction.amount).div(rate) : D(transaction.amount);
+      workExpenseSourceMap.set(label, D(workExpenseSourceMap.get(label) || 0).plus(amountUsdt));
+    } else if (transaction.currency === "UAH") {
+      const label = transaction.category?.name || "Без категорії";
+      expenseCategoryMap.set(label, D(expenseCategoryMap.get(label) || 0).plus(transaction.amount));
+    }
   }
   const expenseCategories = Array.from(expenseCategoryMap.entries())
+    .map(([name, value]) => ({ name, value: value.toString() }))
+    .sort((a, b) => Number(b.value) - Number(a.value));
+  const workExpenseSourcesUsdt = Array.from(workExpenseSourceMap.entries())
     .map(([name, value]) => ({ name, value: value.toString() }))
     .sort((a, b) => Number(b.value) - Number(a.value));
   const incomeSourceUahMap = new Map<string, Decimal>();
@@ -280,6 +290,7 @@ export async function getDashboard(userId: string) {
     expectedMoney,
     recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 8),
     expenseCategories,
+    workExpenseSourcesUsdt,
     incomeSourcesUah,
     incomeSourcesUsdt,
     incomeTimeline,

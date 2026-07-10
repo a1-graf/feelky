@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOpeningBalanceDateInput, isOpeningBalanceTransaction, isSavingsDepositTransaction, parseDateInput } from "@/lib/transaction-utils";
+import { isOpeningBalanceDateInput, isOpeningBalanceTransaction, isSavingsDepositTransaction, isWorkExpenseTransaction, parseDateInput } from "@/lib/transaction-utils";
 
 describe("transaction utilities", () => {
   it("recognizes zero dates as opening balance input", () => {
@@ -26,5 +26,13 @@ describe("savings transactions", () => {
     expect(isSavingsDepositTransaction({ type: "TRANSFER", metadata: { isSavingsDeposit: true } })).toBe(true);
     expect(isSavingsDepositTransaction({ type: "TRANSFER", metadata: {} })).toBe(false);
     expect(isSavingsDepositTransaction({ type: "INCOME", metadata: { isSavingsDeposit: true } })).toBe(false);
+  });
+});
+
+describe("work expense transactions", () => {
+  it("recognizes only marked expenses as work expenses", () => {
+    expect(isWorkExpenseTransaction({ type: "EXPENSE", metadata: { isWorkExpense: true } })).toBe(true);
+    expect(isWorkExpenseTransaction({ type: "EXPENSE", metadata: {} })).toBe(false);
+    expect(isWorkExpenseTransaction({ type: "INCOME", metadata: { isWorkExpense: true } })).toBe(false);
   });
 });

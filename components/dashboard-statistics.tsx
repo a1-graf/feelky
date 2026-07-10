@@ -11,6 +11,7 @@ type DashboardStatsData = {
   rate: string;
   settings: { hideAmounts: boolean; monthlyExpenseLimit?: { toString(): string } | string | null } | null;
   expenseCategories: { name: string; value: string }[];
+  workExpenseSourcesUsdt: { name: string; value: string }[];
   incomeSourcesUah: { name: string; value: string }[];
   incomeSourcesUsdt: { name: string; value: string }[];
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
@@ -57,6 +58,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const asUah = (value: string) => formatMoney(Number(value) * rate, "UAH", hidden);
   const asUsdt = (value: string) => formatMoney(Number(value) / rate, "USDT", hidden);
   const monthExpenseColor = expenseLimitColor(data.totals.monthExpenseUah, data.settings?.monthlyExpenseLimit);
+  const hasWorkExpenses = data.workExpenseSourcesUsdt.some((item) => Number(item.value) > 0);
   const metricItems = [
     { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), subValue: asUah(data.totals.cryptoTotal) },
     { label: "Заморожено", value: formatMoney(data.totals.frozenTotalUsdt, "USDT", hidden), subValue: asUah(data.totals.frozenTotalUsdt), tone: "warn" as const },
@@ -82,8 +84,19 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Куди йдуть витрати</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Найбільші категорії за всіма тратами</div>
-        <ExpensePieChart data={data.expenseCategories} hidden={hidden} emptyLabel="Поки немає витрат" />
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Особисті витрати в UAH та робочі витрати за напрямками</div>
+        <div className={hasWorkExpenses ? "grid gap-6 xl:grid-cols-2" : ""}>
+          <div className="min-w-0">
+            {hasWorkExpenses && <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">Особисті · UAH</div>}
+            <ExpensePieChart data={data.expenseCategories} hidden={hidden} emptyLabel="Поки немає витрат" />
+          </div>
+          {hasWorkExpenses && (
+            <div className="min-w-0">
+              <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">Робочі · USDT</div>
+              <ExpensePieChart data={data.workExpenseSourcesUsdt} hidden={hidden} emptyLabel="" currency="USDT" />
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="mt-4">

@@ -35,3 +35,12 @@ export function isSavingsDepositTransaction(transaction: {
   const metadata = transaction.metadata;
   return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).isSavingsDeposit === true);
 }
+
+export function isWorkExpenseTransaction(transaction: {
+  type?: TransactionType | string;
+  metadata?: unknown;
+}) {
+  if (transaction.type !== "EXPENSE") return false;
+  const metadata = transaction.metadata;
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).isWorkExpense === true);
+}

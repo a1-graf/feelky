@@ -79,14 +79,20 @@ export class LedgerService {
     amount: Decimal.Value;
     currency: Currency;
     transactionDate: Date;
-    categoryId: string;
+    categoryId?: string | null;
+    incomeSourceId?: string | null;
     sourceAccountId: string;
     note?: string | null;
+    isWorkExpense?: boolean;
   }) {
     return this.db.$transaction(async (tx) => {
       const sourceAccount = await this.requireAccount(tx, userId, input.sourceAccountId);
       if (sourceAccount.currency !== input.currency) {
         throw new Error(`Expense currency ${input.currency} does not match ${sourceAccount.name} ${sourceAccount.currency}`);
+      }
+      if (input.isWorkExpense) {
+        const incomeSource = await tx.incomeSource.findFirst({ where: { id: input.incomeSourceId || "", userId, isActive: true } });
+        if (!incomeSource) throw new Error("Напрямок доходу не знайдено");
       }
       const amount = roundCurrency(input.amount, input.currency as CurrencyCode);
       await this.adjustAccount(tx, userId, input.sourceAccountId, amount.negated(), false);
@@ -97,9 +103,11 @@ export class LedgerService {
           amount: amount.toString(),
           currency: input.currency,
           sourceAccountId: input.sourceAccountId,
-          categoryId: input.categoryId,
+          categoryId: input.categoryId || null,
+          incomeSourceId: input.incomeSourceId || null,
           note: input.note,
-          transactionDate: input.transactionDate
+          transactionDate: input.transactionDate,
+          metadata: input.isWorkExpense ? { isWorkExpense: true } : undefined
         }
       });
     });

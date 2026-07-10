@@ -7,20 +7,27 @@ import { TransactionList } from "@/components/transaction-list";
 import { prisma } from "@/lib/db";
 import { formatMoney, sumDecimals } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
+import { isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
 export default async function ExpensesPage() {
   const userId = await requireUserId();
   const transactions = await prisma.transaction.findMany({
     where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
-    include: { sourceAccount: true, category: true },
+    include: { sourceAccount: true, category: true, incomeSource: true },
     orderBy: { transactionDate: "desc" }
   });
   const totalUah = sumDecimals(transactions.filter((item) => item.currency === "UAH").map((item) => item.amount));
   const totalUsdt = sumDecimals(transactions.filter((item) => item.currency === "USDT").map((item) => item.amount));
   const byCategory = new Map<string, string>();
   for (const item of transactions.filter((transaction) => transaction.currency === "UAH")) {
-    const key = item.category?.name || "Інше";
-    byCategory.set(key, formatMoney(sumDecimals(transactions.filter((t) => t.currency === "UAH" && (t.category?.name || "Інше") === key).map((t) => t.amount)), "UAH"));
+    const key = isWorkExpenseTransaction(item) ? `Робочі · ${item.incomeSource?.name || "Без напрямку"}` : item.category?.name || "Інше";
+    byCategory.set(key, formatMoney(sumDecimals(transactions.filter((transaction) => {
+      if (transaction.currency !== "UAH") return false;
+      const transactionKey = isWorkExpenseTransaction(transaction)
+        ? `Робочі · ${transaction.incomeSource?.name || "Без напрямку"}`
+        : transaction.category?.name || "Інше";
+      return transactionKey === key;
+    }).map((transaction) => transaction.amount)), "UAH"));
   }
   return (
     <AppShell>
