@@ -1,6 +1,7 @@
 import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
+import { IncomeLineChart } from "@/components/income-line-chart";
 import { MetricGrid } from "@/components/metric-grid";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -86,17 +87,8 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Доходи</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Джерела доходів окремо для USDT і UAH</div>
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="min-w-0">
-            <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">USDT</div>
-            <ExpensePieChart data={data.incomeSourcesUsdt} hidden={hidden} emptyLabel="Поки немає доходів у USDT" currency="USDT" />
-          </div>
-          <div className="min-w-0">
-            <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">UAH</div>
-            <ExpensePieChart data={data.incomeSourcesUah} hidden={hidden} emptyLabel="Поки немає доходів у UAH" currency="UAH" />
-          </div>
-        </div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">USDT — суцільна лінія, UAH — пунктирна</div>
+        <IncomeLineChart data={data.incomeTimeline} hidden={hidden} />
       </Card>
 
       <Card className="mt-4">

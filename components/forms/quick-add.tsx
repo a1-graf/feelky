@@ -47,6 +47,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const [action, setAction] = useState("withdrawal");
   const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
   const [incomeCurrency, setIncomeCurrency] = useState("USDT");
+  const [expenseCurrency, setExpenseCurrency] = useState<"UAH" | "USDT">("UAH");
   const [incomeDate, setIncomeDate] = useState(today());
   const [categoryOptions, setCategoryOptions] = useState(categories);
   const [incomeSourceOptions, setIncomeSourceOptions] = useState(incomeSources);
@@ -69,12 +70,13 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const defaultCategory = categoryOptions[0]?.id || "";
   const steamCategoryId = categoryOptions.find((category) => category.name.toLowerCase() === "steam")?.id || "";
   const isSteamExpense = action === "expense" && selectedCategoryId === steamCategoryId;
-  const expenseSourceAccounts = accounts.filter((account) => account.currency === "UAH" || account.currency === "USDT");
+  const effectiveExpenseCurrency = isSteamExpense ? "USDT" : expenseCurrency;
+  const expenseSourceAccounts = accounts.filter((account) => account.currency === effectiveExpenseCurrency);
+  const preferredExpenseSourceId = effectiveExpenseCurrency === "USDT" ? defaultSteamExpense : defaultExpense;
   const selectedExpenseSource =
     expenseSourceAccounts.find((account) => account.id === selectedExpenseSourceId) ||
-    expenseSourceAccounts.find((account) => account.id === defaultExpense) ||
+    expenseSourceAccounts.find((account) => account.id === preferredExpenseSourceId) ||
     expenseSourceAccounts[0];
-  const expenseCurrency = isSteamExpense ? "USDT" : selectedExpenseSource?.currency === "USDT" ? "USDT" : "UAH";
   const incomeDestinationAccounts = accounts
     .filter((account) => account.currency === incomeCurrency || (incomeCurrency === "USDT" && account.type === "CASH" && account.currency === "USD"))
     .map((account) => ({
@@ -236,17 +238,21 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
               )}
               {action === "expense" && (
                 <>
-                  {isSteamExpense ? (
-                    <>
-                      <label>Сума USDT<input name="amount" inputMode="decimal" required /></label>
-                      <input type="hidden" name="currency" value="USDT" />
-                    </>
-                  ) : (
-                    <>
-                      <label>Сума {expenseCurrency}<input name="amount" inputMode="decimal" required /></label>
-                      <input type="hidden" name="currency" value={expenseCurrency} />
-                    </>
-                  )}
+                  <div className="grid grid-cols-[1fr_120px] gap-2">
+                    <label>Сума<input name="amount" inputMode="decimal" required /></label>
+                    <label>
+                      Валюта
+                      <select
+                        value={effectiveExpenseCurrency}
+                        onChange={(event) => setExpenseCurrency(event.target.value as "UAH" | "USDT")}
+                        disabled={isSteamExpense}
+                      >
+                        <option>UAH</option>
+                        <option>USDT</option>
+                      </select>
+                    </label>
+                  </div>
+                  <input type="hidden" name="currency" value={effectiveExpenseCurrency} />
                   <DateField />
                   <label>
                     Категорія
@@ -254,16 +260,12 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                       {categoryOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
                     </select>
                   </label>
-                  {isSteamExpense ? (
-                    <Select name="sourceAccountId" label="Звідки списати" options={usdtAccounts} defaultValue={defaultSteamExpense} />
-                  ) : (
-                    <label>
-                      Звідки списати
-                      <select name="sourceAccountId" value={selectedExpenseSource?.id || ""} onChange={(event) => setSelectedExpenseSourceId(event.target.value)} required>
-                        {expenseSourceAccounts.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-                      </select>
-                    </label>
-                  )}
+                  <label>
+                    Звідки списати
+                    <select name="sourceAccountId" value={selectedExpenseSource?.id || ""} onChange={(event) => setSelectedExpenseSourceId(event.target.value)} required>
+                      {expenseSourceAccounts.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </select>
+                  </label>
                   {isSteamExpense && (
                     <label>
                       Куди віднести
