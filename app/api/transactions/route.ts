@@ -8,6 +8,7 @@ import {
   incomeSchema,
   manualAdjustmentSchema,
   p2pWithdrawalSchema,
+  savingsDepositSchema,
   transactionFiltersSchema
 } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
@@ -62,6 +63,10 @@ export async function POST(request: Request) {
         ...input,
         currency: input.currency as Currency
       }), { status: 201 });
+    }
+    if (action === "savings") {
+      const input = savingsDepositSchema.parse(body);
+      return NextResponse.json(await ledger.createSavingsDeposit(userId, input), { status: 201 });
     }
     if (action === "p2p") {
       const input = p2pWithdrawalSchema.parse(body);

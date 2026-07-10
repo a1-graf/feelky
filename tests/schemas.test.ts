@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flipSchema, incomeSchema, manualAdjustmentSchema, p2pWithdrawalSchema } from "@/lib/schemas";
+import { flipSchema, incomeSchema, manualAdjustmentSchema, p2pWithdrawalSchema, savingsDepositSchema } from "@/lib/schemas";
 
 describe("schemas", () => {
   it("accepts comma decimals from mobile keyboards", () => {
@@ -19,5 +19,6 @@ describe("schemas", () => {
 
     expect(flipSchema.parse({ setup: "test", pnl: "-136,5", tradeDate: "2026-07-05" }).pnl).toBe(-136.5);
     expect(manualAdjustmentSchema.parse({ accountId: "account", newBalance: "3334,775" }).newBalance).toBe(3334.775);
+    expect(savingsDepositSchema.parse({ amount: "2 500,50", sourceAccountId: "card", transactionDate: "2026-07-05" }).amount).toBe(2500.5);
   });
 });

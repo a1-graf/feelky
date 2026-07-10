@@ -10,6 +10,7 @@ type AccountOption = {
   type: string;
   currency: string;
   currentBalance: string;
+  isSavings?: boolean;
 };
 
 type RefOption = { id: string; name: string };
@@ -36,6 +37,7 @@ const actionOptions = [
   { value: "withdrawal", label: "Вивід" },
   { value: "income", label: "Дохід" },
   { value: "expense", label: "Витрата" },
+  { value: "savings", label: "Відкладення" },
   { value: "flip", label: "Фліп" },
   { value: "expected", label: "Заморожені бабки" }
 ];
@@ -54,10 +56,14 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const uahAccounts = accounts.filter((account) => account.currency === "UAH");
+  const savingsSourceAccounts = uahAccounts.filter((account) => !account.isSavings);
   const usdtAccounts = accounts.filter((account) => account.currency === "USDT");
   const cashAccounts = accounts.filter((account) => account.type === "CASH");
   const defaultCard = settings?.p2pDestinationAccountId || uahAccounts[0]?.id || "";
   const defaultExpense = settings?.expenseDefaultSourceId || defaultCard;
+  const defaultSavingsSource = savingsSourceAccounts.some((account) => account.id === defaultCard)
+    ? defaultCard
+    : savingsSourceAccounts[0]?.id || "";
   const defaultSteamExpense = usdtAccounts.find((account) => account.name === "Мейн гаманець")?.id || usdtAccounts[0]?.id || "";
   const defaultIncomeSource = incomeSourceOptions[0]?.id || "";
   const defaultCategory = categoryOptions[0]?.id || "";
@@ -216,6 +222,16 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                   <label>Сетап<input name="setup" required placeholder="Наприклад: funding, news, spread" /></label>
                   <label>PnL USDT<input name="pnl" inputMode="decimal" required placeholder="40 або -40" /></label>
                   <DateField name="tradeDate" />
+                </>
+              )}
+              {action === "savings" && (
+                <>
+                  <label>Сума UAH<input name="amount" inputMode="decimal" required /></label>
+                  <Select name="sourceAccountId" label="Звідки відкласти" options={savingsSourceAccounts} defaultValue={defaultSavingsSource} />
+                  <DateField />
+                  <div className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
+                    Гроші залишаться в повному банку, але не входитимуть у доступний баланс.
+                  </div>
                 </>
               )}
               {action === "expense" && (

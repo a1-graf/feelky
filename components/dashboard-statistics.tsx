@@ -27,6 +27,7 @@ type DashboardStatsData = {
     cardUah: string;
     cashUah: string;
     cashUsd: string;
+    savingsUah: string;
     monthExpenseUah: string;
   };
 };
@@ -52,6 +53,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const hidden = Boolean(data.settings?.hideAmounts);
   const rate = Number(data.rate);
   const asUah = (value: string) => formatMoney(Number(value) * rate, "UAH", hidden);
+  const asUsdt = (value: string) => formatMoney(Number(value) / rate, "USDT", hidden);
   const monthExpenseColor = expenseLimitColor(data.totals.monthExpenseUah, data.settings?.monthlyExpenseLimit);
   const metricItems = [
     { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), subValue: asUah(data.totals.cryptoTotal) },
@@ -59,6 +61,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
     { label: "Картки UAH", value: formatMoney(data.totals.cardUah, "UAH", hidden) },
     { label: "Cash UAH", value: formatMoney(data.totals.cashUah, "UAH", hidden) },
     { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden), subValue: asUah(data.totals.cashUsd) },
+    { label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), subValue: asUsdt(data.totals.savingsUah), tone: "ok" as const },
     { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
     { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), subValue: asUah(data.steam.frozenCapital), tone: "warn" as const },
     { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), subValue: asUah(data.steam.profit), tone: "ok" as const }
@@ -103,7 +106,9 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
             { name: "Мейн гаманець", value: Number(data.totals.availableCrypto) },
             { name: "В обороті", value: Number(data.steam.frozenCapital) },
             { name: "UAH", value: Number(data.totals.cardUah) / Number(data.rate) },
+            { name: "Cash UAH", value: Number(data.totals.cashUah) / Number(data.rate) },
             { name: "Cash USD", value: Number(data.totals.cashUsd) },
+            { name: "Відкладення", value: Number(data.totals.savingsUah) / Number(data.rate) },
             { name: "Заморожено", value: Number(data.totals.frozenTotalUsdt) }
           ]}
         />

@@ -5,6 +5,7 @@ import { syncUnpostedFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isOpeningBalanceTransaction } from "@/lib/transaction-utils";
+import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 export async function resolveUahUsdtRate(userId: string) {
   const settings = await prisma.settings.findUnique({ where: { userId } });
@@ -84,6 +85,7 @@ export async function getDashboard(userId: string) {
   const cryptoAccounts = accounts.filter((account) => cryptoTypes.includes(account.type));
   const bankCards = accounts.filter((account) => account.type === AccountType.BANK_CARD);
   const cashAccounts = accounts.filter((account) => account.type === AccountType.CASH);
+  const savingsAccount = accounts.find((account) => account.name === SAVINGS_ACCOUNT_NAME && account.currency === "UAH");
 
   const cryptoTotal = cryptoAccounts.reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const frozenCrypto = frozenFunds.filter((fund) => fund.currency === "USDT").reduce((sum, fund) => sum.plus(fund.amount), new Decimal(0));
@@ -91,7 +93,9 @@ export async function getDashboard(userId: string) {
   const cardUah = bankCards.filter((account) => account.currency === "UAH").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const cashUah = cashAccounts.filter((account) => account.currency === "UAH").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const cashUsd = cashAccounts.filter((account) => account.currency === "USD").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
+  const savingsUah = D(savingsAccount?.currentBalance || 0);
   const uahAsUsdt = cardUah.plus(cashUah).div(rate);
+  const savingsAsUsdt = savingsUah.div(rate);
   const cashUsdAsUsdt = cashUsd;
   const availableBankUsdt = availableCrypto.plus(uahAsUsdt).plus(cashUsdAsUsdt);
   const potentialExpected = expectedMoney.reduce((sum, item) => {
@@ -100,7 +104,7 @@ export async function getDashboard(userId: string) {
   }, new Decimal(0));
   const frozenTotalUsdt = frozenCrypto.plus(potentialExpected);
   const steamFrozenCapital = D(steam.totals.frozenCapital);
-  const potentialBankUsdt = availableBankUsdt.plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
+  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
   const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
 
   const monthStart = new Date();
@@ -195,14 +199,22 @@ export async function getDashboard(userId: string) {
   const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
   for (const transaction of balanceTransactions) {
     const amount = asUsdt(transaction.amount, transaction.currency);
+    const comesFromSavings = Boolean(savingsAccount && transaction.sourceAccountId === savingsAccount.id);
+    const goesToSavings = Boolean(savingsAccount && transaction.destinationAccountId === savingsAccount.id);
     if (transaction.type === TransactionType.INCOME) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: amount });
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
     } else if (transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount });
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: goesToSavings ? new Decimal(0) : amount });
     } else if (transaction.type === TransactionType.EXPENSE) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount.negated(), availableDelta: amount.negated() });
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount.negated(), availableDelta: comesFromSavings ? new Decimal(0) : amount.negated() });
     } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: amount });
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
+    } else if (transaction.type === TransactionType.TRANSFER && comesFromSavings !== goesToSavings) {
+      balanceEvents.push({
+        date: transaction.transactionDate,
+        fullDelta: new Decimal(0),
+        availableDelta: goesToSavings ? amount.negated() : amount
+      });
     } else if (transaction.type === TransactionType.FUNDS_FROZEN) {
       balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount.negated() });
     } else if (transaction.type === TransactionType.FUNDS_RELEASED) {
@@ -287,6 +299,7 @@ export async function getDashboard(userId: string) {
       cardUah: cardUah.toString(),
       cashUah: cashUah.toString(),
       cashUsd: cashUsd.toString(),
+      savingsUah: savingsUah.toString(),
       availableBankUsdt: availableBankUsdt.toString(),
       potentialBankUsdt: potentialBankUsdt.toString(),
       monthIncomeUsdt: monthIncome.toString(),

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { QuickAdd } from "@/components/forms/quick-add";
 import { DesktopNav, MobileNav } from "@/components/layout/app-nav";
 import { MobileLogout } from "@/components/layout/mobile-logout";
+import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 const nav = [
   { href: "/statistics", label: "Статистика", icon: "stats" },
@@ -27,7 +28,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     name: account.name,
     type: account.type,
     currency: account.currency,
-    currentBalance: account.currentBalance.toString()
+    currentBalance: account.currentBalance.toString(),
+    isSavings: account.name === SAVINGS_ACCOUNT_NAME && account.currency === "UAH"
   }));
   const categories = rawCategories.map((category) => ({ id: category.id, name: category.name }));
   const incomeSources = rawIncomeSources.map((source) => ({ id: source.id, name: source.name }));

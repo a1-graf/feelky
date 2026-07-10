@@ -2,6 +2,7 @@ import { AccountType, ExpectedMoneyStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 export const MAIN_WALLET_NAME = "Мейн гаманець";
+export const SAVINGS_ACCOUNT_NAME = "Відкладення";
 
 const categories = ["Їжа", "Ресторани", "Здоров'я", "Техніка", "Розваги", "Підписки", "Перекази людям", "Steam", "Інше"];
 const incomeSources = ["Робота", "Трейдинг", "Боти", "Steam", "Повернення боргу", "Інше"];
@@ -52,6 +53,7 @@ export async function ensureUserDefaults(userId: string) {
     (await ensureAccount(userId, { idSuffix: "main-card", name: "Мейн картка", type: AccountType.BANK_CARD, currency: "UAH", provider: "Bank" }));
   await ensureAccount(userId, { idSuffix: "cash-uah", name: "Cash UAH", type: AccountType.CASH, currency: "UAH", provider: "Cash" });
   await ensureAccount(userId, { idSuffix: "cash-usd", name: "Cash USD", type: AccountType.CASH, currency: "USD", provider: "Cash" });
+  await ensureAccount(userId, { idSuffix: "savings-uah", name: SAVINGS_ACCOUNT_NAME, type: AccountType.OTHER, currency: "UAH", provider: "Feelky" });
 
   await Promise.all([
     ...(existingCategoryCount === 0

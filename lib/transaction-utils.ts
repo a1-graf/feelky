@@ -26,3 +26,12 @@ export function isOpeningBalanceTransaction(transaction: {
   const metadata = transaction.metadata;
   return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).isOpeningBalance === true);
 }
+
+export function isSavingsDepositTransaction(transaction: {
+  type?: TransactionType | string;
+  metadata?: unknown;
+}) {
+  if (transaction.type !== "TRANSFER") return false;
+  const metadata = transaction.metadata;
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).isSavingsDeposit === true);
+}

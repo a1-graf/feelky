@@ -4,7 +4,7 @@ import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
 import { OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
-import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
+import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 type Tx = Prisma.TransactionClient;
 type CurrencyCode = "UAH" | "USDT" | "USD";
@@ -100,6 +100,38 @@ export class LedgerService {
           categoryId: input.categoryId,
           note: input.note,
           transactionDate: input.transactionDate
+        }
+      });
+    });
+  }
+
+  async createSavingsDeposit(userId: string, input: {
+    amount: Decimal.Value;
+    sourceAccountId: string;
+    transactionDate: Date;
+    note?: string | null;
+  }) {
+    return this.db.$transaction(async (tx) => {
+      const sourceAccount = await this.requireAccount(tx, userId, input.sourceAccountId);
+      const savingsAccountId = await this.findNamedAccount(tx, userId, SAVINGS_ACCOUNT_NAME, "UAH");
+      if (sourceAccount.currency !== "UAH") throw new Error("Відкладення можна поповнювати лише в UAH");
+      if (sourceAccount.id === savingsAccountId) throw new Error("Обери рахунок, з якого відкладаєш гроші");
+
+      const amount = roundCurrency(input.amount, "UAH");
+      await this.adjustAccount(tx, userId, sourceAccount.id, amount.negated(), false);
+      await this.adjustAccount(tx, userId, savingsAccountId, amount, false);
+
+      return tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.TRANSFER,
+          amount: amount.toString(),
+          currency: "UAH",
+          sourceAccountId: sourceAccount.id,
+          destinationAccountId: savingsAccountId,
+          note: input.note,
+          transactionDate: input.transactionDate,
+          metadata: { isSavingsDeposit: true }
         }
       });
     });
@@ -458,13 +490,13 @@ export class LedgerService {
     const amount = D(transaction.amount);
     const converted = D(transaction.convertedAmount || 0);
     if (accountId === transaction.sourceAccountId) {
-      const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL];
+      const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
       if (debitTypes.includes(transaction.type)) {
         return amount.negated();
       }
     }
     if (accountId === transaction.destinationAccountId) {
-      const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT];
+      const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER];
       const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL];
       if (directCreditTypes.includes(transaction.type)) {
         return amount;

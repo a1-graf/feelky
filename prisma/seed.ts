@@ -1,7 +1,7 @@
 import { AccountType, ExpectedMoneyStatus } from "@prisma/client";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
+import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 async function main() {
   const email = (process.env.SEED_EMAIL || "admin@example.com").toLowerCase();
@@ -20,7 +20,8 @@ async function main() {
     { name: MAIN_WALLET_NAME, type: AccountType.CRYPTO_WALLET, currency: "USDT" as const, provider: null, initialBalance: "2500" },
     { name: "Main card", type: AccountType.BANK_CARD, currency: "UAH" as const, provider: "Main bank", initialBalance: "10000" },
     { name: "Cash UAH", type: AccountType.CASH, currency: "UAH" as const, provider: "Cash", initialBalance: "3000" },
-    { name: "Cash USD", type: AccountType.CASH, currency: "USD" as const, provider: "Cash", initialBalance: "200" }
+    { name: "Cash USD", type: AccountType.CASH, currency: "USD" as const, provider: "Cash", initialBalance: "200" },
+    { name: SAVINGS_ACCOUNT_NAME, type: AccountType.OTHER, currency: "UAH" as const, provider: "Feelky", initialBalance: "0" }
   ];
 
   const accounts = [];

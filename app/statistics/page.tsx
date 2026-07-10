@@ -14,6 +14,7 @@ const sections = [
   { href: "/withdrawals", label: "Виводи", description: "P2P та готівкові виводи" },
   { href: "/crypto", label: "Мейн гаманець", description: "Основні USDT в одному місці" },
   { href: "/expected", label: "Заморожені бабки", description: "Де лежать гроші і що треба забрати" },
+  { href: "/savings", label: "Відкладення", description: "Накопичена сума та історія внесень" },
   { href: "/settings", label: "Налаштування", description: "Курс, тема, довідники і backup" }
 ];
 
