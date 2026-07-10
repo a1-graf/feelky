@@ -24,40 +24,14 @@ function axisValue(value: number, hidden: boolean) {
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-function calendarDates(start: string, end: string) {
-  const dates: { date: string; label: string }[] = [];
-  const current = new Date(`${start}T00:00:00.000Z`);
-  const last = new Date(`${end}T00:00:00.000Z`);
-  while (current <= last) {
-    dates.push({
-      date: current.toISOString().slice(0, 10),
-      label: new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(current)
-    });
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-function fillIncomeDates(data: IncomeTimelinePoint[]) {
-  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  if (!sorted.length) return sorted;
-  const byDate = new Map(sorted.map((point) => [point.date, point]));
-  return calendarDates(sorted[0].date, sorted[sorted.length - 1].date).map((day) => byDate.get(day.date) || { ...day, usdt: 0, uah: 0 });
-}
-
-function fillSourceDates(data: IncomeSourceTimelinePoint[]) {
-  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  if (!sorted.length) return sorted;
-  const byDate = new Map(sorted.map((point) => [point.date, point]));
-  return calendarDates(sorted[0].date, sorted[sorted.length - 1].date).map((day) => byDate.get(day.date) || { ...day, sources: [] });
-}
-
 export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTimelinePoint[]; rate: string; hidden?: boolean }) {
   const uahRate = Number(rate);
   const cumulativeData = useMemo(() => {
     let usdt = 0;
     let uahUsdt = 0;
-    return fillIncomeDates(data).map((point) => {
+    return [...data]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => {
         usdt += point.usdt;
         uahUsdt += point.uah / uahRate;
         return { ...point, usdt, uahUsdt, totalUsdt: usdt + uahUsdt };
@@ -118,7 +92,9 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
       .slice(0, 5)
       .map(([name, total], index) => ({ name, total, key: `source${index}`, color: SOURCE_COLORS[index] }));
     const running = new Map<string, number>();
-    const points = fillSourceDates(data).map((point) => {
+    const points = [...data]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => {
         for (const source of point.sources) running.set(source.name, (running.get(source.name) || 0) + source.value);
         const chartPoint: Record<string, string | number> = { date: point.date, label: point.label };
         for (const item of series) chartPoint[item.key] = running.get(item.name) || 0;
