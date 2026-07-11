@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
@@ -17,6 +18,7 @@ type ExpectedMoneyItem = {
 const activeStatuses = new Set(["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS"]);
 
 export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
 
   async function release(formData: FormData) {
@@ -37,7 +39,7 @@ export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
       return;
     }
     setMessage("Розморожено в мейн гаманець");
-    setTimeout(() => window.location.reload(), 450);
+    router.refresh();
   }
 
   if (!items.length) {

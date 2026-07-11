@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -29,6 +30,7 @@ type ReferenceManagerProps = {
 };
 
 export function ReferenceManager({ title, addLabel, kind, items }: ReferenceManagerProps) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [newName, setNewName] = useState("");
   const [visibleItems, setVisibleItems] = useState(items);
@@ -71,6 +73,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
       const item = await request<RefItem>("POST", { kind, name });
       publishItems([...visibleItems.filter((current) => current.id !== item.id), item]);
       setNewName("");
+      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
@@ -106,6 +109,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
         ? visibleItems.map((current) => (current.id === id ? item : current))
         : visibleItems.filter((current) => current.id !== id);
       publishItems(nextItems);
+      router.refresh();
     } catch (error) {
       if (deletingIds.current.has(id)) return;
       setVisibleItems(previousItems);
@@ -125,6 +129,7 @@ export function ReferenceManager({ title, addLabel, kind, items }: ReferenceMana
       const result = await request<DeleteResponse>("DELETE", { kind, id });
       if (result.activeAfterDelete) throw new Error("Запис лишився активним після видалення");
       await refreshFromServer();
+      router.refresh();
     } catch (error) {
       deletingIds.current.delete(id);
       publishItems(previousItems);

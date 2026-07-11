@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -44,6 +45,7 @@ const actionOptions = [
 ];
 
 export function QuickAdd({ accounts, categories, incomeSources, settings }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState("withdrawal");
   const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
@@ -134,7 +136,9 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Помилка збереження");
       setMessage("Збережено");
-      setTimeout(() => window.location.reload(), 450);
+      setOpen(false);
+      router.refresh();
+      setTimeout(() => setMessage(""), 1800);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
@@ -146,11 +150,19 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
     <>
       <button
         className="fixed bottom-24 right-4 z-50 inline-flex h-14 items-center gap-2 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-soft md:bottom-6"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setMessage("");
+          setOpen(true);
+        }}
       >
         <Plus className="h-5 w-5" />
         Додати
       </button>
+      {message && !open && (
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-[hsl(var(--card-foreground))] shadow-soft md:bottom-6">
+          {message}
+        </div>
+      )}
       {open && (
         <div className="fixed inset-0 z-50 grid items-end bg-black/30 md:place-items-center">
           <div className="max-h-[90vh] w-full overflow-auto rounded-t-xl border border-border bg-card p-3 shadow-soft md:max-w-md md:rounded-lg md:p-4">

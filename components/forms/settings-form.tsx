@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -14,6 +15,7 @@ type SettingsPayload = {
 };
 
 export function SettingsForm({ settings }: { settings: SettingsPayload | null }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
 
   async function submit(formData: FormData) {
@@ -27,7 +29,7 @@ export function SettingsForm({ settings }: { settings: SettingsPayload | null })
       })
     });
     setMessage(response.ok ? "Налаштування збережено" : "Не вдалося зберегти");
-    if (response.ok) setTimeout(() => window.location.reload(), 500);
+    if (response.ok) router.refresh();
   }
 
   return (
