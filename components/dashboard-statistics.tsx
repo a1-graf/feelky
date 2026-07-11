@@ -74,7 +74,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   return (
     <section className="mt-5">
       <div className="mb-3 text-sm font-semibold text-muted-foreground">Статистика</div>
-      <MetricGrid items={metricItems} />
+      <MetricGrid items={metricItems} desktopColumns={3} />
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Ріст балансу</div>
