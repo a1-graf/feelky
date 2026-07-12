@@ -6,7 +6,7 @@ import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
-import { steamAnalytics, steamArbitrage } from "@/lib/steam";
+import { steamAnalytics } from "@/lib/steam";
 import {
   addSteamResaleInvestmentAmountAction,
   completeSteamRoundAction,
@@ -52,7 +52,6 @@ function bonusLabel(externalAmount: unknown, receivedSteamAmount: unknown) {
 
 export default async function SteamPage({ searchParams }: { searchParams?: Promise<{ tab?: string }> }) {
   const userId = await requireUserId();
-  await steamArbitrage.ensureDefaultSchemes(userId);
   const params = await searchParams;
   const tab = params?.tab === "arbitrage" ? "arbitrage" : "resale";
   const data = await steamAnalytics.dashboard(userId);

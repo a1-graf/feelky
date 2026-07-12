@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureUserDefaults } from "@/lib/user-defaults";
 
 const registerSchema = z.object({
   name: z.string().min(1).optional(),
@@ -28,5 +29,6 @@ export async function POST(request: Request) {
     },
     select: { id: true, email: true, name: true }
   });
+  await ensureUserDefaults(user.id);
   return NextResponse.json(user, { status: 201 });
 }

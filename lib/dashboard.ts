@@ -1,7 +1,7 @@
 ﻿import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, RateMode, TransactionType } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
-import { syncUnpostedFlips } from "@/lib/flips";
+import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
@@ -35,8 +35,10 @@ export async function resolveUahUsdtRate(userId: string) {
 }
 
 export async function getDashboard(userId: string) {
-  await syncUnpostedFlips(userId);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips] = await Promise.all([
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, monthlyTransactions] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -71,11 +73,15 @@ export async function getDashboard(userId: string) {
       where: { userId },
       orderBy: { tradeDate: "desc" },
       take: 120
+    }),
+    resolveUahUsdtRate(userId),
+    steamAnalytics.dashboard(userId),
+    prisma.transaction.findMany({
+      where: { userId, archivedAt: null, transactionDate: { gte: monthStart } }
     })
   ]);
 
-  const { rate, source } = await resolveUahUsdtRate(userId);
-  const steam = await steamAnalytics.dashboard(userId);
+  const { rate, source } = rateData;
   const frozenByAccount = new Map<string, Decimal>();
   for (const frozen of frozenFunds) {
     frozenByAccount.set(frozen.accountId, D(frozenByAccount.get(frozen.accountId) || 0).plus(frozen.amount));
@@ -107,12 +113,6 @@ export async function getDashboard(userId: string) {
   const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
   const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const monthlyTransactions = await prisma.transaction.findMany({
-    where: { userId, archivedAt: null, transactionDate: { gte: monthStart } }
-  });
   const monthIncome = monthlyTransactions
     .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
     .reduce((sum, t) => sum.plus(t.currency === "UAH" ? D(t.amount).div(rate) : t.amount), new Decimal(0));
@@ -121,32 +121,7 @@ export async function getDashboard(userId: string) {
     .reduce((sum, t) => sum.plus(t.amount), new Decimal(0));
   const p2pCount = monthlyTransactions.filter((t) => t.type === TransactionType.P2P_WITHDRAWAL).length;
   const cashWithdrawalCount = monthlyTransactions.filter((t) => t.type === TransactionType.CASH_WITHDRAWAL).length;
-  const monthlyFlips = flips.filter((flip) => flip.tradeDate >= monthStart);
-  const flipTotalPnl = flips.reduce((sum, flip) => sum.plus(flip.pnl), new Decimal(0));
-  const flipMonthPnl = monthlyFlips.reduce((sum, flip) => sum.plus(flip.pnl), new Decimal(0));
-  const flipWins = flips.filter((flip) => D(flip.pnl).gt(0)).length;
-  const flipLosses = flips.filter((flip) => D(flip.pnl).lt(0)).length;
-  const flipClosed = flipWins + flipLosses;
-  const flipSetupMap = new Map<string, { pnl: Decimal; count: number; wins: number; losses: number }>();
-  for (const flip of flips) {
-    const current = flipSetupMap.get(flip.setup) || { pnl: new Decimal(0), count: 0, wins: 0, losses: 0 };
-    const pnl = D(flip.pnl);
-    current.pnl = current.pnl.plus(pnl);
-    current.count += 1;
-    if (pnl.gt(0)) current.wins += 1;
-    if (pnl.lt(0)) current.losses += 1;
-    flipSetupMap.set(flip.setup, current);
-  }
-  const flipSetups = Array.from(flipSetupMap.entries())
-    .map(([setup, value]) => ({
-      setup,
-      pnl: value.pnl.toString(),
-      count: value.count,
-      wins: value.wins,
-      losses: value.losses,
-      winRate: value.wins + value.losses ? Math.round((value.wins / (value.wins + value.losses)) * 100) : 0
-    }))
-    .sort((a, b) => Number(b.pnl) - Number(a.pnl));
+  const flipStatistics = summarizeFlips(flips);
   const expenseCategoryMap = new Map<string, Decimal>();
   const workExpenseSourceMap = new Map<string, Decimal>();
   for (const transaction of expenseTransactions) {
@@ -296,22 +271,7 @@ export async function getDashboard(userId: string) {
     incomeTimeline,
     incomeSourceTimeline,
     balanceTimeline,
-    flips: {
-      totalPnl: flipTotalPnl.toString(),
-      monthPnl: flipMonthPnl.toString(),
-      count: flips.length,
-      wins: flipWins,
-      losses: flipLosses,
-      winRate: flipClosed ? Math.round((flipWins / flipClosed) * 100) : 0,
-      setups: flipSetups,
-      recent: flips.slice(0, 8).map((flip) => ({
-        id: flip.id,
-        setup: flip.setup,
-        pnl: flip.pnl.toString(),
-        tradeDate: flip.tradeDate.toISOString(),
-        note: flip.note
-      }))
-    },
+    flips: flipStatistics,
     steam: {
       frozenCapital: steamFrozenCapital.toString(),
       profit: steam.totals.steamProfit

@@ -6,6 +6,7 @@ export const SAVINGS_ACCOUNT_NAME = "Відкладення";
 
 const categories = ["Їжа", "Ресторани", "Здоров'я", "Техніка", "Розваги", "Підписки", "Перекази людям", "Steam", "Інше"];
 const incomeSources = ["Робота", "Трейдинг", "Боти", "Steam", "Повернення боргу", "Інше"];
+const steamSchemes = ["Сайт → Steam → TM", "Сайт → TM", "Buff → TM"];
 const expectedLabels: Array<[ExpectedMoneyStatus, string]> = [
   [ExpectedMoneyStatus.EXPECTED, "Заморожено"],
   [ExpectedMoneyStatus.NEED_TO_COLLECT, "Потрібно забрати"],
@@ -67,6 +68,13 @@ export async function ensureUserDefaults(userId: string) {
         where: { userId_status: { userId, status } },
         update: { label, sortOrder, isActive: true },
         create: { userId, status, label, sortOrder }
+      })
+    ),
+    ...steamSchemes.map((name) =>
+      prisma.steamArbitrageScheme.upsert({
+        where: { userId_name: { userId, name } },
+        update: { isActive: true },
+        create: { userId, name }
       })
     )
   ]);

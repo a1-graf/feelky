@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/db";
+import { ensureUserDefaults } from "@/lib/user-defaults";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -63,6 +64,7 @@ export const authOptions: NextAuthOptions = {
             });
         user.id = saved.id;
       }
+      if (user.id) await ensureUserDefaults(user.id);
       return true;
     },
     async jwt({ token, user }) {

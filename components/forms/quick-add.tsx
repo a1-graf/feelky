@@ -16,16 +16,11 @@ type AccountOption = {
 
 type RefOption = { id: string; name: string };
 
-type Props = {
-  accounts: AccountOption[];
-  categories: RefOption[];
-  incomeSources: RefOption[];
-  settings: {
-    p2pSourceAccountId: string | null;
-    p2pDestinationAccountId: string | null;
-    expenseDefaultSourceId: string | null;
-    cashExchangePlace: string;
-  } | null;
+type QuickAddSettings = {
+  p2pSourceAccountId: string | null;
+  p2pDestinationAccountId: string | null;
+  expenseDefaultSourceId: string | null;
+  cashExchangePlace: string;
 };
 
 const today = () => {
@@ -44,18 +39,23 @@ const actionOptions = [
   { value: "expected", label: "Заморожені бабки" }
 ];
 
-export function QuickAdd({ accounts, categories, incomeSources, settings }: Props) {
+export function QuickAdd() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [settings, setSettings] = useState<QuickAddSettings | null>(null);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState("");
   const [action, setAction] = useState("withdrawal");
   const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
   const [incomeCurrency, setIncomeCurrency] = useState("USDT");
   const [expenseCurrency, setExpenseCurrency] = useState<"UAH" | "USDT">("UAH");
   const [incomeDate, setIncomeDate] = useState(today());
-  const [categoryOptions, setCategoryOptions] = useState(categories);
-  const [incomeSourceOptions, setIncomeSourceOptions] = useState(incomeSources);
-  const [selectedExpenseSourceId, setSelectedExpenseSourceId] = useState(settings?.expenseDefaultSourceId || "");
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categoryOptions[0]?.id || "");
+  const [categoryOptions, setCategoryOptions] = useState<RefOption[]>([]);
+  const [incomeSourceOptions, setIncomeSourceOptions] = useState<RefOption[]>([]);
+  const [selectedExpenseSourceId, setSelectedExpenseSourceId] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [steamExpenseMode, setSteamExpenseMode] = useState<"split" | "resale" | "arbitrage">("split");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -93,14 +93,6 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
   }, [cashAccounts]);
 
   useEffect(() => {
-    setCategoryOptions(categories);
-  }, [categories]);
-
-  useEffect(() => {
-    setIncomeSourceOptions(incomeSources);
-  }, [incomeSources]);
-
-  useEffect(() => {
     function handleReferencesChanged(event: Event) {
       const detail = (event as CustomEvent<{ kind: "category" | "incomeSource"; items: RefOption[] }>).detail;
       if (!detail) return;
@@ -115,6 +107,40 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
     window.addEventListener("feelky:references-changed", handleReferencesChanged);
     return () => window.removeEventListener("feelky:references-changed", handleReferencesChanged);
   }, []);
+
+  async function loadOptions() {
+    if (optionsLoading) return;
+    setOptionsLoading(true);
+    setOptionsError("");
+    try {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не вдалося завантажити дані");
+      const nextAccounts = (data.accounts || [])
+        .filter((account: { isActive: boolean }) => account.isActive)
+        .map((account: { id: string; name: string; type: string; currency: string; currentBalance: string; provider?: string | null }) => ({
+          id: account.id,
+          name: account.name,
+          type: account.type,
+          currency: account.currency,
+          currentBalance: String(account.currentBalance),
+          isSavings: account.currency === "UAH" && account.provider === "Feelky"
+        }));
+      const nextCategories = (data.categories || []).map((item: RefOption) => ({ id: item.id, name: item.name }));
+      const nextIncomeSources = (data.incomeSources || []).map((item: RefOption) => ({ id: item.id, name: item.name }));
+      setAccounts(nextAccounts);
+      setCategoryOptions(nextCategories);
+      setIncomeSourceOptions(nextIncomeSources);
+      setSettings(data.settings || null);
+      setSelectedExpenseSourceId(data.settings?.expenseDefaultSourceId || "");
+      setSelectedCategoryId(nextCategories[0]?.id || "");
+      setOptionsLoaded(true);
+    } catch (error) {
+      setOptionsError(error instanceof Error ? error.message : "Не вдалося завантажити дані");
+    } finally {
+      setOptionsLoading(false);
+    }
+  }
 
   async function submit(formData: FormData) {
     setLoading(true);
@@ -153,6 +179,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
         onClick={() => {
           setMessage("");
           setOpen(true);
+          void loadOptions();
         }}
       >
         <Plus className="h-5 w-5" />
@@ -175,7 +202,14 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <form action={submit} className="grid gap-2.5 [&_input]:min-h-10 [&_input]:py-2 [&_select]:min-h-10 [&_select]:py-2 [&_textarea]:py-2">
+            {optionsLoading && <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">Завантаження...</div>}
+            {optionsError && (
+              <div className="grid gap-3 rounded-lg border border-border bg-muted p-4 text-sm">
+                <span>{optionsError}</span>
+                <Button type="button" onClick={() => void loadOptions()}>Спробувати ще раз</Button>
+              </div>
+            )}
+            {optionsLoaded && !optionsLoading && <form action={submit} className="grid gap-2.5 [&_input]:min-h-10 [&_input]:py-2 [&_select]:min-h-10 [&_select]:py-2 [&_textarea]:py-2">
               <label>
                 Тип операції
                 <select value={action} onChange={(event) => setAction(event.target.value)}>
@@ -327,7 +361,7 @@ export function QuickAdd({ accounts, categories, incomeSources, settings }: Prop
               </details>
               {message && <div className="rounded-lg bg-muted p-3 text-sm">{message}</div>}
               <Button className="mt-1" disabled={loading}>{loading ? "Збереження..." : "Зберегти"}</Button>
-            </form>
+            </form>}
           </div>
         </div>
       )}
