@@ -17,6 +17,14 @@ type IncomeSourceTimelinePoint = {
   sources: { name: string; value: number }[];
 };
 
+type PnlTimelinePoint = {
+  date: string;
+  label: string;
+  profit: number;
+  loss: number;
+  net: number;
+};
+
 const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
 
 function axisValue(value: number, hidden: boolean) {
@@ -122,6 +130,42 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
             {prepared.series.map((item) => (
               <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
             ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]; hidden?: boolean }) {
+  const sortedData = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)), [data]);
+  const latest = sortedData[sortedData.length - 1];
+
+  if (!latest) {
+    return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає PnL</div>;
+  }
+
+  const showDots = sortedData.length <= 100;
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
+        <ChartTotal color="#16a34a" label="Плюси" value={formatMoney(latest.profit, "USDT", hidden)} />
+        <ChartTotal color="#e04d65" label="Мінуси" value={formatMoney(latest.loss, "USDT", hidden)} />
+        <ChartTotal color="#2563eb" label="Чистий PnL" value={formatMoney(latest.net, "USDT", hidden)} />
+      </div>
+      <div className="h-72 w-full">
+        <ResponsiveContainer>
+          <LineChart data={sortedData} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
+            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={62} />
+            <Tooltip
+              formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name === "net" ? "Чистий PnL" : name === "profit" ? "Плюси" : "Мінуси"]}
+              labelFormatter={(label) => `Дата: ${label}`}
+            />
+            <Line type="monotone" dataKey="profit" name="Плюси" stroke="#16a34a" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="loss" name="Мінуси" stroke="#e04d65" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="net" name="Чистий PnL" stroke="#2563eb" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
-import { isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
+import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 export async function resolveUahUsdtRate(userId: string) {
@@ -55,24 +55,20 @@ export async function getDashboard(userId: string) {
     prisma.transaction.findMany({
       where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
       orderBy: { transactionDate: "desc" },
-      take: 2000,
       include: { category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] } },
       orderBy: { transactionDate: "desc" },
-      take: 2000,
       include: { incomeSource: true }
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
-      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
-      take: 2000
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }]
     }),
     prisma.flip.findMany({
       where: { userId },
-      orderBy: { tradeDate: "desc" },
-      take: 120
+      orderBy: { tradeDate: "desc" }
     }),
     resolveUahUsdtRate(userId),
     steamAnalytics.dashboard(userId),
@@ -82,6 +78,18 @@ export async function getDashboard(userId: string) {
   ]);
 
   const { rate, source } = rateData;
+  const asUsdt = (amount: Decimal.Value, currency: string) => {
+    if (currency === "UAH") return D(amount).div(rate);
+    return D(amount);
+  };
+  const metadataObject = (metadata: unknown) => {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+    return metadata as Record<string, unknown>;
+  };
+  const decimalFromMetadata = (metadata: unknown, key: string) => {
+    const value = metadataObject(metadata)?.[key];
+    return typeof value === "string" || typeof value === "number" ? D(value) : null;
+  };
   const frozenByAccount = new Map<string, Decimal>();
   for (const frozen of frozenFunds) {
     frozenByAccount.set(frozen.accountId, D(frozenByAccount.get(frozen.accountId) || 0).plus(frozen.amount));
@@ -190,10 +198,54 @@ export async function getDashboard(userId: string) {
       sources: Array.from(value.sources.entries()).map(([name, amount]) => ({ name, value: amount.toNumber() }))
     }));
 
-  const asUsdt = (amount: Decimal.Value, currency: string) => {
-    if (currency === "UAH") return D(amount).div(rate);
-    return D(amount);
+  const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
+  const pnlEvents: { date: Date; profit: Decimal; loss: Decimal; net: Decimal }[] = [];
+  const addPnlEvent = (date: Date, amount: Decimal) => {
+    pnlEvents.push({
+      date,
+      profit: amount.gt(0) ? amount : new Decimal(0),
+      loss: amount.lt(0) ? amount.abs() : new Decimal(0),
+      net: amount
+    });
   };
+  for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item) && !isFlipLedgerTransaction(item))) {
+    const metadata = metadataObject(transaction.metadata);
+    let amount = asUsdt(transaction.amount, transaction.currency);
+    if (metadata?.steamType === "ARBITRAGE_COMPLETION") {
+      amount = decimalFromMetadata(transaction.metadata, "profit") || amount;
+    } else if (metadata?.steamType === "RESALE_WITHDRAWAL") {
+      const softwareAmountSpent = decimalFromMetadata(transaction.metadata, "softwareAmountSpent");
+      if (softwareAmountSpent) amount = amount.minus(softwareAmountSpent);
+    }
+    addPnlEvent(transaction.transactionDate, amount);
+  }
+  for (const transaction of expenseTransactions.filter((item) => !isFlipLedgerTransaction(item))) {
+    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated());
+  }
+  for (const flip of flips) {
+    addPnlEvent(flip.tradeDate, D(flip.pnl));
+  }
+  const totalProfitUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.profit), new Decimal(0));
+  const totalLossUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.loss), new Decimal(0));
+  const netPnlUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
+  let runningProfit = new Decimal(0);
+  let runningLoss = new Decimal(0);
+  let runningNet = new Decimal(0);
+  const pnlTimeline = pnlEvents
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((event) => {
+      runningProfit = runningProfit.plus(event.profit);
+      runningLoss = runningLoss.plus(event.loss);
+      runningNet = runningNet.plus(event.net);
+      return {
+        date: event.date.toISOString(),
+        label: dateFormatter.format(event.date),
+        profit: runningProfit.toNumber(),
+        loss: runningLoss.toNumber(),
+        net: runningNet.toNumber()
+      };
+    });
   const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
   for (const transaction of balanceTransactions) {
     const amount = asUsdt(transaction.amount, transaction.currency);
@@ -229,8 +281,6 @@ export async function getDashboard(userId: string) {
   const totalAvailableDelta = balanceEvents.reduce((sum, event) => sum.plus(event.availableDelta), new Decimal(0));
   let runningFull = potentialBankUsdt.minus(totalFullDelta);
   let runningAvailable = availableWithTurnoverUsdt.minus(totalAvailableDelta);
-  const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
   const balanceTimeline = balanceEvents
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((event, index) => {
@@ -270,6 +320,7 @@ export async function getDashboard(userId: string) {
     incomeSourcesUsdt,
     incomeTimeline,
     incomeSourceTimeline,
+    pnlTimeline,
     balanceTimeline,
     flips: flipStatistics,
     steam: {
@@ -289,6 +340,9 @@ export async function getDashboard(userId: string) {
       potentialBankUsdt: potentialBankUsdt.toString(),
       monthIncomeUsdt: monthIncome.toString(),
       monthExpenseUah: monthExpenseUah.toString(),
+      totalProfitUsdt: totalProfitUsdt.toString(),
+      totalLossUsdt: totalLossUsdt.toString(),
+      netPnlUsdt: netPnlUsdt.toString(),
       p2pCount,
       cashWithdrawalCount
     }

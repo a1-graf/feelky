@@ -1,7 +1,7 @@
 import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
-import { IncomeLineChart, IncomeSourceGrowthChart } from "@/components/income-line-chart";
+import { IncomeLineChart, IncomeSourceGrowthChart, NetPnlChart } from "@/components/income-line-chart";
 import { MetricGrid } from "@/components/metric-grid";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -16,6 +16,7 @@ type DashboardStatsData = {
   incomeSourcesUsdt: { name: string; value: string }[];
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
   incomeSourceTimeline: { date: string; label: string; sources: { name: string; value: number }[] }[];
+  pnlTimeline: { date: string; label: string; profit: number; loss: number; net: number }[];
   balanceTimeline: { date: string; label: string; tooltipLabel?: string; eventIndex?: number; full: number; available: number }[];
   recentTransactions: Parameters<typeof TransactionList>[0]["items"];
   steam: {
@@ -32,6 +33,9 @@ type DashboardStatsData = {
     cashUsd: string;
     savingsUah: string;
     monthExpenseUah: string;
+    totalProfitUsdt: string;
+    totalLossUsdt: string;
+    netPnlUsdt: string;
   };
 };
 
@@ -68,7 +72,10 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
     { label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), subValue: asUsdt(data.totals.savingsUah), tone: "ok" as const },
     { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
     { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), subValue: asUah(data.steam.frozenCapital), tone: "warn" as const },
-    { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), subValue: asUah(data.steam.profit), tone: "ok" as const }
+    { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), subValue: asUah(data.steam.profit), tone: "ok" as const },
+    { label: "Всього плюсів", value: formatMoney(data.totals.totalProfitUsdt, "USDT", hidden), subValue: asUah(data.totals.totalProfitUsdt), tone: "ok" as const },
+    { label: "Всього мінусів", value: formatMoney(data.totals.totalLossUsdt, "USDT", hidden), subValue: asUah(data.totals.totalLossUsdt), tone: "danger" as const },
+    { label: "Чистий PnL", value: formatMoney(data.totals.netPnlUsdt, "USDT", hidden), subValue: asUah(data.totals.netPnlUsdt), tone: Number(data.totals.netPnlUsdt) >= 0 ? "ok" as const : "danger" as const }
   ];
 
   return (
@@ -80,6 +87,12 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
         <div className="mb-1 font-semibold">Ріст балансу</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Повний банк і доступний банк з урахуванням Steam в обороті</div>
         <BalanceGrowthChart data={data.balanceTimeline} rate={data.rate} hidden={hidden} />
+      </Card>
+
+      <Card className="mt-5">
+        <div className="mb-1 font-semibold">Чистий PnL</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючі плюси, мінуси і чистий результат у USDT</div>
+        <NetPnlChart data={data.pnlTimeline} hidden={hidden} />
       </Card>
 
       <Card className="mt-5">

@@ -44,3 +44,10 @@ export function isWorkExpenseTransaction(transaction: {
   const metadata = transaction.metadata;
   return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).isWorkExpense === true);
 }
+
+export function isFlipLedgerTransaction(transaction: {
+  metadata?: unknown;
+}) {
+  const metadata = transaction.metadata;
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).source === "FLIP_PNL");
+}
