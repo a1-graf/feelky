@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -138,7 +138,7 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
 }
 
 export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]; hidden?: boolean }) {
-  const sortedData = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)), [data]);
+  const sortedData = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)).map((point) => ({ ...point, lossBar: -point.loss })), [data]);
   const latest = sortedData[sortedData.length - 1];
 
   if (!latest) {
@@ -155,18 +155,23 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
       </div>
       <div className="h-72 w-full">
         <ResponsiveContainer>
-          <LineChart data={sortedData} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
+          <ComposedChart data={sortedData} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={62} />
             <Tooltip
-              formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name === "net" ? "Чистий PnL" : name === "profit" ? "Плюси" : "Мінуси"]}
+              formatter={(value, name, item) => {
+                const key = item.dataKey;
+                const label = key === "net" ? "Чистий PnL" : key === "profit" ? "Плюси" : "Мінуси";
+                const amount = key === "lossBar" ? Math.abs(Number(value)) : Number(value);
+                return [formatMoney(amount, "USDT", hidden), label];
+              }}
               labelFormatter={(label) => `Дата: ${label}`}
             />
-            <Line type="monotone" dataKey="profit" name="Плюси" stroke="#16a34a" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
-            <Line type="monotone" dataKey="loss" name="Мінуси" stroke="#e04d65" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+            <Bar dataKey="profit" name="Плюси" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={34} />
+            <Bar dataKey="lossBar" name="Мінуси" fill="#e04d65" radius={[0, 0, 4, 4]} maxBarSize={34} />
             <Line type="monotone" dataKey="net" name="Чистий PnL" stroke="#2563eb" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>
