@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -23,6 +23,11 @@ type PnlTimelinePoint = {
   profit: number;
   loss: number;
   net: number;
+};
+
+type LossBreakdownItem = {
+  name: string;
+  value: string;
 };
 
 const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
@@ -174,6 +179,44 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  );
+}
+
+export function LossBreakdownChart({ data, hidden = false }: { data: LossBreakdownItem[]; hidden?: boolean }) {
+  const chartData = useMemo(
+    () => data.map((item) => ({ name: item.name, value: Number(item.value) })).filter((item) => item.value > 0).slice(0, 8),
+    [data]
+  );
+
+  if (!chartData.length) {
+    return <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає мінусів</div>;
+  }
+
+  return (
+    <div className="h-80 w-full">
+      <ResponsiveContainer>
+        <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 24, top: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+          <XAxis
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
+            tickFormatter={(value) => axisValue(Number(value), hidden)}
+          />
+          <YAxis
+            dataKey="name"
+            type="category"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
+            width={132}
+          />
+          <Tooltip formatter={(value) => [formatMoney(Number(value), "USDT", hidden), "Мінус"]} />
+          <Bar dataKey="value" name="Мінус" fill="#e04d65" radius={[0, 5, 5, 0]} maxBarSize={30} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -200,35 +200,49 @@ export async function getDashboard(userId: string) {
 
   const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
+  const lossBreakdownMap = new Map<string, Decimal>();
   const pnlEvents: { date: Date; profit: Decimal; loss: Decimal; net: Decimal }[] = [];
-  const addPnlEvent = (date: Date, amount: Decimal) => {
+  const addPnlEvent = (date: Date, amount: Decimal, lossLabel?: string) => {
     pnlEvents.push({
       date,
       profit: amount.gt(0) ? amount : new Decimal(0),
       loss: amount.lt(0) ? amount.abs() : new Decimal(0),
       net: amount
     });
+    if (amount.lt(0) && lossLabel) {
+      lossBreakdownMap.set(lossLabel, D(lossBreakdownMap.get(lossLabel) || 0).plus(amount.abs()));
+    }
   };
   for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item) && !isFlipLedgerTransaction(item))) {
     const metadata = metadataObject(transaction.metadata);
     let amount = asUsdt(transaction.amount, transaction.currency);
+    let lossLabel = transaction.incomeSource?.name ? `Дохід · ${transaction.incomeSource.name}` : "Дохід · Без джерела";
     if (metadata?.steamType === "ARBITRAGE_COMPLETION") {
       amount = decimalFromMetadata(transaction.metadata, "profit") || amount;
+      lossLabel = "Steam · Арбітраж";
     } else if (metadata?.steamType === "RESALE_WITHDRAWAL") {
       const softwareAmountSpent = decimalFromMetadata(transaction.metadata, "softwareAmountSpent");
       if (softwareAmountSpent) amount = amount.minus(softwareAmountSpent);
+      lossLabel = "Steam · Перепродаж";
     }
-    addPnlEvent(transaction.transactionDate, amount);
+    addPnlEvent(transaction.transactionDate, amount, lossLabel);
   }
   for (const transaction of expenseTransactions.filter((item) => !isFlipLedgerTransaction(item))) {
-    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated());
+    const label = isWorkExpenseTransaction(transaction)
+      ? `Робочі · ${transaction.incomeSource?.name || "Без напрямку"}`
+      : `Витрати · ${transaction.category?.name || "Без категорії"}`;
+    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated(), label);
   }
   for (const flip of flips) {
-    addPnlEvent(flip.tradeDate, D(flip.pnl));
+    addPnlEvent(flip.tradeDate, D(flip.pnl), `Фліпи · ${flip.setup}`);
   }
   const totalProfitUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.profit), new Decimal(0));
   const totalLossUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.loss), new Decimal(0));
   const netPnlUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
+  const lossBreakdown = Array.from(lossBreakdownMap.entries())
+    .map(([name, value]) => ({ name, value: value.toString() }))
+    .sort((a, b) => Number(b.value) - Number(a.value))
+    .slice(0, 10);
   let runningProfit = new Decimal(0);
   let runningLoss = new Decimal(0);
   let runningNet = new Decimal(0);
@@ -321,6 +335,7 @@ export async function getDashboard(userId: string) {
     incomeTimeline,
     incomeSourceTimeline,
     pnlTimeline,
+    lossBreakdown,
     balanceTimeline,
     flips: flipStatistics,
     steam: {

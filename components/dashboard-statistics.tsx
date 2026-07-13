@@ -1,7 +1,7 @@
 import { BalanceGrowthChart } from "@/components/balance-growth-chart";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { ExpensePieChart } from "@/components/expense-pie-chart";
-import { IncomeLineChart, IncomeSourceGrowthChart, NetPnlChart } from "@/components/income-line-chart";
+import { IncomeLineChart, IncomeSourceGrowthChart, LossBreakdownChart, NetPnlChart } from "@/components/income-line-chart";
 import { MetricGrid } from "@/components/metric-grid";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ type DashboardStatsData = {
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
   incomeSourceTimeline: { date: string; label: string; sources: { name: string; value: number }[] }[];
   pnlTimeline: { date: string; label: string; profit: number; loss: number; net: number }[];
+  lossBreakdown: { name: string; value: string }[];
   balanceTimeline: { date: string; label: string; tooltipLabel?: string; eventIndex?: number; full: number; available: number }[];
   recentTransactions: Parameters<typeof TransactionList>[0]["items"];
   steam: {
@@ -93,6 +94,10 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
         <div className="mb-1 font-semibold">Чистий PnL</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючі плюси, мінуси і чистий результат у USDT</div>
         <NetPnlChart data={data.pnlTimeline} hidden={hidden} />
+        <div className="my-5 border-t border-border" />
+        <div className="mb-1 font-semibold">Де найбільші мінуси</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Топ просадок по витратах, робочих напрямках і мінусових фліпах</div>
+        <LossBreakdownChart data={data.lossBreakdown} hidden={hidden} />
       </Card>
 
       <Card className="mt-5">
