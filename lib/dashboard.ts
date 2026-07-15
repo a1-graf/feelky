@@ -246,17 +246,26 @@ export async function getDashboard(userId: string) {
   let runningProfit = new Decimal(0);
   let runningLoss = new Decimal(0);
   let runningNet = new Decimal(0);
-  const pnlTimeline = pnlEvents
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((event) => {
+  const pnlByDate = new Map<string, { label: string; profit: Decimal; loss: Decimal; net: Decimal }>();
+  for (const event of pnlEvents) {
+    const date = event.date.toISOString().slice(0, 10);
+    const current = pnlByDate.get(date) || { label: dateFormatter.format(event.date), profit: new Decimal(0), loss: new Decimal(0), net: new Decimal(0) };
+    current.profit = current.profit.plus(event.profit);
+    current.loss = current.loss.plus(event.loss);
+    current.net = current.net.plus(event.net);
+    pnlByDate.set(date, current);
+  }
+  const pnlTimeline = Array.from(pnlByDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, event]) => {
       runningProfit = runningProfit.plus(event.profit);
       runningLoss = runningLoss.plus(event.loss);
       runningNet = runningNet.plus(event.net);
       return {
-        date: event.date.toISOString(),
-        label: dateFormatter.format(event.date),
-        profit: runningProfit.toNumber(),
-        loss: runningLoss.toNumber(),
+        date,
+        label: event.label,
+        profit: event.profit.toNumber(),
+        loss: event.loss.toNumber(),
         net: runningNet.toNumber()
       };
     });

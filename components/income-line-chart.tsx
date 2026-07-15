@@ -145,6 +145,16 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
 export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]; hidden?: boolean }) {
   const sortedData = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)).map((point) => ({ ...point, lossBar: -point.loss })), [data]);
   const latest = sortedData[sortedData.length - 1];
+  const totals = useMemo(
+    () => sortedData.reduce(
+      (result, point) => ({
+        profit: result.profit + point.profit,
+        loss: result.loss + point.loss
+      }),
+      { profit: 0, loss: 0 }
+    ),
+    [sortedData]
+  );
 
   if (!latest) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає PnL</div>;
@@ -154,27 +164,27 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <ChartTotal color="#16a34a" label="Плюси" value={formatMoney(latest.profit, "USDT", hidden)} />
-        <ChartTotal color="#e04d65" label="Мінуси" value={formatMoney(latest.loss, "USDT", hidden)} />
+        <ChartTotal color="#16a34a" label="Плюси" value={formatMoney(totals.profit, "USDT", hidden)} />
+        <ChartTotal color="#e04d65" label="Мінуси" value={formatMoney(totals.loss, "USDT", hidden)} />
         <ChartTotal color="#2563eb" label="Чистий PnL" value={formatMoney(latest.net, "USDT", hidden)} />
       </div>
       <div className="h-72 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={sortedData} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
+          <ComposedChart data={sortedData} barGap={2} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={62} />
             <Tooltip
               formatter={(value, name, item) => {
                 const key = item.dataKey;
-                const label = key === "net" ? "Чистий PnL" : key === "profit" ? "Плюси" : "Мінуси";
+                const label = key === "net" ? "Чистий PnL" : key === "profit" ? "Плюс за дату" : "Мінус за дату";
                 const amount = key === "lossBar" ? Math.abs(Number(value)) : Number(value);
                 return [formatMoney(amount, "USDT", hidden), label];
               }}
               labelFormatter={(label) => `Дата: ${label}`}
             />
-            <Bar dataKey="profit" name="Плюси" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={34} />
-            <Bar dataKey="lossBar" name="Мінуси" fill="#e04d65" radius={[0, 0, 4, 4]} maxBarSize={34} />
+            <Bar dataKey="profit" name="Плюс за дату" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="lossBar" name="Мінус за дату" fill="#e04d65" radius={[0, 0, 4, 4]} maxBarSize={28} />
             <Line type="monotone" dataKey="net" name="Чистий PnL" stroke="#2563eb" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </ComposedChart>
         </ResponsiveContainer>
