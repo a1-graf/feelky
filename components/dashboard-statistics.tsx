@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 
 type DashboardStatsData = {
+  period: { month: string; label: string; rangeLabel: string; isCurrentMonth: boolean };
   rate: string;
   settings: { hideAmounts: boolean; monthlyExpenseLimit?: { toString(): string } | string | null } | null;
   expenseCategories: { name: string; value: string }[];
@@ -71,7 +72,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
     { label: "Cash UAH", value: formatMoney(data.totals.cashUah, "UAH", hidden) },
     { label: "Cash USD", value: formatMoney(data.totals.cashUsd, "USD", hidden), subValue: asUah(data.totals.cashUsd) },
     { label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), subValue: asUsdt(data.totals.savingsUah), tone: "ok" as const },
-    { label: "Витрати місяця", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
+    { label: "Витрати періоду", value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), valueStyle: monthExpenseColor ? { color: monthExpenseColor } : undefined },
     { label: "В обороті Steam", value: formatMoney(data.steam.frozenCapital, "USDT", hidden), subValue: asUah(data.steam.frozenCapital), tone: "warn" as const },
     { label: "Steam прибуток", value: formatMoney(data.steam.profit, "USDT", hidden), subValue: asUah(data.steam.profit), tone: "ok" as const },
     { label: "Всього плюсів", value: formatMoney(data.totals.totalProfitUsdt, "USDT", hidden), subValue: asUah(data.totals.totalProfitUsdt), tone: "ok" as const },
@@ -92,7 +93,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Чистий PnL</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Плюси і мінуси за дату, синя лінія - накопичений чистий результат у USDT</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Плюси і мінуси за дату, синя лінія - накопичений чистий результат у USDT · {data.period.rangeLabel}</div>
         <NetPnlChart data={data.pnlTimeline} hidden={hidden} />
         <div className="my-5 border-t border-border" />
         <div className="mb-1 font-semibold">Де найбільші мінуси</div>
@@ -102,7 +103,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Куди йдуть витрати</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Особисті витрати в UAH та робочі витрати за напрямками</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Особисті витрати в UAH та робочі витрати за напрямками · {data.period.rangeLabel}</div>
         <div className={hasWorkExpenses ? "grid gap-6 xl:grid-cols-2" : ""}>
           <div className="min-w-0">
             {hasWorkExpenses && <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">Особисті · UAH</div>}
@@ -119,7 +120,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Наростаючий дохід</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Усі лінії та ліва шкала показані в USDT</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Усі лінії та ліва шкала показані в USDT · {data.period.rangeLabel}</div>
         <IncomeLineChart data={data.incomeTimeline} rate={data.rate} hidden={hidden} />
         <div className="my-5 border-t border-border" />
         <div className="mb-1 font-semibold">Що приносить дохід</div>
@@ -143,7 +144,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
       </Card>
 
       <Card className="mt-4">
-        <div className="mb-2 text-sm font-semibold">Останні операції</div>
+        <div className="mb-2 text-sm font-semibold">Останні операції за період</div>
         <TransactionList items={data.recentTransactions} compact />
       </Card>
     </section>

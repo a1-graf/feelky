@@ -18,9 +18,10 @@ const sections = [
   { href: "/settings", label: "Налаштування", description: "Курс, тема, довідники і backup" }
 ];
 
-export default async function StatisticsPage() {
+export default async function StatisticsPage({ searchParams }: { searchParams?: Promise<{ month?: string }> }) {
   const userId = await requireUserId();
-  const data = await getDashboard(userId);
+  const params = await searchParams;
+  const data = await getDashboard(userId, { month: params?.month });
   const hidden = Boolean(data.settings?.hideAmounts);
   const rate = Number(data.rate);
   const availableBankUah = Number(data.totals.availableBankUsdt) * rate;
@@ -29,6 +30,25 @@ export default async function StatisticsPage() {
   return (
     <AppShell>
       <PageTitle title="Статистика" subtitle={`Деталі банку, витрат і доходів · курс ${data.rate} UAH/USDT`} />
+
+      <Card className="mb-4 p-4">
+        <form action="/statistics" className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <label>
+            Місяць статистики
+            <input name="month" type="month" defaultValue={data.period.month} />
+          </label>
+          <button className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">
+            Показати
+          </button>
+          <Link href="/statistics" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-muted px-4 py-2 text-sm font-semibold text-[hsl(var(--card-foreground))]">
+            Теперішній місяць
+          </Link>
+        </form>
+        <div className="mt-3 text-sm text-[hsl(var(--card-muted-foreground))]">
+          Період: <span className="font-semibold text-[hsl(var(--card-foreground))]">{data.period.rangeLabel}</span>
+          {data.period.isCurrentMonth ? " · поточний місяць показаний до сьогодні" : ""}
+        </div>
+      </Card>
 
       <Card className="p-5 sm:p-6">
         <div className="text-sm font-medium text-[hsl(var(--card-muted-foreground))]">Доступний банк</div>

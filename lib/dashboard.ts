@@ -7,6 +7,44 @@ import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
+type DashboardPeriod = {
+  month?: string;
+};
+
+function localDate(year: number, monthIndex: number, day: number, endOfDay = false) {
+  const date = new Date(year, monthIndex, day);
+  if (endOfDay) date.setHours(23, 59, 59, 999);
+  else date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function resolveDashboardPeriod(input: DashboardPeriod = {}) {
+  const now = new Date();
+  const match = /^(\d{4})-(\d{2})$/.exec(input.month || "");
+  const parsedMonth = match ? Number(match[2]) : null;
+  const hasValidMonth = Boolean(match && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12);
+  const year = hasValidMonth ? Number(match![1]) : now.getFullYear();
+  const monthIndex = hasValidMonth ? Number(match![2]) - 1 : now.getMonth();
+  const normalizedMonth = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+  const from = localDate(year, monthIndex, 1);
+  const nextMonthStart = localDate(year, monthIndex + 1, 1);
+  const currentMonthStart = localDate(now.getFullYear(), now.getMonth(), 1);
+  const isCurrentMonth = from.getTime() === currentMonthStart.getTime();
+  const to = isCurrentMonth ? now : new Date(nextMonthStart.getTime() - 1);
+  const range = { gte: from, lte: to };
+  const formatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  return {
+    month: normalizedMonth,
+    from,
+    to,
+    isCurrentMonth,
+    label: new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(from),
+    rangeLabel: `${formatter.format(from)} - ${formatter.format(to)}`,
+    range
+  };
+}
+
 export async function resolveUahUsdtRate(userId: string) {
   const settings = await prisma.settings.findUnique({ where: { userId } });
   if (settings?.rateMode === RateMode.MANUAL && settings.manualUahUsdtRate) {
@@ -34,11 +72,9 @@ export async function resolveUahUsdtRate(userId: string) {
   return { rate: new Decimal(40), source: "Fallback market provider" };
 }
 
-export async function getDashboard(userId: string) {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, monthlyTransactions] = await Promise.all([
+export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
+  const period = resolveDashboardPeriod(input);
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, periodTransactions] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -47,18 +83,18 @@ export async function getDashboard(userId: string) {
     prisma.expectedMoney.findMany({ where: { userId } }),
     prisma.settings.findUnique({ where: { userId } }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null },
+      where: { userId, archivedAt: null, transactionDate: period.range },
       orderBy: { transactionDate: "desc" },
       take: 20,
       include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
+      where: { userId, archivedAt: null, type: TransactionType.EXPENSE, transactionDate: period.range },
       orderBy: { transactionDate: "desc" },
       include: { category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] } },
+      where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] }, transactionDate: period.range },
       orderBy: { transactionDate: "desc" },
       include: { incomeSource: true }
     }),
@@ -67,13 +103,13 @@ export async function getDashboard(userId: string) {
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }]
     }),
     prisma.flip.findMany({
-      where: { userId },
+      where: { userId, tradeDate: period.range },
       orderBy: { tradeDate: "desc" }
     }),
     resolveUahUsdtRate(userId),
-    steamAnalytics.dashboard(userId),
+    steamAnalytics.dashboard(userId, { from: period.from, to: period.to }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null, transactionDate: { gte: monthStart } }
+      where: { userId, archivedAt: null, transactionDate: period.range }
     })
   ]);
 
@@ -121,14 +157,14 @@ export async function getDashboard(userId: string) {
   const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
   const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
 
-  const monthIncome = monthlyTransactions
+  const monthIncome = periodTransactions
     .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
     .reduce((sum, t) => sum.plus(t.currency === "UAH" ? D(t.amount).div(rate) : t.amount), new Decimal(0));
-  const monthExpenseUah = monthlyTransactions
+  const monthExpenseUah = periodTransactions
     .filter((t) => t.type === TransactionType.EXPENSE && t.currency === "UAH")
     .reduce((sum, t) => sum.plus(t.amount), new Decimal(0));
-  const p2pCount = monthlyTransactions.filter((t) => t.type === TransactionType.P2P_WITHDRAWAL).length;
-  const cashWithdrawalCount = monthlyTransactions.filter((t) => t.type === TransactionType.CASH_WITHDRAWAL).length;
+  const p2pCount = periodTransactions.filter((t) => t.type === TransactionType.P2P_WITHDRAWAL).length;
+  const cashWithdrawalCount = periodTransactions.filter((t) => t.type === TransactionType.CASH_WITHDRAWAL).length;
   const flipStatistics = summarizeFlips(flips);
   const expenseCategoryMap = new Map<string, Decimal>();
   const workExpenseSourceMap = new Map<string, Decimal>();
@@ -330,6 +366,12 @@ export async function getDashboard(userId: string) {
     });
   }
   return {
+    period: {
+      month: period.month,
+      label: period.label,
+      rangeLabel: period.rangeLabel,
+      isCurrentMonth: period.isCurrentMonth
+    },
     settings,
     rate: rate.toString(),
     rateSource: source,
