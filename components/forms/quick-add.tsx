@@ -52,6 +52,7 @@ export function QuickAdd() {
   const [incomeCurrency, setIncomeCurrency] = useState("USDT");
   const [expenseCurrency, setExpenseCurrency] = useState<"UAH" | "USDT">("UAH");
   const [incomeDate, setIncomeDate] = useState(today());
+  const [incomeOpeningBalance, setIncomeOpeningBalance] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<RefOption[]>([]);
   const [incomeSourceOptions, setIncomeSourceOptions] = useState<RefOption[]>([]);
   const [selectedExpenseSourceId, setSelectedExpenseSourceId] = useState("");
@@ -87,7 +88,7 @@ export function QuickAdd() {
       name: incomeCurrency === "USDT" && account.type === "CASH" && account.currency === "USD" ? `${account.name} (cash USD)` : account.name
     }));
   const defaultIncomeDestination = incomeDestinationAccounts[0]?.id || "";
-  const isOpeningBalanceIncome = incomeDate.replace(/\D/g, "") === "00000000";
+  const isOpeningBalanceIncome = incomeOpeningBalance;
   const cashTarget = useMemo(() => {
     return (currency: string) => cashAccounts.find((account) => account.currency === currency)?.id || "";
   }, [cashAccounts]);
@@ -255,7 +256,7 @@ export function QuickAdd() {
                       </select>
                     </label>
                   </div>
-                  <IncomeDateField value={incomeDate} onChange={setIncomeDate} />
+                  <IncomeDateField value={incomeDate} openingBalance={incomeOpeningBalance} onChange={setIncomeDate} onOpeningBalanceChange={setIncomeOpeningBalance} />
                   {isOpeningBalanceIncome ? (
                     <div className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
                       Початковий баланс: гроші просто додаються на рахунок, без джерела доходу і без статистики доходів.
@@ -352,6 +353,7 @@ export function QuickAdd() {
                 <>
                   <label>Назва / де лежить<input name="title" required placeholder="Наприклад: Bybit, P2P, борг, сайт" /></label>
                   <MoneyFields currencies={["UAH", "USDT", "USD"]} />
+                  <DateField name="expectedDate" label="Дата" />
                   <label>Статус<select name="status" defaultValue="EXPECTED"><option value="EXPECTED">Заморожено</option><option value="NEED_TO_COLLECT">Потрібно забрати</option><option value="IN_PROGRESS">В процесі</option></select></label>
                 </>
               )}
@@ -369,16 +371,38 @@ export function QuickAdd() {
   );
 }
 
-function DateField({ name = "transactionDate" }: { name?: string }) {
-  return <label>Дата<input name={name} type="date" defaultValue={today()} /></label>;
+function DateField({ name = "transactionDate", label = "Дата" }: { name?: string; label?: string }) {
+  return <label>{label}<input name={name} type="date" defaultValue={today()} /></label>;
 }
 
-function IncomeDateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function IncomeDateField({
+  value,
+  openingBalance,
+  onChange,
+  onOpeningBalanceChange
+}: {
+  value: string;
+  openingBalance: boolean;
+  onChange: (value: string) => void;
+  onOpeningBalanceChange: (value: boolean) => void;
+}) {
   return (
-    <label>
-      Дата
-      <input name="transactionDate" inputMode="numeric" value={value} onChange={(event) => onChange(event.target.value)} placeholder="00.00.0000 = початковий баланс" />
-    </label>
+    <div className="grid gap-2">
+      <label>
+        Дата
+        <input type="date" value={openingBalance ? "" : value} onChange={(event) => onChange(event.target.value || today())} disabled={openingBalance} />
+      </label>
+      <input type="hidden" name="transactionDate" value={openingBalance ? "00.00.0000" : value} />
+      <label className="flex min-h-10 items-center gap-2 rounded-lg border border-border bg-muted px-3 text-sm text-muted-foreground">
+        <input
+          type="checkbox"
+          className="h-4 min-h-4 w-4 accent-primary"
+          checked={openingBalance}
+          onChange={(event) => onOpeningBalanceChange(event.target.checked)}
+        />
+        Початковий баланс без дати
+      </label>
+    </div>
   );
 }
 
