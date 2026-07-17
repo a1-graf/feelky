@@ -28,6 +28,8 @@ type HoverInfo = {
   date: string;
   full: string;
   available: string;
+  fullChange: string;
+  availableChange: string;
 };
 
 const ranges = [
@@ -55,6 +57,16 @@ function timeLabel(time: Time) {
   );
 }
 
+function changeFromCurrent(current: number, point: number, hidden: boolean) {
+  if (hidden) return "••••";
+  const delta = current - point;
+  const percent = point === 0 ? null : (delta / Math.abs(point)) * 100;
+  const sign = delta > 0 ? "+" : delta < 0 ? "-" : "";
+  const money = formatMoney(Math.abs(delta), "USDT", false);
+  const percentText = percent == null ? "" : ` · ${sign}${Math.abs(percent).toFixed(1)}%`;
+  return `${sign}${money}${percentText}`;
+}
+
 export function BalanceGrowthChart({ data, rate, hidden = false }: { data: BalancePoint[]; rate: string; hidden?: boolean }) {
   const [rangeDays, setRangeDays] = useState<number | null>(30);
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -63,6 +75,9 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
   const fullSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const availableSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const uahRate = Number(rate);
+  const currentPoint = useMemo(() => {
+    return [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).at(-1) || null;
+  }, [data]);
 
   const visibleData = useMemo(() => {
     const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -196,11 +211,13 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
       const width = container.clientWidth;
       const height = container.clientHeight;
       setHover({
-        x: Math.max(8, Math.min(param.point.x + 14, width - 230)),
-        y: Math.max(8, Math.min(param.point.y + 14, height - 116)),
+        x: Math.max(8, Math.min(param.point.x + 14, width - 260)),
+        y: Math.max(8, Math.min(param.point.y + 14, height - 156)),
         date: timeLabel(param.time),
         full: `${formatMoney(full, "USDT", hidden)} · ${formatMoney(full * uahRate, "UAH", hidden)}`,
-        available: `${formatMoney(available, "USDT", hidden)} · ${formatMoney(available * uahRate, "UAH", hidden)}`
+        available: `${formatMoney(available, "USDT", hidden)} · ${formatMoney(available * uahRate, "UAH", hidden)}`,
+        fullChange: currentPoint ? changeFromCurrent(currentPoint.full, full, hidden) : "",
+        availableChange: currentPoint ? changeFromCurrent(currentPoint.available, available, hidden) : ""
       });
     });
 
@@ -214,7 +231,7 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
       chartRef.current = null;
       chart.remove();
     };
-  }, [hidden, uahRate]);
+  }, [currentPoint, hidden, uahRate]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -253,10 +270,12 @@ export function BalanceGrowthChart({ data, rate, hidden = false }: { data: Balan
       <div className="relative h-[420px] min-h-[320px] w-full overflow-hidden rounded-md border border-border bg-card">
         <div ref={containerRef} className="absolute inset-0" />
         {hover && (
-          <div className="pointer-events-none absolute z-10 w-[220px] rounded-md border border-border bg-card p-3 text-xs shadow-soft" style={{ left: hover.x, top: hover.y }}>
+          <div className="pointer-events-none absolute z-10 w-[250px] rounded-md border border-border bg-card p-3 text-xs shadow-soft" style={{ left: hover.x, top: hover.y }}>
             <div className="mb-2 font-semibold text-[hsl(var(--card-foreground))]">{hover.date}</div>
             <div className="text-[#2563eb]">Повний: {hover.full}</div>
+            <div className="mt-0.5 text-[#2563eb] opacity-80">Зараз від цієї точки: {hover.fullChange}</div>
             <div className="mt-1 text-[#16a34a]">Доступний: {hover.available}</div>
+            <div className="mt-0.5 text-[#16a34a] opacity-80">Зараз від цієї точки: {hover.availableChange}</div>
           </div>
         )}
       </div>
