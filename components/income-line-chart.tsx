@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -31,6 +31,7 @@ type LossBreakdownItem = {
 };
 
 const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
+const LOSS_COLORS = ["#e04d65", "#e8795f", "#d99b42", "#b7845b", "#8b5cf6", "#5d8aa8", "#4d9a78", "#6d7f98"];
 
 function axisValue(value: number, hidden: boolean) {
   if (hidden) return "****";
@@ -195,38 +196,45 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
 
 export function LossBreakdownChart({ data, hidden = false }: { data: LossBreakdownItem[]; hidden?: boolean }) {
   const chartData = useMemo(
-    () => data.map((item) => ({ name: item.name, value: Number(item.value) })).filter((item) => item.value > 0).slice(0, 8),
+    () => data.map((item, index) => ({ name: item.name, value: Number(item.value), color: LOSS_COLORS[index % LOSS_COLORS.length] })).filter((item) => item.value > 0).slice(0, 8),
     [data]
   );
+  const total = chartData.reduce((sum, item) => sum + item.value, 0);
 
-  if (!chartData.length) {
+  if (!chartData.length || total <= 0) {
     return <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає мінусів</div>;
   }
 
   return (
-    <div className="h-80 w-full">
-      <ResponsiveContainer>
-        <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 24, top: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis
-            type="number"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-            tickFormatter={(value) => axisValue(Number(value), hidden)}
-          />
-          <YAxis
-            dataKey="name"
-            type="category"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-            width={132}
-          />
-          <Tooltip formatter={(value) => [formatMoney(Number(value), "USDT", hidden), "Мінус"]} />
-          <Bar dataKey="value" name="Мінус" fill="#e04d65" radius={[0, 5, 5, 0]} maxBarSize={30} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div>
+      <div className="mb-2 text-sm text-[hsl(var(--card-muted-foreground))]">
+        Загалом мінусів: <span className="font-semibold text-[hsl(var(--card-foreground))]">{formatMoney(total, "USDT", hidden)}</span>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+        <div className="h-72 min-w-0">
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie data={chartData} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="82%" paddingAngle={3} stroke="hsl(var(--card))" strokeWidth={4}>
+                {chartData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="grid gap-2">
+          {chartData.map((item) => (
+            <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="truncate">{item.name}</span>
+              </span>
+              <span className="shrink-0 font-semibold">{hidden ? "****" : `${Math.round((item.value / total) * 100)}%`}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
