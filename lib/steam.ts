@@ -541,11 +541,8 @@ export class SteamAnalyticsService {
       .filter((residual) => inPeriod(residual.resolvedAt))
       .reduce((sum, residual) => sum.plus(residual.resolvedAmount || 0), new Decimal(0));
     const arbitrageProfit = completedProfit.plus(residualProfit).minus(arbitrageUnboundExpenses);
-    const pendingResaleCapital = activeResaleInvestments
-      .filter((item) => D(item.receivedSteamAmount).lte(0))
-      .reduce((sum, item) => sum.plus(item.externalAmount), new Decimal(0));
     const softwareBalance = resaleAccounts.reduce((sum, item) => sum.plus(item.currentSoftwareBalance), new Decimal(0));
-    const activeResaleCapital = pendingResaleCapital.plus(softwareBalance);
+    const activeResaleCapital = activeResaleInvestments.reduce((sum, item) => sum.plus(item.externalAmount), new Decimal(0));
     const activeArbitrageCapital = activeRounds.reduce((sum, item) => sum.plus(item.investedAmount), new Decimal(0));
     const openResidualCapital = openResiduals.reduce((sum, item) => sum.plus(item.amount), new Decimal(0));
     const frozenCapital = activeResaleCapital.plus(activeArbitrageCapital).plus(openResidualCapital);
