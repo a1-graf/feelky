@@ -178,6 +178,13 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       expenseCategoryMap.set(label, D(expenseCategoryMap.get(label) || 0).plus(transaction.amount));
     }
   }
+  for (const flip of flips) {
+    const pnl = D(flip.pnl);
+    if (pnl.lt(0)) {
+      const label = `Фліпи · ${flip.setup}`;
+      workExpenseSourceMap.set(label, D(workExpenseSourceMap.get(label) || 0).plus(pnl.abs()));
+    }
+  }
   const expenseCategories = Array.from(expenseCategoryMap.entries())
     .map(([name, value]) => ({ name, value: value.toString() }))
     .sort((a, b) => Number(b.value) - Number(a.value));
