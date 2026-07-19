@@ -57,6 +57,13 @@ export async function updateSteamResaleInvestmentReceivedAction(formData: FormDa
   revalidatePath("/statistics");
 }
 
+export async function undoLastSteamResaleAction() {
+  const userId = await requireUserId();
+  await steamResale.undoLastResaleAction(userId);
+  revalidatePath("/steam");
+  revalidatePath("/statistics");
+}
+
 export async function addSteamResaleInvestmentAmountAction(formData: FormData) {
   const userId = await requireUserId();
   await steamResale.addInvestmentAmount(userId, {

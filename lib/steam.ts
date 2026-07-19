@@ -22,6 +22,24 @@ function daysBetween(start?: Date | null, end?: Date | null) {
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86_400_000));
 }
 
+function jsonRecord(value: Prisma.JsonValue | null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function decimalFromRecord(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  if (typeof value !== "string" && typeof value !== "number") {
+    throw new Error(`Audit log is missing ${key}`);
+  }
+  return D(value);
+}
+
+function stringFromRecord(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" ? value : null;
+}
+
 export class SteamResaleService {
   constructor(private readonly db = prisma) {}
 
@@ -110,6 +128,109 @@ export class SteamResaleService {
         await this.audit(tx, userId, "SteamResaleAccount", account.id, "SOFTWARE_BALANCE_CREDIT", account, updatedAccount);
       }
       return updatedInvestment;
+    });
+  }
+
+  async undoLastResaleAction(userId: string) {
+    return this.db.$transaction(async (tx) => {
+      const log = await tx.auditLog.findFirst({
+        where: {
+          userId,
+          entityType: "SteamResaleInvestment",
+          action: { in: ["CREATE", "TOP_UP", "RECEIVED_UPDATE"] }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      if (!log) throw new Error("Немає Steam-дій для відкату");
+
+      const investment = await tx.steamResaleInvestment.findFirst({
+        where: { id: log.entityId, userId, archivedAt: null }
+      });
+      if (!investment) throw new Error("Цю Steam-дію вже відкотили або вкладення видалене");
+
+      if (log.action === "RECEIVED_UPDATE") {
+        const oldData = jsonRecord(log.oldData);
+        const newData = jsonRecord(log.newData);
+        if (!oldData || !newData) throw new Error("Немає даних для відкату оновлення");
+
+        const currentReceived = D(investment.receivedSteamAmount);
+        const loggedNewReceived = decimalFromRecord(newData, "receivedSteamAmount");
+        const loggedOldReceived = decimalFromRecord(oldData, "receivedSteamAmount");
+        if (!currentReceived.eq(loggedNewReceived)) {
+          throw new Error("Останню зміну вже відкотили або після неї були інші правки");
+        }
+
+        const account = await this.requireResaleAccount(tx, userId, investment.resaleAccountId);
+        const nextBalance = D(account.currentSoftwareBalance).plus(loggedOldReceived.minus(currentReceived));
+        if (nextBalance.lt(0)) throw new Error("Не можу відкотити: баланс у софті стане мінусовим");
+
+        const updatedAccount = await tx.steamResaleAccount.update({
+          where: { id: account.id },
+          data: { currentSoftwareBalance: nextBalance.toString() }
+        });
+        const reverted = await tx.steamResaleInvestment.update({
+          where: { id: investment.id },
+          data: {
+            receivedSteamAmount: loggedOldReceived.toString(),
+            completedAt: oldData.completedAt ? new Date(String(oldData.completedAt)) : null,
+            note: stringFromRecord(oldData, "note")
+          }
+        });
+
+        await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "RECEIVED_UPDATE_UNDO", investment, reverted);
+        await this.audit(tx, userId, "SteamResaleAccount", account.id, "SOFTWARE_BALANCE_UNDO", account, updatedAccount);
+        return reverted;
+      }
+
+      if (log.action === "TOP_UP") {
+        const oldData = jsonRecord(log.oldData);
+        const newData = jsonRecord(log.newData);
+        if (!oldData || !newData) throw new Error("Немає даних для відкату доповнення");
+
+        const currentExternal = D(investment.externalAmount);
+        const loggedNewExternal = decimalFromRecord(newData, "externalAmount");
+        const loggedOldExternal = decimalFromRecord(oldData, "externalAmount");
+        if (!currentExternal.eq(loggedNewExternal)) {
+          throw new Error("Останнє доповнення вже відкотили або після нього були інші правки");
+        }
+
+        const sourceAccountId = stringFromRecord(newData, "sourceAccountId") || investment.sourceAccountId;
+        await this.adjustAccount(tx, userId, sourceAccountId, loggedNewExternal.minus(loggedOldExternal), false);
+        const reverted = await tx.steamResaleInvestment.update({
+          where: { id: investment.id },
+          data: {
+            sourceAccountId: stringFromRecord(oldData, "sourceAccountId") || investment.sourceAccountId,
+            externalAmount: loggedOldExternal.toString(),
+            note: stringFromRecord(oldData, "note")
+          }
+        });
+        await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "TOP_UP_UNDO", investment, reverted);
+        return reverted;
+      }
+
+      const newData = jsonRecord(log.newData);
+      if (!newData) throw new Error("Немає даних для відкату створення");
+      const account = await this.requireResaleAccount(tx, userId, investment.resaleAccountId);
+      const externalAmount = decimalFromRecord(newData, "externalAmount");
+      const receivedSteamAmount = decimalFromRecord(newData, "receivedSteamAmount");
+      if (D(account.currentSoftwareBalance).lt(receivedSteamAmount)) {
+        throw new Error("Не можу відкотити створення: баланс у софті стане мінусовим");
+      }
+
+      await this.adjustAccount(tx, userId, stringFromRecord(newData, "sourceAccountId") || investment.sourceAccountId, externalAmount, false);
+      const updatedAccount = await tx.steamResaleAccount.update({
+        where: { id: account.id },
+        data: { currentSoftwareBalance: D(account.currentSoftwareBalance).minus(receivedSteamAmount).toString() }
+      });
+      const archived = await tx.steamResaleInvestment.update({
+        where: { id: investment.id },
+        data: { archivedAt: new Date() }
+      });
+      await this.audit(tx, userId, "SteamResaleInvestment", investment.id, "CREATE_UNDO", investment, archived);
+      if (receivedSteamAmount.gt(0)) {
+        await this.audit(tx, userId, "SteamResaleAccount", account.id, "SOFTWARE_BALANCE_UNDO", account, updatedAccount);
+      }
+      return archived;
     });
   }
 

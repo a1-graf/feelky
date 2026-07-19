@@ -16,6 +16,7 @@ import {
   createSteamRoundAction,
   createSteamSchemeAction,
   createSteamSnapshotAction,
+  undoLastSteamResaleAction,
   updateSteamResaleInvestmentReceivedAction
 } from "@/app/steam/actions";
 
@@ -143,6 +144,22 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
 
       {tab === "resale" ? (
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <Card className="xl:col-span-2">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div>
+                <div className="font-semibold">Відкат останньої дії перепродажу</div>
+                <div className="text-sm text-[hsl(var(--card-muted-foreground))]">
+                  Повертає останнє створення завозу, доповнення завозу або зміну поля “зайшло в софт”.
+                </div>
+              </div>
+              <form action={undoLastSteamResaleAction}>
+                <button className="min-h-11 rounded-lg border border-danger/50 px-4 py-2 text-sm font-semibold text-danger" type="submit">
+                  Відкотити останню дію
+                </button>
+              </form>
+            </div>
+          </Card>
+
           <Card>
             <div className="mb-3 font-semibold">Акаунти перепродажу</div>
             {resaleAccounts.length ? (
