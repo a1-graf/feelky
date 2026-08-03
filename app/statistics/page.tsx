@@ -18,10 +18,16 @@ const sections = [
   { href: "/settings", label: "Налаштування", description: "Курс, тема, довідники і backup" }
 ];
 
+const monthLabels = [
+  "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+  "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"
+];
+
 export default async function StatisticsPage({ searchParams }: { searchParams?: Promise<{ month?: string }> }) {
   const userId = await requireUserId();
   const params = await searchParams;
   const data = await getDashboard(userId, { month: params?.month });
+  const currentYear = new Date().getFullYear();
   const hidden = Boolean(data.settings?.hideAmounts);
   const rate = Number(data.rate);
   const availableBankUah = Number(data.totals.availableBankUsdt) * rate;
@@ -35,7 +41,13 @@ export default async function StatisticsPage({ searchParams }: { searchParams?: 
         <form action="/statistics" className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
           <label>
             Місяць статистики
-            <input name="month" type="month" defaultValue={data.period.month} />
+            <select name="month" defaultValue={data.period.month}>
+              {monthLabels.map((label, index) => {
+                const month = `${currentYear}-${String(index + 1).padStart(2, "0")}`;
+
+                return <option key={month} value={month}>{label} {currentYear} р.</option>;
+              })}
+            </select>
           </label>
           <button className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">
             Показати
