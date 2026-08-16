@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { apiError } from "@/lib/api-error";
 import { ensureUserDefaults } from "@/lib/user-defaults";
 
 const registerSchema = z.object({
@@ -11,24 +12,28 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const input = registerSchema.parse(await request.json());
-  const email = input.email.toLowerCase().trim();
-  const userCount = await prisma.user.count();
-  if (userCount > 0) {
-    return NextResponse.json({ error: "Registration is closed for this instance" }, { status: 403 });
+  try {
+    const input = registerSchema.parse(await request.json());
+    const email = input.email.toLowerCase().trim();
+    const userCount = await prisma.user.count();
+    if (userCount > 0) {
+      return NextResponse.json({ error: "Registration is closed for this instance" }, { status: 403 });
+    }
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return NextResponse.json({ error: "Користувач із таким email уже існує" }, { status: 409 });
+    }
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name: input.name,
+        passwordHash: await hashPassword(input.password)
+      },
+      select: { id: true, email: true, name: true }
+    });
+    await ensureUserDefaults(user.id);
+    return NextResponse.json(user, { status: 201 });
+  } catch (error) {
+    return apiError(error, "Registration error");
   }
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return NextResponse.json({ error: "Користувач із таким email уже існує" }, { status: 409 });
-  }
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name: input.name,
-      passwordHash: await hashPassword(input.password)
-    },
-    select: { id: true, email: true, name: true }
-  });
-  await ensureUserDefaults(user.id);
-  return NextResponse.json(user, { status: 201 });
 }

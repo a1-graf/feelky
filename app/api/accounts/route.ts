@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
 import { accountSchema } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
+import { apiError } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,8 +18,8 @@ export async function GET() {
       orderBy: [{ type: "asc" }, { createdAt: "asc" }]
     });
     return NextResponse.json(accounts);
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    return apiError(error, "Accounts error");
   }
 }
 
@@ -37,6 +38,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(account, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Account error" }, { status: 400 });
+    return apiError(error, "Account error");
   }
 }

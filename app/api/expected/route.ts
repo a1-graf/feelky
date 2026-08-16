@@ -5,10 +5,21 @@ import { prisma } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
 import { decimalInput, expectedMoneySchema } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
+import { apiError } from "@/lib/api-error";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const receiveExpectedMoneySchema = z.object({
+  action: z.literal("receive"),
+  expectedMoneyId: z.string().min(1),
+  actualAmount: decimalInput(z.coerce.number().positive()),
+  destinationAccountId: z.string().min(1),
+  incomeSourceId: z.string().min(1),
+  transactionDate: z.coerce.date().optional(),
+  note: z.string().optional().nullable()
+});
 
 const releaseToMainWalletSchema = z.object({
   action: z.literal("releaseToMainWallet"),
@@ -21,8 +32,8 @@ export async function GET() {
   try {
     const userId = await requireApiUserId();
     return NextResponse.json(await prisma.expectedMoney.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }));
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    return apiError(error, "Expected money error");
   }
 }
 
@@ -31,7 +42,8 @@ export async function POST(request: Request) {
     const userId = await requireApiUserId();
     const body = await request.json();
     if (body.action === "receive") {
-      return NextResponse.json(await ledger.receiveExpectedMoney(userId, body));
+      const input = receiveExpectedMoneySchema.parse(body);
+      return NextResponse.json(await ledger.receiveExpectedMoney(userId, input));
     }
     if (body.action === "releaseToMainWallet") {
       const input = releaseToMainWalletSchema.parse(body);
@@ -59,6 +71,6 @@ export async function POST(request: Request) {
       status: input.status as ExpectedMoneyStatus
     }), { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Frozen money error" }, { status: 400 });
+    return apiError(error, "Frozen money error");
   }
 }

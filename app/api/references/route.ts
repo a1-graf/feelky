@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireApiUserId } from "@/lib/session";
+import { apiError } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Reference create error" }, { status: 400 });
+    return apiError(error, "Reference create error");
   }
 }
 
@@ -80,7 +81,7 @@ export async function PATCH(request: Request) {
     });
     return NextResponse.json(item);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Reference update error" }, { status: 400 });
+    return apiError(error, "Reference update error");
   }
 }
 
@@ -103,6 +104,6 @@ export async function DELETE(request: Request) {
     const activeAfterDelete = await prisma.incomeSource.count({ where: { id: input.id, userId, isActive: true } });
     return NextResponse.json({ item, mode: "disabled", activeAfterDelete: activeAfterDelete > 0 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Reference delete error" }, { status: 400 });
+    return apiError(error, "Reference delete error");
   }
 }

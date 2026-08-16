@@ -13,6 +13,7 @@ import {
   workExpenseSchema
 } from "@/lib/schemas";
 import { requireApiUserId } from "@/lib/session";
+import { apiError } from "@/lib/api-error";
 
 export async function GET(request: Request) {
   try {
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     ]);
     return NextResponse.json({ items, total, page: filters.page, pageSize: filters.pageSize });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Transactions error" }, { status: 400 });
+    return apiError(error, "Transactions error");
   }
 }
 
@@ -92,14 +93,17 @@ export async function POST(request: Request) {
       const input = manualAdjustmentSchema.parse(body);
       return NextResponse.json(await ledger.createManualAdjustment(userId, input), { status: 201 });
     }
-    if (action === "archive") {
-      return NextResponse.json(await ledger.archiveTransaction(userId, body.transactionId));
-    }
-    if (action === "restore") {
-      return NextResponse.json(await ledger.restoreTransaction(userId, body.transactionId));
+    if (action === "archive" || action === "restore") {
+      if (typeof body.transactionId !== "string" || !body.transactionId) {
+        return NextResponse.json({ error: "transactionId is required" }, { status: 400 });
+      }
+      const result = action === "archive"
+        ? await ledger.archiveTransaction(userId, body.transactionId)
+        : await ledger.restoreTransaction(userId, body.transactionId);
+      return NextResponse.json(result);
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Transaction error" }, { status: 400 });
+    return apiError(error, "Transaction error");
   }
 }

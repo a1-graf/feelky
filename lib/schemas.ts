@@ -112,6 +112,104 @@ export const flipSchema = z.object({
   note: z.string().optional().nullable()
 });
 
+const steamAmount = decimalInput(z.coerce.number().positive());
+const steamAmountNonNegative = decimalInput(z.coerce.number().min(0));
+const steamPercent = decimalInput(z.coerce.number().min(0).max(100));
+const optionalNote = z.string().optional().nullable();
+
+export const steamResaleAccountSchema = z.object({
+  name: z.string().trim().min(1),
+  note: optionalNote,
+  currentSoftwareBalance: steamAmountNonNegative.optional()
+});
+
+export const steamResaleInvestmentSchema = z.object({
+  resaleAccountId: z.string().min(1),
+  sourceAccountId: z.string().min(1),
+  externalAmount: steamAmount,
+  receivedSteamAmount: steamAmountNonNegative,
+  note: optionalNote
+});
+
+export const steamResaleInvestmentReceivedSchema = z.object({
+  investmentId: z.string().min(1),
+  receivedSteamAmount: steamAmountNonNegative,
+  note: optionalNote
+});
+
+export const steamResaleTopUpSchema = z.object({
+  investmentId: z.string().min(1),
+  sourceAccountId: z.string().min(1),
+  extraExternalAmount: steamAmount,
+  note: optionalNote
+});
+
+export const steamResaleSnapshotSchema = z.object({
+  resaleAccountId: z.string().min(1),
+  balance: steamAmountNonNegative,
+  note: optionalNote
+});
+
+export const steamResaleWithdrawalSchema = z.object({
+  resaleAccountId: z.string().min(1),
+  destinationAccountId: z.string().min(1),
+  softwareAmountSpent: steamAmount,
+  amountReceived: steamAmountNonNegative,
+  note: optionalNote
+});
+
+export const steamSchemeSchema = z.object({
+  name: z.string().trim().min(1)
+});
+
+export const steamRoundSchema = z.object({
+  schemeId: z.string().min(1),
+  siteName: z.string().optional().nullable(),
+  sourceAccountId: z.string().min(1),
+  investedAmount: steamAmount,
+  note: optionalNote
+});
+
+export const steamCompleteRoundSchema = z.object({
+  roundId: z.string().min(1),
+  destinationAccountId: z.string().min(1),
+  finalAmountReceived: steamAmountNonNegative,
+  remainingAmount: steamAmountNonNegative.optional(),
+  note: optionalNote
+});
+
+export const steamResolveResidualSchema = z.object({
+  residualId: z.string().min(1),
+  status: z.enum(["WITHDRAWN", "LOST"]),
+  destinationAccountId: z.string().optional().nullable(),
+  resolvedAmount: steamAmountNonNegative.optional(),
+  note: optionalNote
+});
+
+export const steamExpenseSchema = z.object({
+  sourceAccountId: z.string().min(1),
+  amount: steamAmount,
+  note: optionalNote
+});
+
+const steamAllocationFields = {
+  resalePercent: steamPercent,
+  arbitragePercent: steamPercent,
+  arbitrageRoundId: z.string().optional().nullable()
+};
+
+export const steamAllocateExpenseSchema = z.object({
+  expenseTransactionId: z.string().min(1),
+  ...steamAllocationFields
+});
+
+export const steamExpenseWithAllocationSchema = z.object({
+  sourceAccountId: z.string().min(1),
+  amount: steamAmount,
+  note: optionalNote,
+  ...steamAllocationFields
+});
+
 export const transactionFiltersSchema = z.object({
   q: z.string().optional(),
   type: z.string().optional(),
