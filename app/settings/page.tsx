@@ -1,5 +1,4 @@
 import { BackToStatistics } from "@/components/back-to-statistics";
-import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { ReferenceManager } from "@/components/forms/reference-manager";
@@ -20,7 +19,7 @@ export default async function SettingsPage() {
     prisma.account.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } })
   ]);
   return (
-    <AppShell>
+    <>
       <BackToStatistics />
       <PageTitle title="Налаштування" subtitle="Профіль, довідники, курс, тема, приховування сум і backup" />
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -62,6 +61,6 @@ export default async function SettingsPage() {
           </div>
         </Card>
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { DashboardStatistics } from "@/components/dashboard-statistics";
-import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
 import { getDashboard } from "@/lib/dashboard";
@@ -34,7 +33,7 @@ export default async function StatisticsPage({ searchParams }: { searchParams?: 
   const potentialBankUah = Number(data.totals.potentialBankUsdt) * rate;
 
   return (
-    <AppShell>
+    <>
       <PageTitle title="Статистика" subtitle={`Деталі банку, витрат і доходів · курс ${data.rate} UAH/USDT`} />
 
       <Card className="mb-4 p-4">
@@ -90,6 +89,6 @@ export default async function StatisticsPage({ searchParams }: { searchParams?: 
       </div>
 
       <DashboardStatistics data={data} />
-    </AppShell>
+    </>
   );
 }

@@ -23,7 +23,11 @@ const config: Config = {
         warning: "hsl(var(--warning))"
       },
       boxShadow: {
-        soft: "0 18px 45px rgb(6 10 18 / 0.24), 0 2px 10px rgb(196 93 62 / 0.10)"
+        soft: "0 18px 45px rgb(6 10 18 / 0.24), 0 2px 10px rgb(196 93 62 / 0.10)",
+        card: "0 1px 2px rgb(6 10 18 / 0.05), 0 10px 30px -18px rgb(6 10 18 / 0.30)"
+      },
+      borderRadius: {
+        "2xl": "1rem"
       }
     }
   },

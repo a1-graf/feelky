@@ -1,5 +1,4 @@
 import { BackToStatistics } from "@/components/back-to-statistics";
-import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -37,7 +36,7 @@ export default async function SavingsPage() {
   const hidden = Boolean(settings?.hideAmounts);
 
   return (
-    <AppShell>
+    <>
       <BackToStatistics />
       <PageTitle title="Відкладення" subtitle="Окремі накопичення в UAH, які входять у повний банк" />
       <Card className="mb-4 p-5 sm:p-6">
@@ -49,6 +48,6 @@ export default async function SavingsPage() {
       </Card>
       <div className="mb-2 text-sm font-semibold text-muted-foreground">Історія відкладень</div>
       <TransactionList items={transactions} />
-    </AppShell>
+    </>
   );
 }

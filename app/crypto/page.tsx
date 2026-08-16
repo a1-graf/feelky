@@ -1,6 +1,5 @@
 import { AccountType, FrozenFundStatus } from "@prisma/client";
 import { BackToStatistics } from "@/components/back-to-statistics";
-import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
@@ -23,7 +22,7 @@ export default async function CryptoPage() {
   }
   const total = accounts.reduce((sum, account) => sum.plus(account.currentBalance), D(0));
   return (
-    <AppShell>
+    <>
       <BackToStatistics />
       <PageTitle title="Мейн гаманець" subtitle={`Основні USDT в одному місці · баланс: ${formatMoney(total, "USDT")}`} />
       <div className="grid gap-3">
@@ -46,6 +45,6 @@ export default async function CryptoPage() {
           );
         })}
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/layout/app-shell";
 import { PageTitle } from "@/components/page-title";
 import { TransactionList } from "@/components/transaction-list";
 import { prisma } from "@/lib/db";
@@ -12,9 +11,9 @@ export default async function ArchivePage() {
     orderBy: { archivedAt: "desc" }
   });
   return (
-    <AppShell>
+    <>
       <PageTitle title="Архів" subtitle="Архівовані операції не впливають на поточні баланси та можуть бути відновлені" />
       <TransactionList items={transactions} archiveMode />
-    </AppShell>
+    </>
   );
 }

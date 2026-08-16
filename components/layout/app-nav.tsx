@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BarChart3, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/ui";
 
@@ -25,25 +26,41 @@ const icons = {
   steam: SteamIcon
 };
 
-function isActive(pathname: string, href: string) {
+function matchesPath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Highlights the tapped tab instantly, before the server view resolves. */
+function useOptimisticActive(pathname: string) {
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => setPending(null), [pathname]);
+  const isActive = (href: string) => (pending ? pending === href : matchesPath(pathname, href));
+  return { isActive, onNavigate: setPending };
 }
 
 export function DesktopNav({ items }: { items: readonly NavItem[] }) {
   const pathname = usePathname();
+  const { isActive, onNavigate } = useOptimisticActive(pathname);
   return (
     <nav className="grid gap-1">
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isActive(item.href);
         const Icon = icons[item.icon];
         return (
           <Link
             key={item.href}
             href={item.href}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm text-[hsl(var(--card-muted-foreground))] hover:bg-muted"
+            prefetch
+            onClick={() => onNavigate(item.href)}
+            className={cn(
+              "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors duration-150",
+              active
+                ? "bg-primary/12 font-semibold text-primary ring-1 ring-inset ring-primary/20"
+                : "text-[hsl(var(--card-muted-foreground))] hover:bg-muted/60 hover:text-foreground"
+            )}
           >
-            <Icon className={cn("h-4 w-4", active && "text-primary")} />
-            <span className={cn(active && "font-semibold text-primary")}>{item.label}</span>
+            <Icon className="h-[18px] w-[18px]" />
+            <span>{item.label}</span>
           </Link>
         );
       })}
@@ -53,19 +70,30 @@ export function DesktopNav({ items }: { items: readonly NavItem[] }) {
 
 export function MobileNav({ items }: { items: readonly NavItem[] }) {
   const pathname = usePathname();
+  const { isActive, onNavigate } = useOptimisticActive(pathname);
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-card/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 grid border-t border-border/70 bg-card/85 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-lg md:hidden"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isActive(item.href);
         const Icon = icons[item.icon];
         return (
           <Link
             key={item.href}
             href={item.href}
-            className="grid min-h-14 place-items-center rounded-lg text-[10px] text-muted-foreground"
+            prefetch
+            onClick={() => onNavigate(item.href)}
+            className={cn(
+              "grid min-h-14 place-items-center gap-1 rounded-xl text-[10px] font-medium transition-colors duration-150",
+              active ? "text-primary" : "text-muted-foreground"
+            )}
           >
-            <Icon className={cn("h-5 w-5", active && "text-primary")} />
-            <span className={cn(active && "font-semibold text-primary")}>{item.label}</span>
+            <span className={cn("grid h-8 w-14 place-items-center rounded-full transition-colors duration-150", active && "bg-primary/12")}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className={cn(active && "font-semibold")}>{item.label}</span>
           </Link>
         );
       })}

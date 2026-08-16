@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AppShell } from "@/components/layout/app-shell";
 import { PwaRegister } from "@/components/pwa-register";
 import { SessionProvider } from "@/components/session-provider";
 import "./globals.css";
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SessionProvider>
           <PwaRegister />
-          {children}
+          <AppShell>{children}</AppShell>
         </SessionProvider>
       </body>
     </html>

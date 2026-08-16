@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SteamArbitrageResidualStatus, SteamArbitrageRoundStatus, SteamResaleInvestmentStatus } from "@prisma/client";
-import { AppShell } from "@/components/layout/app-shell";
 import { MetricGrid } from "@/components/metric-grid";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
@@ -68,7 +67,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
   const defaultScheme = schemes[0]?.id || "";
 
   return (
-    <AppShell>
+    <>
       <PageTitle title="Steam" subtitle="Перепродаж, арбітраж і Steam-капітал без змішування із software balance" />
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
         <Card className="border-primary/40 bg-[hsl(var(--card))]">
@@ -356,6 +355,6 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
         </div>
       )}
 
-    </AppShell>
+    </>
   );
 }
