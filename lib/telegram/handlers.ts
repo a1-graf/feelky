@@ -7,14 +7,16 @@ import {
 } from "@/lib/telegram/api";
 import { BOT_COMMANDS, parseCommand } from "@/lib/telegram/commands";
 import type { TelegramConfig } from "@/lib/telegram/config";
+import { dateLabel, kyivToday, parseTypedDate, resolveTransactionDate } from "@/lib/telegram/dates";
 import { escapeHtml, formatAmount, truncate } from "@/lib/telegram/format";
 import {
   CALLBACK,
+  cancelButton,
   cancelKeyboard,
   changeAccountButton,
+  changeDateButton,
   menuKeyboard,
   menuText,
-  noteKeyboard,
   optionKeyboard,
   optionLabel,
   undoKeyboard
@@ -228,6 +230,25 @@ async function routeCallback(ctx: Ctx, callback: TelegramCallbackQuery, data: st
     return "";
   }
 
+  if (data === CALLBACK.changeDate) {
+    const action = ctx.session.action as FlowAction | null;
+    const step = ctx.session.step as FlowStep | null;
+    if (!action || !step) return "Дія вже неактуальна.";
+    await promptDate(ctx, action, readDraft(ctx.session), step);
+    return "";
+  }
+
+  if (data === CALLBACK.today) {
+    const action = ctx.session.action as FlowAction | null;
+    if (!action || ctx.session.step !== "date") return "Дія вже неактуальна.";
+    const draft = readDraft(ctx.session);
+    delete draft.date;
+    const back = draft.returnStep || "note";
+    delete draft.returnStep;
+    await renderStep(ctx, action, back, draft);
+    return "";
+  }
+
   if (data === CALLBACK.skipNote) {
     const action = ctx.session.action as FlowAction | null;
     if (!action || ctx.session.step !== "note") return "Дія вже неактуальна.";
@@ -372,14 +393,14 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
     return;
   }
   if (action === "p2p") {
-    await reply(ctx, ["<b>P2P-вивід</b>", "Формат: <code>5000 41.25 Binance</code>", "отримано UAH · курс UAH/USDT · примітка"].join("\n"), cancelKeyboard());
+    await reply(ctx, ["<b>P2P-вивід</b>", "Формат: <code>5000 41.25 Binance</code>", "отримано UAH · курс UAH/USDT · примітка"].join("\n"), stepKeyboard(ctx, action, draft));
     return;
   }
   if (action === "cash") {
     await reply(
       ctx,
       ["<b>Вивід у готівку</b>", "Формат: <code>10000 UAH 41.2 Cashalot</code>", "або <code>500 USD 1 Cashalot</code>"].join("\n"),
-      cancelKeyboard()
+      stepKeyboard(ctx, action, draft)
     );
     return;
   }
@@ -404,12 +425,24 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
   };
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "amount", draft });
-  await reply(ctx, titles[action] || "Сума?", cancelKeyboard());
+  await reply(ctx, titles[action] || "Сума?", stepKeyboard(ctx, action, draft));
 }
 
-function accountExtraRows(ctx: Ctx, draft: Draft): InlineKeyboardButton[][] {
+/** ExpectedMoney and manual balance corrections are always "now", so they get no date button. */
+function supportsDate(action: FlowAction): boolean {
+  return action !== "expected" && action !== "manual";
+}
+
+function stepExtraRows(ctx: Ctx, action: FlowAction, draft: Draft): InlineKeyboardButton[][] {
+  const row: InlineKeyboardButton[] = [];
   const account = findAccountById(ctx.data.accounts, draft.accountId);
-  return account ? [[changeAccountButton(account.name)]] : [];
+  if (account) row.push(changeAccountButton(account.name));
+  if (supportsDate(action)) row.push(changeDateButton(dateLabel(draft.date || kyivToday())));
+  return row.length ? [row] : [];
+}
+
+function stepKeyboard(ctx: Ctx, action: FlowAction, draft: Draft): InlineKeyboardMarkup {
+  return { inline_keyboard: [...stepExtraRows(ctx, action, draft), [cancelButton()]] };
 }
 
 async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
@@ -441,7 +474,7 @@ async function promptCategory(ctx: Ctx, action: FlowAction, draft: Draft, prefix
   draft.options = categories.map((category) => category.id);
   await saveFlow(ctx.telegramUserId, { action, step: "category", draft });
   const title = prefix ? `${prefix}\nКатегорія?` : "Категорія?";
-  await reply(ctx, title, optionKeyboard(categories.map((category) => optionLabel(category.name)), 2, accountExtraRows(ctx, draft)));
+  await reply(ctx, title, optionKeyboard(categories.map((category) => optionLabel(category.name)), 2, stepExtraRows(ctx, action, draft)));
 }
 
 async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?: string): Promise<void> {
@@ -455,7 +488,7 @@ async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?:
   await saveFlow(ctx.telegramUserId, { action, step: "source", draft });
   const label = action === "work" ? "Напрямок доходу?" : "Джерело доходу?";
   const title = prefix ? `${prefix}\n${label}` : label;
-  await reply(ctx, title, optionKeyboard(sources.map((source) => optionLabel(source.name)), 2, accountExtraRows(ctx, draft)));
+  await reply(ctx, title, optionKeyboard(sources.map((source) => optionLabel(source.name)), 2, stepExtraRows(ctx, action, draft)));
 }
 
 async function promptSetup(ctx: Ctx, draft: Draft): Promise<void> {
@@ -470,10 +503,39 @@ async function promptSetup(ctx: Ctx, draft: Draft): Promise<void> {
   await reply(ctx, "<b>Сетап</b>", optionKeyboard(setups.map((setup) => optionLabel(setup)), 1));
 }
 
+async function promptDate(ctx: Ctx, action: FlowAction, draft: Draft, from: FlowStep): Promise<void> {
+  draft.returnStep = from;
+  delete draft.options;
+  await saveFlow(ctx.telegramUserId, { action, step: "date", draft });
+  await reply(
+    ctx,
+    ["<b>Дата операції</b>", "Впиши цифрами: <code>30.08.2026</code>", "або <code>30.08</code> — цьогоріч"].join("\n"),
+    { inline_keyboard: [[{ text: "Сьогодні", callback_data: CALLBACK.today }], [cancelButton()]] }
+  );
+}
+
+/** Re-renders whichever step the user left to set a date. */
+async function renderStep(ctx: Ctx, action: FlowAction, step: FlowStep, draft: Draft): Promise<void> {
+  if (step === "category") return promptCategory(ctx, action, draft);
+  if (step === "source") return promptSource(ctx, action, draft);
+  if (step === "setup") return promptSetup(ctx, draft);
+  if (step === "note") return promptNote(ctx, action, draft);
+  if (step === "account") return promptAccount(ctx, action, draft);
+  if (step === "amount") return promptAmount(ctx, action, draft);
+  if (step === "input") return promptFirstStep(ctx, action, draft);
+  return advance(ctx, action, draft);
+}
+
 async function promptNote(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "note", draft });
-  await reply(ctx, "Примітка? Надішли текст або натисни кнопку.", noteKeyboard());
+  await reply(ctx, "Примітка? Надішли текст або натисни кнопку.", {
+    inline_keyboard: [
+      [{ text: "Без примітки", callback_data: CALLBACK.skipNote }],
+      ...stepExtraRows(ctx, action, draft),
+      [cancelButton()]
+    ]
+  });
 }
 
 async function promptNewBalance(ctx: Ctx, draft: Draft): Promise<void> {
@@ -538,18 +600,19 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   const amount = draft.amount || "0";
   const currency: TelegramCurrency = draft.currency || "UAH";
   const note = draft.note ?? null;
+  const date = resolveTransactionDate(draft.date);
 
   const accountId = draft.accountId;
   const categoryId = draft.categoryId ?? null;
   const incomeSourceId = draft.incomeSourceId ?? null;
 
   if (action === "flip") {
-    await finish(ctx, await submitFlip(ctx.userId, { pnl: draft.amount || "0", setup: draft.setup || "" }));
+    await finish(ctx, await submitFlip(ctx.userId, { pnl: draft.amount || "0", setup: draft.setup || "", date }));
     return;
   }
   if (action === "savings") {
     if (!accountId) return promptAccount(ctx, action, draft);
-    const result = await submitSavings(ctx.userId, { amount, accountId, note }, ctx.data);
+    const result = await submitSavings(ctx.userId, { amount, accountId, note, date }, ctx.data);
     await finish(ctx, result);
     return;
   }
@@ -570,6 +633,7 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
         categoryId: action === "expense" ? categoryId : null,
         incomeSourceId: action === "work" ? incomeSourceId : null,
         note,
+        date,
         isWorkExpense: action === "work"
       },
       ctx.data
@@ -583,7 +647,7 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   }
   if (action === "income") {
     if (!accountId || !incomeSourceId) return advance(ctx, action, draft);
-    const result = await submitIncome(ctx.userId, { amount, currency, accountId, incomeSourceId, note }, ctx.data);
+    const result = await submitIncome(ctx.userId, { amount, currency, accountId, incomeSourceId, note, date }, ctx.data);
     await finish(ctx, result);
     await rememberSelections(ctx.telegramUserId, {
       lastIncomeSourceId: incomeSourceId,
@@ -599,7 +663,7 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
   const draft = readDraft(ctx.session);
 
   if (step === "input") {
-    await handleSingleInput(ctx, action, text);
+    await handleSingleInput(ctx, action, text, draft);
     return;
   }
   if (step === "amount" && action === "flip") {
@@ -643,6 +707,18 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
     await advance(ctx, action, draft);
     return;
   }
+  if (step === "date") {
+    const parsed = parseTypedDate(text);
+    if (!parsed) {
+      await reply(ctx, "Не зрозумів дату. Напр. <code>30.08.2026</code> або <code>30.08</code>.", cancelKeyboard());
+      return;
+    }
+    draft.date = parsed;
+    const back = draft.returnStep || "note";
+    delete draft.returnStep;
+    await renderStep(ctx, action, back, draft);
+    return;
+  }
   if (step === "note") {
     draft.note = truncate(text, 200);
     await advance(ctx, action, draft);
@@ -681,14 +757,15 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
   await reply(ctx, "Обери варіант кнопкою вище або /cancel.");
 }
 
-async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string): Promise<void> {
+async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string, draft: Draft): Promise<void> {
+  const date = resolveTransactionDate(draft.date);
   if (action === "p2p") {
     const parsed = parseP2PEntry(text);
     if (!parsed || D(parsed.receivedUah).lte(0) || D(parsed.rateUahPerUsdt).lte(0)) {
       await reply(ctx, "Формат: <code>5000 41.25 Binance</code>", cancelKeyboard());
       return;
     }
-    await finish(ctx, await submitP2P(ctx.userId, parsed, ctx.data));
+    await finish(ctx, await submitP2P(ctx.userId, { ...parsed, date }, ctx.data));
     return;
   }
   if (action === "cash") {
@@ -697,7 +774,7 @@ async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string): Pr
       await reply(ctx, "Формат: <code>10000 UAH 41.2 Cashalot</code>", cancelKeyboard());
       return;
     }
-    await finish(ctx, await submitCash(ctx.userId, parsed, ctx.data));
+    await finish(ctx, await submitCash(ctx.userId, { ...parsed, date }, ctx.data));
     return;
   }
   if (action === "expected") {

@@ -8,6 +8,8 @@ export const CALLBACK = {
   option: "o",
   skipNote: "n:skip",
   changeAccount: "o:acc",
+  changeDate: "o:date",
+  today: "o:today",
   back: "m:menu",
   cancel: "m:cancel",
   noop: "noop"
@@ -58,6 +60,10 @@ export function cancelButton(): InlineKeyboardButton {
 
 export function changeAccountButton(accountName: string): InlineKeyboardButton {
   return { text: `Рахунок: ${accountName}`, callback_data: CALLBACK.changeAccount };
+}
+
+export function changeDateButton(label: string): InlineKeyboardButton {
+  return { text: `Дата: ${label}`, callback_data: CALLBACK.changeDate };
 }
 
 export function cancelKeyboard(): InlineKeyboardMarkup {

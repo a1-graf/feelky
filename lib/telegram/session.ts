@@ -16,7 +16,7 @@ export type FlowAction =
   | "flip"
   | "manual";
 
-export type FlowStep = "amount" | "account" | "category" | "source" | "setup" | "note" | "input" | "balance";
+export type FlowStep = "amount" | "account" | "category" | "source" | "setup" | "date" | "note" | "input" | "balance";
 
 export type Draft = {
   amount?: string;
@@ -26,10 +26,12 @@ export type Draft = {
   incomeSourceId?: string;
   /** Flip setup picked from the buttons. */
   setup?: string;
+  /** Backdating: `YYYY-MM-DD` in the Kyiv calendar, empty means today. */
+  date?: string;
   note?: string | null;
   /** Ids rendered in the current option keyboard - the buttons only carry their index. */
   options?: string[];
-  /** Step to come back to after the user changes the account mid-flow. */
+  /** Step to come back to after the user changes the account or the date mid-flow. */
   returnStep?: FlowStep;
 };
 

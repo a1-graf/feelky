@@ -132,13 +132,14 @@ export type ExpenseInput = {
   incomeSourceId?: string | null;
   note: string | null;
   isWorkExpense?: boolean;
+  date?: Date;
 };
 
 export async function submitExpense(userId: string, input: ExpenseInput, data: ReferenceData): Promise<OperationResult> {
   const transaction = await ledger.createExpense(userId, {
     amount: input.amount,
     currency: input.currency,
-    transactionDate: kyivNow(),
+    transactionDate: input.date ?? kyivNow(),
     categoryId: input.categoryId ?? null,
     incomeSourceId: input.incomeSourceId ?? null,
     sourceAccountId: input.accountId,
@@ -166,13 +167,14 @@ export type IncomeInput = {
   accountId: string;
   incomeSourceId: string;
   note: string | null;
+  date?: Date;
 };
 
 export async function submitIncome(userId: string, input: IncomeInput, data: ReferenceData): Promise<OperationResult> {
   const transaction = await ledger.createIncome(userId, {
     amount: input.amount,
     currency: input.currency,
-    transactionDate: kyivNow(),
+    transactionDate: input.date ?? kyivNow(),
     incomeSourceId: input.incomeSourceId,
     destinationAccountId: input.accountId,
     note: input.note
@@ -193,13 +195,13 @@ export async function submitIncome(userId: string, input: IncomeInput, data: Ref
 
 export async function submitSavings(
   userId: string,
-  input: { amount: string; accountId: string; note: string | null },
+  input: { amount: string; accountId: string; note: string | null; date?: Date },
   data: ReferenceData
 ): Promise<OperationResult> {
   const transaction = await ledger.createSavingsDeposit(userId, {
     amount: input.amount,
     sourceAccountId: input.accountId,
-    transactionDate: kyivNow(),
+    transactionDate: input.date ?? kyivNow(),
     note: input.note
   });
   const account = findAccountById(data.accounts, input.accountId);
@@ -217,13 +219,13 @@ export async function submitSavings(
 
 export async function submitP2P(
   userId: string,
-  input: { receivedUah: string; rateUahPerUsdt: string; note: string | null },
+  input: { receivedUah: string; rateUahPerUsdt: string; note: string | null; date?: Date },
   data: ReferenceData
 ): Promise<OperationResult> {
   const transaction = await ledger.createP2PWithdrawal(userId, {
     receivedUah: input.receivedUah,
     rateUahPerUsdt: input.rateUahPerUsdt,
-    transactionDate: kyivNow(),
+    transactionDate: input.date ?? kyivNow(),
     note: input.note
   });
   const source = findAccountById(data.accounts, transaction.sourceAccountId);
@@ -244,14 +246,14 @@ export async function submitP2P(
 
 export async function submitCash(
   userId: string,
-  input: { receivedAmount: string; receivedCurrency: "UAH" | "USD"; rate: string; place: string | null },
+  input: { receivedAmount: string; receivedCurrency: "UAH" | "USD"; rate: string; place: string | null; date?: Date },
   data: ReferenceData
 ): Promise<OperationResult> {
   const transaction = await ledger.createCashWithdrawal(userId, {
     receivedAmount: input.receivedAmount,
     receivedCurrency: input.receivedCurrency,
     rate: input.rate,
-    transactionDate: kyivNow(),
+    transactionDate: input.date ?? kyivNow(),
     exchangePlace: input.place || data.settings?.cashExchangePlace || "Cashalot"
   });
   const source = findAccountById(data.accounts, transaction.sourceAccountId);
@@ -317,11 +319,11 @@ export async function submitExpectedMoney(
   };
 }
 
-export async function submitFlip(userId: string, input: { pnl: string; setup: string }): Promise<OperationResult> {
+export async function submitFlip(userId: string, input: { pnl: string; setup: string; date?: Date }): Promise<OperationResult> {
   const flip = await createFlipWithLedger(userId, {
     setup: input.setup,
     pnl: input.pnl,
-    tradeDate: kyivNow()
+    tradeDate: input.date ?? kyivNow()
   });
   const pnl = D(flip.pnl.toString());
   const sign = pnl.gte(0) ? "+" : "−";
