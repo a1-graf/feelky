@@ -1,5 +1,5 @@
 /**
- * Undo for the `↩️ Скасувати операцію` button.
+ * Undo for the `Скасувати операцію` button.
  *
  * The gateway is the only part that talks to Postgres, so the idempotency rules live here
  * and stay unit-testable: pressing the button twice must never move a balance twice.
@@ -44,7 +44,7 @@ export async function performUndo(userId: string, ref: UndoRef, gateway: UndoGat
 }
 
 export function undoMessage(outcome: UndoOutcome): string {
-  if (outcome === "undone") return "↩️ Операцію скасовано, баланс повернуто.";
+  if (outcome === "undone") return "Операцію скасовано, баланс повернуто.";
   if (outcome === "already") return "Операцію вже скасовано раніше.";
   if (outcome === "missing") return "Операцію не знайдено — можливо, її вже видалено.";
   return "Не вдалося скасувати. Спробуй ще раз.";

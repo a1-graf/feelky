@@ -35,6 +35,7 @@ import {
   findCategory,
   findIncomeSource,
   formatBalances,
+  loadFlipSetups,
   loadReferenceData,
   pickExpenseAccount,
   pickIncomeAccount,
@@ -71,7 +72,7 @@ import type {
 import { decodeUndoRef, performUndo, undoMessage } from "@/lib/telegram/undo";
 
 const GENERIC_ERROR = "Щось пішло не так. Спробуй ще раз або відкрий /menu.";
-const ACCESS_DENIED = "⛔ Доступ заборонено.";
+const ACCESS_DENIED = "Доступ заборонено.";
 
 type Ctx = {
   config: TelegramConfig;
@@ -278,6 +279,12 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
     await advance(ctx, action, draft);
     return "";
   }
+  if (step === "setup") {
+    draft.setup = id;
+    delete draft.options;
+    await advance(ctx, action, draft);
+    return "";
+  }
   return "Дія вже неактуальна.";
 }
 
@@ -349,7 +356,7 @@ async function startFlow(ctx: Ctx, action: FlowAction, args = ""): Promise<void>
 
 function firstStep(action: FlowAction): FlowStep {
   if (action === "manual") return "account";
-  if (action === "p2p" || action === "cash" || action === "expected" || action === "flip") return "input";
+  if (action === "p2p" || action === "cash" || action === "expected") return "input";
   return "amount";
 }
 
@@ -384,10 +391,6 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
     );
     return;
   }
-  if (action === "flip") {
-    await reply(ctx, ["<b>Фліп</b>", "Формат: <code>+35.5 Buff → TM</code>", "або <code>-12 Site → Steam</code>"].join("\n"), cancelKeyboard());
-    return;
-  }
   await promptAmount(ctx, action, draft);
 }
 
@@ -396,7 +399,8 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
     expense: "<b>Витрата</b>\nСума? Напр. <code>250</code> або <code>20 USDT</code>",
     income: "<b>Дохід</b>\nСума? Напр. <code>1500 UAH</code> або <code>300 USDT</code>",
     work: "<b>Робоча витрата</b>\nСума? Напр. <code>20 USDT</code>",
-    savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>"
+    savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>",
+    flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>"
   };
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "amount", draft });
@@ -454,6 +458,18 @@ async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?:
   await reply(ctx, title, optionKeyboard(sources.map((source) => optionLabel(source.name)), 2, accountExtraRows(ctx, draft)));
 }
 
+async function promptSetup(ctx: Ctx, draft: Draft): Promise<void> {
+  const setups = await loadFlipSetups(ctx.userId);
+  if (!setups.length) {
+    await clearFlow(ctx.telegramUserId);
+    await reply(ctx, "Немає збережених сетапів. Додай перший фліп на сайті.", menuKeyboard());
+    return;
+  }
+  draft.options = setups;
+  await saveFlow(ctx.telegramUserId, { action: "flip", step: "setup", draft });
+  await reply(ctx, "<b>Сетап</b>", optionKeyboard(setups.map((setup) => optionLabel(setup)), 1));
+}
+
 async function promptNote(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "note", draft });
@@ -483,6 +499,11 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
     return promptNewBalance(ctx, draft);
   }
   if (!draft.amount) return promptAmount(ctx, action, draft);
+
+  if (action === "flip") {
+    if (!draft.setup) return promptSetup(ctx, draft);
+    return complete(ctx, action, draft);
+  }
 
   if (action === "savings") {
     draft.currency = "UAH";
@@ -522,6 +543,10 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   const categoryId = draft.categoryId ?? null;
   const incomeSourceId = draft.incomeSourceId ?? null;
 
+  if (action === "flip") {
+    await finish(ctx, await submitFlip(ctx.userId, { pnl: draft.amount || "0", setup: draft.setup || "" }));
+    return;
+  }
   if (action === "savings") {
     if (!accountId) return promptAccount(ctx, action, draft);
     const result = await submitSavings(ctx.userId, { amount, accountId, note }, ctx.data);
@@ -575,6 +600,23 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
 
   if (step === "input") {
     await handleSingleInput(ctx, action, text);
+    return;
+  }
+  if (step === "amount" && action === "flip") {
+    const full = parseFlipEntry(text);
+    if (full) {
+      draft.amount = full.pnl;
+      draft.setup = full.setup;
+      await advance(ctx, action, draft);
+      return;
+    }
+    const entry = parseQuickEntry(text);
+    if (!entry || D(entry.amount).lte(0)) {
+      await reply(ctx, "Не зрозумів PnL. Напр. <code>35.5</code> або <code>-12</code>.", cancelKeyboard());
+      return;
+    }
+    draft.amount = entry.hasExplicitSign && entry.kind === "expense" ? `-${entry.amount}` : entry.amount;
+    await advance(ctx, action, draft);
     return;
   }
   if (step === "amount") {
@@ -665,15 +707,6 @@ async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string): Pr
       return;
     }
     await finish(ctx, await submitExpectedMoney(ctx.userId, parsed));
-    return;
-  }
-  if (action === "flip") {
-    const parsed = parseFlipEntry(text);
-    if (!parsed) {
-      await reply(ctx, "Формат: <code>+35.5 Buff → TM</code>", cancelKeyboard());
-      return;
-    }
-    await finish(ctx, await submitFlip(ctx.userId, parsed));
     return;
   }
   await reply(ctx, GENERIC_ERROR, menuKeyboard());

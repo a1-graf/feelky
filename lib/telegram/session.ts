@@ -16,7 +16,7 @@ export type FlowAction =
   | "flip"
   | "manual";
 
-export type FlowStep = "amount" | "account" | "category" | "source" | "note" | "input" | "balance";
+export type FlowStep = "amount" | "account" | "category" | "source" | "setup" | "note" | "input" | "balance";
 
 export type Draft = {
   amount?: string;
@@ -24,6 +24,8 @@ export type Draft = {
   accountId?: string;
   categoryId?: string;
   incomeSourceId?: string;
+  /** Flip setup picked from the buttons. */
+  setup?: string;
   note?: string | null;
   /** Ids rendered in the current option keyboard - the buttons only carry their index. */
   options?: string[];

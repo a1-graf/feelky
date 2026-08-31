@@ -111,7 +111,7 @@ export function fallbackReference<T extends { id: string; name: string }>(items:
 }
 
 function confirmation(title: string, rows: Array<[string, string | null | undefined]>): string {
-  const lines = [`✅ <b>${escapeHtml(title)}</b>`];
+  const lines = [`<b>${escapeHtml(title)}</b>`];
   for (const [label, value] of rows) {
     if (value === null || value === undefined || value === "") continue;
     lines.push(`${escapeHtml(label)}: ${escapeHtml(value)}`);
@@ -334,6 +334,29 @@ export async function submitFlip(userId: string, input: { pnl: string; setup: st
     ]),
     undo: { kind: "flip", id: flip.id }
   };
+}
+
+/** Flip setups the user already used, plus their Steam scheme names - so setups are pickable, not typed. */
+export async function loadFlipSetups(userId: string): Promise<string[]> {
+  const [flips, schemes] = await Promise.all([
+    prisma.flip.findMany({
+      where: { userId },
+      select: { setup: true },
+      distinct: ["setup"],
+      orderBy: { tradeDate: "desc" },
+      take: 12
+    }),
+    prisma.steamArbitrageScheme.findMany({ where: { userId, isActive: true }, select: { name: true }, take: 12 })
+  ]);
+  const seen = new Set<string>();
+  const setups: string[] = [];
+  for (const name of [...flips.map((item) => item.setup), ...schemes.map((item) => item.name)]) {
+    const key = name.trim().toLowerCase();
+    if (!name.trim() || seen.has(key)) continue;
+    seen.add(key);
+    setups.push(name.trim());
+  }
+  return setups.slice(0, 12);
 }
 
 export async function formatBalances(userId: string): Promise<string> {
