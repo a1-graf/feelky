@@ -1,4 +1,4 @@
-import type { BotCommand, InlineKeyboardMarkup } from "@/lib/telegram/types";
+import type { BotCommand, InlineKeyboardMarkup, ReplyMarkup } from "@/lib/telegram/types";
 
 const TELEGRAM_API_ORIGIN = "https://api.telegram.org";
 
@@ -41,7 +41,7 @@ export async function callTelegram<T>(method: string, payload: Record<string, un
 }
 
 export type SendMessageOptions = {
-  replyMarkup?: InlineKeyboardMarkup;
+  replyMarkup?: ReplyMarkup;
   disablePreview?: boolean;
 };
 

@@ -15,6 +15,8 @@ import {
   cancelKeyboard,
   changeAccountButton,
   changeDateButton,
+  mainReplyKeyboard,
+  matchMenuLabel,
   menuKeyboard,
   menuText,
   optionKeyboard,
@@ -67,6 +69,7 @@ import { isAllowedTelegramUser, isPrivateChat } from "@/lib/telegram/security";
 import type {
   InlineKeyboardButton,
   InlineKeyboardMarkup,
+  ReplyMarkup,
   TelegramCallbackQuery,
   TelegramIncomingMessage,
   TelegramUpdatePayload
@@ -100,11 +103,11 @@ function userFacingError(error: unknown): string {
   return message;
 }
 
-async function reply(ctx: Ctx, text: string, replyMarkup?: InlineKeyboardMarkup) {
+async function reply(ctx: Ctx, text: string, replyMarkup?: ReplyMarkup) {
   await sendMessage(ctx.config.botToken, ctx.chatId, text, { replyMarkup });
 }
 
-async function sendSafely(config: TelegramConfig, chatId: number, text: string, replyMarkup?: InlineKeyboardMarkup) {
+async function sendSafely(config: TelegramConfig, chatId: number, text: string, replyMarkup?: ReplyMarkup) {
   try {
     await sendMessage(config.botToken, chatId, text, { replyMarkup });
   } catch (error) {
@@ -158,6 +161,11 @@ async function handleMessage(message: TelegramIncomingMessage, config: TelegramC
     const command = parseCommand(text);
     if (command) {
       await handleCommand(ctx, command.command, command.args);
+      return;
+    }
+    const tapped = matchMenuLabel(text);
+    if (tapped) {
+      await handleMenuAction(ctx, tapped);
       return;
     }
     if (ctx.session.action && ctx.session.step) {
@@ -312,12 +320,12 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
 async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
   if (action === "menu") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, menuText(), menuKeyboard());
+    await reply(ctx, menuText(), mainReplyKeyboard());
     return;
   }
   if (action === "cancel") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Поточну дію скасовано.", menuKeyboard());
+    await reply(ctx, "Скасовано.", mainReplyKeyboard());
     return;
   }
   if (action === "balance") {
@@ -340,7 +348,7 @@ function toFlowAction(value: string): FlowAction | null {
 async function handleCommand(ctx: Ctx, command: string, args: string): Promise<void> {
   if (command === "start" || command === "menu") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, menuText(), menuKeyboard());
+    await reply(ctx, menuText(), mainReplyKeyboard());
     return;
   }
   if (command === "help") {
@@ -349,7 +357,7 @@ async function handleCommand(ctx: Ctx, command: string, args: string): Promise<v
   }
   if (command === "cancel") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Поточну дію скасовано.", menuKeyboard());
+    await reply(ctx, "Скасовано.", mainReplyKeyboard());
     return;
   }
   if (command === "balance" || command === "accounts") {

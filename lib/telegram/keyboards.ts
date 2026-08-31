@@ -1,7 +1,7 @@
 import { isCallbackDataWithinLimit } from "@/lib/telegram/security";
 import type { UndoRef } from "@/lib/telegram/undo";
 import { encodeUndoRef } from "@/lib/telegram/undo";
-import type { InlineKeyboardButton, InlineKeyboardMarkup } from "@/lib/telegram/types";
+import type { InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup } from "@/lib/telegram/types";
 
 export const CALLBACK = {
   menu: "m",
@@ -93,6 +93,31 @@ export function undoKeyboard(ref: UndoRef): InlineKeyboardMarkup | undefined {
 export function optionLabel(name: string, detail?: string | null): string {
   const label = detail ? `${name} · ${detail}` : name;
   return label.length > 34 ? `${label.slice(0, 33)}…` : label;
+}
+
+/**
+ * The always-visible keyboard under the input field. Tapping a button sends its label
+ * as a plain message, which `matchMenuLabel` maps back to an action.
+ */
+export function mainReplyKeyboard(): ReplyKeyboardMarkup {
+  const rows: string[][] = [];
+  const labels = MENU_ITEMS.filter((item) => item.data !== "m:cancel").map((item) => item.text);
+  for (let index = 0; index < labels.length; index += 2) {
+    rows.push(labels.slice(index, index + 2));
+  }
+  return {
+    keyboard: rows.map((row) => row.map((text) => ({ text }))),
+    resize_keyboard: true,
+    is_persistent: true,
+    input_field_placeholder: "Або напиши суму"
+  };
+}
+
+/** Reply-keyboard taps arrive as ordinary text, so labels map back to menu actions. */
+export function matchMenuLabel(text: string): string | null {
+  const clean = text.trim().toLowerCase();
+  const item = MENU_ITEMS.find((entry) => entry.text.toLowerCase() === clean);
+  return item ? item.data.slice(2) : null;
 }
 
 export function menuText(): string {

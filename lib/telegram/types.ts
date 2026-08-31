@@ -43,6 +43,20 @@ export type InlineKeyboardMarkup = {
   inline_keyboard: InlineKeyboardButton[][];
 };
 
+export type ReplyKeyboardButton = {
+  text: string;
+};
+
+/** The always-visible keyboard under the input field. */
+export type ReplyKeyboardMarkup = {
+  keyboard: ReplyKeyboardButton[][];
+  resize_keyboard?: boolean;
+  is_persistent?: boolean;
+  input_field_placeholder?: string;
+};
+
+export type ReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup;
+
 export type BotCommand = {
   command: string;
   description: string;
