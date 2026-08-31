@@ -18,6 +18,8 @@ Feelky - персональний MVP для обліку грошей, крип
 - `app/` - сторінки та API routes
 - `components/` - layout, форми, UI-компоненти
 - `lib/ledger.ts` - єдиний service layer для зміни балансів
+- `lib/telegram/` - парсер швидких записів, сценарії бота, стан діалогів, безпека
+- `app/api/telegram/webhook/` - Telegram webhook (App Router, Node runtime)
 - `lib/dashboard.ts` - агрегації dashboard
 - `lib/calculations.ts` - pure фінансові розрахунки з тестами
 - `prisma/` - schema, migration, seed
@@ -51,6 +53,12 @@ GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 SEED_EMAIL="admin@example.com"
 SEED_PASSWORD="change-me-please"
+
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_WEBHOOK_SECRET=""
+TELEGRAM_USER_EMAIL=""
+TELEGRAM_ALLOWED_USER_IDS=""
+TELEGRAM_WEBHOOK_URL=""
 ```
 
 Для Google OAuth створи OAuth client у Google Cloud Console, додай redirect URI:
@@ -73,7 +81,124 @@ npm run db:seed
 npm run db:backup
 npm run export:user -- admin@example.com
 npm run import:user -- backups/user.json
+npm run telegram:webhook
 ```
+
+## Telegram-бот
+
+Telegram - основний інтерфейс введення операцій, сайт - інтерфейс перегляду балансів, історії та аналітики.
+Бот пише в ту саму PostgreSQL через `lib/ledger.ts`, тому кожна операція одразу змінює баланси і зʼявляється в аналітиці сайту.
+
+### 1. Створити бота через BotFather
+
+1. Відкрий [@BotFather](https://t.me/BotFather) у Telegram.
+2. `/newbot`, вкажи назву та username, який закінчується на `bot`.
+3. Скопіюй токен виду `123456789:AA...` у `TELEGRAM_BOT_TOKEN`.
+4. Токен не комітиться: `.env` уже в `.gitignore`.
+
+### 2. Дізнатись свій Telegram user ID
+
+Напиши будь-яке повідомлення боту [@userinfobot](https://t.me/userinfobot) - він відповість числовим `Id`.
+Це значення йде в `TELEGRAM_ALLOWED_USER_IDS` (кілька ID - через кому).
+
+### 3. Згенерувати webhook secret
+
+```bash
+openssl rand -hex 32
+```
+
+Результат - у `TELEGRAM_WEBHOOK_SECRET`. Telegram надсилатиме його в заголовку `X-Telegram-Bot-Api-Secret-Token`, а webhook відхилить будь-який запит без правильного секрету.
+
+### 4. Застосувати міграцію Prisma
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Локально під час розробки: `npx prisma migrate dev`.
+Міграція `0006_telegram_bot` додає `TelegramSession` (стан діалогів) і `TelegramUpdate` (захист від повторної доставки).
+
+### 5. Налаштувати env
+
+```env
+TELEGRAM_BOT_TOKEN="123456789:AA..."
+TELEGRAM_WEBHOOK_SECRET="згенерований-секрет"
+TELEGRAM_USER_EMAIL="admin@example.com"
+TELEGRAM_ALLOWED_USER_IDS="123456789"
+TELEGRAM_WEBHOOK_URL="https://feelky.example.com"
+```
+
+`TELEGRAM_USER_EMAIL` - email користувача Feelky, до акаунта якого привʼязані дозволені Telegram ID.
+
+### 6. Підключити webhook
+
+```bash
+npm run telegram:webhook
+```
+
+Команда встановлює webhook на `${TELEGRAM_WEBHOOK_URL}/api/telegram/webhook`, передає секрет, обмежує updates до `message` і `callback_query` та реєструє список команд через `setMyCommands`. Токен у консоль не виводиться.
+Потрібна публічна HTTPS-адреса - `localhost` Telegram не прийме.
+
+### Швидкі повідомлення
+
+```text
+- 250 кава
+- 1250,50 грн продукти
+- 20 USDT #Steam ключі
++ 1500 UAH #Робота аванс
++ 300 USDT #Боти виплата
+```
+
+- `-` витрата, `+` дохід, без знака - витрата.
+- Без валюти - UAH. Підтримуються `UAH`, `грн`, `₴`, `USDT`, `USD`, `$`.
+- Кома і крапка як десятковий роздільник, пробіли в сумі: `1 250,50`.
+- `#Категорія` для витрат, `#Джерело` для доходів; назва може бути з кількох слів (`#Повернення боргу`).
+- Текст після суми й хештега - примітка.
+- Без хештега береться остання використана категорія/джерело, при першому використанні - `Інше`.
+- Витрата йде з дефолтного рахунку з налаштувань Feelky, дохід - на останній рахунок для цієї валюти.
+- Під підтвердженням є кнопка `↩️ Скасувати операцію`; повторне натискання не змінює баланс удруге.
+
+Однорядкові формати сценаріїв:
+
+```text
+5000 41.25 Binance          → P2P-вивід: отримано UAH, курс UAH/USDT, примітка
+10000 UAH 41.2 Cashalot     → готівка UAH
+500 USD 1 Cashalot          → готівка USD
+250 USDT холд біржі         → очікувані/заморожені гроші
++35.5 Buff → TM             → фліп із додатним PnL
+-12 Site → Steam            → фліп із відʼємним PnL
+```
+
+### Команди
+
+```text
+/menu       головне меню
+/expense    витрата
+/income     дохід
+/work       робоча витрата
+/p2p        P2P-вивід
+/cash       вивід у готівку
+/savings    відкладення
+/expected   очікувані/заморожені гроші
+/flip       фліп
+/balance    поточні баланси
+/accounts   список рахунків
+/cancel     скасувати поточну дію
+/help       довідка
+```
+
+`/start` теж відкриває меню.
+
+### Безпека і надійність
+
+- Webhook перевіряє заголовок `X-Telegram-Bot-Api-Secret-Token` (constant-time порівняння).
+- Команди приймаються лише від ID зі списку `TELEGRAM_ALLOWED_USER_IDS` і лише в приватному чаті. Порожній список означає "нікому".
+- ID рахунків, категорій і джерел ніколи не беруться з callback data напряму: кнопки несуть лише індекс, а обʼєкт перевіряється на належність користувачу в базі.
+- Кожен `update_id` спершу claim-иться в таблиці `TelegramUpdate`, тому повторна доставка webhook не створює другу операцію.
+- Стан діалогів лежить у Postgres (`TelegramSession`), тому сценарії переживають рестарт сервера і працюють на кількох інстансах.
+- Технічні помилки логуються на сервері, користувач бачить коротке повідомлення; після помилки чернетка очищається.
+- Дефолтна дата операції - поточний момент, який відображається в часовому поясі `Europe/Kyiv`.
 
 ## Реалізовано в MVP
 
@@ -93,6 +218,7 @@ npm run import:user -- backups/user.json
 - JSON export через UI та CLI validation для import
 - Docker PostgreSQL із healthcheck і backup service profile
 - PWA installability для iOS/desktop
+- Telegram-бот як основний інтерфейс введення операцій через той самий ledger
 
 ## Обмеження MVP
 

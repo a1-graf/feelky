@@ -1,6 +1,8 @@
 import { AccountType, Prisma, TransactionType } from "@prisma/client";
 import type { Flip } from "@prisma/client";
+import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { ledger } from "@/lib/ledger";
 import { D, roundCurrency } from "@/lib/money";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 
@@ -114,19 +116,41 @@ export async function postFlipToMainWallet(tx: Tx, userId: string, flip: Pick<Fl
   });
 }
 
-export async function createFlipWithLedger(userId: string, input: { setup: string; pnl: number; tradeDate: Date; note?: string | null }) {
+export async function createFlipWithLedger(userId: string, input: { setup: string; pnl: Decimal.Value; tradeDate: Date; note?: string | null }) {
   return prisma.$transaction(async (tx) => {
     const flip = await tx.flip.create({
       data: {
         userId,
         setup: input.setup,
-        pnl: input.pnl,
+        pnl: D(input.pnl).toString(),
         tradeDate: input.tradeDate,
         note: input.note
       }
     });
     await postFlipToMainWallet(tx, userId, flip);
     return flip;
+  });
+}
+
+/**
+ * Inverse of createFlipWithLedger: reverses the PnL posted to the main wallet and removes
+ * the flip itself, atomically. Safe to call twice - the second call reports "already".
+ */
+export async function undoFlipWithLedger(userId: string, flipId: string) {
+  return prisma.$transaction(async (tx) => {
+    const flip = await tx.flip.findFirst({ where: { id: flipId, userId } });
+    if (!flip) return { status: "already" as const };
+    const posted = await tx.transaction.findFirst({
+      where: {
+        userId,
+        type: TransactionType.MANUAL_ADJUSTMENT,
+        archivedAt: null,
+        metadata: { path: ["flipId"], equals: flip.id }
+      }
+    });
+    if (posted) await ledger.archiveTransactionWithin(tx, userId, posted.id);
+    await tx.flip.delete({ where: { id: flip.id } });
+    return { status: "undone" as const, flip };
   });
 }
 

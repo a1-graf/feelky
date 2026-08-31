@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:backup": "powershell -ExecutionPolicy Bypass -File scripts/backup.ps1",
     "export:user": "tsx scripts/export-user.ts",
+    "telegram:webhook": "tsx scripts/telegram-webhook.ts",
     "import:user": "tsx scripts/import-user.ts"
   },
   "dependencies": {

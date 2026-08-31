@@ -380,18 +380,24 @@ export class LedgerService {
   }
 
   async archiveTransaction(userId: string, transactionId: string) {
-    return this.db.$transaction(async (tx) => {
-      const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
-      if (!transaction) throw new Error("Transaction not found");
-      if (transaction.archivedAt) return transaction;
-      await this.applyTransactionEffect(tx, transaction, "reverse");
-      const archived = await tx.transaction.update({
-        where: { id: transaction.id },
-        data: { archivedAt: new Date() }
-      });
-      await this.audit(tx, userId, "Transaction", transaction.id, "ARCHIVE", transaction, archived);
-      return archived;
+    return this.db.$transaction((tx) => this.archiveTransactionWithin(tx, userId, transactionId));
+  }
+
+  /**
+   * Same as archiveTransaction, but reuses an already open Prisma transaction so callers
+   * can archive a ledger entry together with the domain record that produced it.
+   */
+  async archiveTransactionWithin(tx: Tx, userId: string, transactionId: string) {
+    const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
+    if (!transaction) throw new Error("Transaction not found");
+    if (transaction.archivedAt) return transaction;
+    await this.applyTransactionEffect(tx, transaction, "reverse");
+    const archived = await tx.transaction.update({
+      where: { id: transaction.id },
+      data: { archivedAt: new Date() }
     });
+    await this.audit(tx, userId, "Transaction", transaction.id, "ARCHIVE", transaction, archived);
+    return archived;
   }
 
   async restoreTransaction(userId: string, transactionId: string) {
