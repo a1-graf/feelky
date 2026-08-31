@@ -87,27 +87,33 @@ export class LedgerService {
   }) {
     return this.db.$transaction(async (tx) => {
       const sourceAccount = await this.requireAccount(tx, userId, input.sourceAccountId);
-      if (sourceAccount.currency !== input.currency) {
+      const isCashUsdExpense = input.currency === "USDT" && sourceAccount.type === AccountType.CASH && sourceAccount.currency === "USD";
+      if (sourceAccount.currency !== input.currency && !isCashUsdExpense) {
         throw new Error(`Expense currency ${input.currency} does not match ${sourceAccount.name} ${sourceAccount.currency}`);
       }
+      const transactionCurrency = isCashUsdExpense ? "USD" : input.currency;
       if (input.isWorkExpense) {
         const incomeSource = await tx.incomeSource.findFirst({ where: { id: input.incomeSourceId || "", userId, isActive: true } });
         if (!incomeSource) throw new Error("Напрямок доходу не знайдено");
       }
-      const amount = roundCurrency(input.amount, input.currency as CurrencyCode);
+      const amount = roundCurrency(input.amount, transactionCurrency as CurrencyCode);
       await this.adjustAccount(tx, userId, input.sourceAccountId, amount.negated(), false);
+      const metadata = {
+        ...(input.isWorkExpense ? { isWorkExpense: true } : {}),
+        ...(isCashUsdExpense ? { enteredCurrency: input.currency, treatedAsCashUsd: true } : {})
+      };
       return tx.transaction.create({
         data: {
           userId,
           type: TransactionType.EXPENSE,
           amount: amount.toString(),
-          currency: input.currency,
+          currency: transactionCurrency,
           sourceAccountId: input.sourceAccountId,
           categoryId: input.categoryId || null,
           incomeSourceId: input.incomeSourceId || null,
           note: input.note,
           transactionDate: input.transactionDate,
-          metadata: input.isWorkExpense ? { isWorkExpense: true } : undefined
+          metadata: Object.keys(metadata).length ? metadata : undefined
         }
       });
     });

@@ -75,7 +75,14 @@ export function QuickAdd() {
   const steamCategoryId = categoryOptions.find((category) => category.name.toLowerCase() === "steam")?.id || "";
   const isSteamExpense = action === "expense" && selectedCategoryId === steamCategoryId;
   const effectiveExpenseCurrency = isSteamExpense ? "USDT" : expenseCurrency;
-  const expenseSourceAccounts = accounts.filter((account) => account.currency === effectiveExpenseCurrency);
+  const allowCashUsdExpense = !isSteamExpense && effectiveExpenseCurrency === "USDT";
+  const isCashUsdAccount = (account: AccountOption) => account.type === "CASH" && account.currency === "USD";
+  const expenseSourceAccounts = accounts
+    .filter((account) => account.currency === effectiveExpenseCurrency || (allowCashUsdExpense && isCashUsdAccount(account)))
+    .map((account) => ({
+      ...account,
+      name: allowCashUsdExpense && isCashUsdAccount(account) ? `${account.name} (cash USD)` : account.name
+    }));
   const preferredExpenseSourceId = effectiveExpenseCurrency === "USDT" ? defaultSteamExpense : defaultExpense;
   const selectedExpenseSource =
     expenseSourceAccounts.find((account) => account.id === selectedExpenseSourceId) ||
