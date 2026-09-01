@@ -469,11 +469,18 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
   await promptAmount(ctx, action, draft);
 }
 
+/** Currency assumed when the user types a bare number: work is paid out of USDT, the rest is UAH. */
+function defaultCurrency(action: FlowAction): TelegramCurrency {
+  if (action === "savings") return "UAH";
+  if (action === "work") return "USDT";
+  return "UAH";
+}
+
 async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
   const titles: Record<string, string> = {
-    expense: "<b>Витрата</b>\nСума? Напр. <code>250</code> або <code>20 USDT</code>",
+    expense: "<b>Витрата</b>\nСума? <code>250</code> — це гривні, або <code>20 USDT</code>",
     income: "<b>Дохід</b>\nСума? Напр. <code>1500 UAH</code> або <code>300 USDT</code>",
-    work: "<b>Робоча витрата</b>\nСума? Напр. <code>20 USDT</code>",
+    work: "<b>Робоча витрата</b>\nСума? <code>20</code> — це USDT, або <code>250 грн</code>",
     savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>",
     flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>"
   };
@@ -742,7 +749,7 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
       return;
     }
     draft.amount = parsed.amount;
-    draft.currency = action === "savings" ? "UAH" : parsed.currency || "UAH";
+    draft.currency = parsed.currency || defaultCurrency(action);
     if (parsed.note) draft.note = truncate(parsed.note, 200);
     if (parsed.tagProvided && parsed.tag) {
       if (action === "income" || action === "work") {
