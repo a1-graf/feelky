@@ -3,6 +3,7 @@ import { D } from "@/lib/money";
 import {
   answerCallbackQuery,
   editMessageReplyMarkup,
+  editMessageText,
   sendMessage
 } from "@/lib/telegram/api";
 import { BOT_COMMANDS, parseCommand } from "@/lib/telegram/commands";
@@ -62,7 +63,8 @@ import {
   loadTelegramSession,
   readDraft,
   rememberSelections,
-  saveFlow
+  saveFlow,
+  setDraftMessageId
 } from "@/lib/telegram/session";
 import type { Draft, FlowAction, FlowStep, RememberedSelections } from "@/lib/telegram/session";
 import { isAllowedTelegramUser, isPrivateChat } from "@/lib/telegram/security";
@@ -86,6 +88,8 @@ type Ctx = {
   telegramUserId: number;
   session: TelegramSession;
   data: ReferenceData;
+  /** Message the scenario is drawn in; steps edit it instead of posting new ones. */
+  messageId: number | null;
 };
 
 function logError(scope: string, error: unknown) {
@@ -103,8 +107,37 @@ function userFacingError(error: unknown): string {
   return message;
 }
 
-async function reply(ctx: Ctx, text: string, replyMarkup?: ReplyMarkup) {
+function isNotModified(error: unknown): boolean {
+  return error instanceof Error && /message is not modified/i.test(error.message);
+}
+
+/** A scenario step: rewrites the current bubble so the chat never fills up with options. */
+async function reply(ctx: Ctx, text: string, replyMarkup?: InlineKeyboardMarkup): Promise<void> {
+  if (ctx.messageId !== null) {
+    try {
+      await editMessageText(ctx.config.botToken, ctx.chatId, ctx.messageId, text, replyMarkup);
+      return;
+    } catch (error) {
+      if (isNotModified(error)) return;
+      logError("editMessageText", error);
+    }
+  }
+  const sent = await sendMessage(ctx.config.botToken, ctx.chatId, text, { replyMarkup });
+  ctx.messageId = sent.message_id;
+  await setDraftMessageId(ctx.telegramUserId, sent.message_id).catch((error) => logError("setDraftMessageId", error));
+}
+
+/** Something outside a scenario (menu, balances, undo, errors): always its own message. */
+async function sendNew(ctx: Ctx, text: string, replyMarkup?: ReplyMarkup): Promise<void> {
   await sendMessage(ctx.config.botToken, ctx.chatId, text, { replyMarkup });
+  ctx.messageId = null;
+}
+
+/** Terminal message that also ends the scenario. */
+async function endFlow(ctx: Ctx, text: string, replyMarkup?: InlineKeyboardMarkup): Promise<void> {
+  await reply(ctx, text, replyMarkup);
+  await clearFlow(ctx.telegramUserId);
+  ctx.messageId = null;
 }
 
 async function sendSafely(config: TelegramConfig, chatId: number, text: string, replyMarkup?: ReplyMarkup) {
@@ -123,7 +156,8 @@ export async function handleTelegramUpdate(update: TelegramUpdatePayload, config
 async function buildContext(
   config: TelegramConfig,
   telegramUserId: number,
-  chatId: number
+  chatId: number,
+  callbackMessageId: number | null
 ): Promise<Ctx | null> {
   const userId = await resolveFeelkyUserId(config.userEmail);
   if (!userId) {
@@ -135,7 +169,16 @@ async function buildContext(
     loadTelegramSession(userId, telegramUserId, chatId),
     loadReferenceData(userId)
   ]);
-  return { config, userId, chatId, telegramUserId, session, data };
+  const draft = readDraft(session);
+  return {
+    config,
+    userId,
+    chatId,
+    telegramUserId,
+    session,
+    data,
+    messageId: callbackMessageId ?? draft.messageId ?? null
+  };
 }
 
 async function handleMessage(message: TelegramIncomingMessage, config: TelegramConfig) {
@@ -150,7 +193,7 @@ async function handleMessage(message: TelegramIncomingMessage, config: TelegramC
     return;
   }
   const text = (message.text || "").trim();
-  const ctx = await buildContext(config, telegramUserId as number, message.chat.id);
+  const ctx = await buildContext(config, telegramUserId as number, message.chat.id, null);
   if (!ctx) return;
   if (!text) {
     await reply(ctx, "Надішли текст або обери дію в /menu.");
@@ -195,7 +238,7 @@ async function handleCallbackQuery(callback: TelegramCallbackQuery, config: Tele
 
   let answer = "";
   try {
-    const ctx = await buildContext(config, telegramUserId as number, chatId);
+    const ctx = await buildContext(config, telegramUserId as number, chatId, callback.message.message_id);
     if (!ctx) return;
     answer = await routeCallback(ctx, callback, (callback.data || "").trim());
   } catch (error) {
@@ -220,7 +263,7 @@ async function routeCallback(ctx: Ctx, callback: TelegramCallbackQuery, data: st
         logError("editMessageReplyMarkup", error)
       );
     }
-    await reply(ctx, undoMessage(outcome));
+    await sendNew(ctx, undoMessage(outcome));
     return undoMessage(outcome);
   }
 
@@ -320,16 +363,16 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
 async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
   if (action === "menu") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, menuText(), mainReplyKeyboard());
+    await sendNew(ctx, menuText(), mainReplyKeyboard());
     return;
   }
   if (action === "cancel") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Скасовано.", mainReplyKeyboard());
+    await sendNew(ctx, "Скасовано.", mainReplyKeyboard());
     return;
   }
   if (action === "balance") {
-    await reply(ctx, await formatBalances(ctx.userId), menuKeyboard());
+    await sendNew(ctx, await formatBalances(ctx.userId));
     return;
   }
   const flow = toFlowAction(action);
@@ -348,20 +391,20 @@ function toFlowAction(value: string): FlowAction | null {
 async function handleCommand(ctx: Ctx, command: string, args: string): Promise<void> {
   if (command === "start" || command === "menu") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, menuText(), mainReplyKeyboard());
+    await sendNew(ctx, menuText(), mainReplyKeyboard());
     return;
   }
   if (command === "help") {
-    await reply(ctx, helpText());
+    await sendNew(ctx, helpText());
     return;
   }
   if (command === "cancel") {
     await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Скасовано.", mainReplyKeyboard());
+    await sendNew(ctx, "Скасовано.", mainReplyKeyboard());
     return;
   }
   if (command === "balance" || command === "accounts") {
-    await reply(ctx, await formatBalances(ctx.userId), menuKeyboard());
+    await sendNew(ctx, await formatBalances(ctx.userId));
     return;
   }
   const flow = toFlowAction(command);
@@ -462,8 +505,7 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
         ? savingsSourceAccounts(ctx.data.accounts)
         : accountsForCurrency(ctx.data.accounts, currency);
   if (!accounts.length) {
-    await clearFlow(ctx.telegramUserId);
-    await reply(ctx, `Немає активного рахунку ${escapeHtml(currency)}. Створи його на сайті Feelky.`, menuKeyboard());
+    await endFlow(ctx, `Немає активного рахунку ${escapeHtml(currency)}.`);
     return;
   }
   draft.options = accounts.map((account) => account.id);
@@ -475,8 +517,7 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
 async function promptCategory(ctx: Ctx, action: FlowAction, draft: Draft, prefix?: string): Promise<void> {
   const categories = ctx.data.categories;
   if (!categories.length) {
-    await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Немає активних категорій. Створи їх на сайті Feelky.", menuKeyboard());
+    await endFlow(ctx, "Немає активних категорій. Створи їх на сайті Feelky.");
     return;
   }
   draft.options = categories.map((category) => category.id);
@@ -488,8 +529,7 @@ async function promptCategory(ctx: Ctx, action: FlowAction, draft: Draft, prefix
 async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?: string): Promise<void> {
   const sources = ctx.data.incomeSources;
   if (!sources.length) {
-    await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Немає активних джерел доходу. Створи їх на сайті Feelky.", menuKeyboard());
+    await endFlow(ctx, "Немає активних джерел доходу. Створи їх на сайті Feelky.");
     return;
   }
   draft.options = sources.map((source) => source.id);
@@ -502,8 +542,7 @@ async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?:
 async function promptSetup(ctx: Ctx, draft: Draft): Promise<void> {
   const setups = await loadFlipSetups(ctx.userId);
   if (!setups.length) {
-    await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Немає збережених сетапів. Додай перший фліп на сайті.", menuKeyboard());
+    await endFlow(ctx, "Немає збережених сетапів. Додай перший фліп на сайті.");
     return;
   }
   draft.options = setups;
@@ -549,8 +588,7 @@ async function promptNote(ctx: Ctx, action: FlowAction, draft: Draft): Promise<v
 async function promptNewBalance(ctx: Ctx, draft: Draft): Promise<void> {
   const account = findAccountById(ctx.data.accounts, draft.accountId);
   if (!account) {
-    await clearFlow(ctx.telegramUserId);
-    await reply(ctx, "Рахунок не знайдено.", menuKeyboard());
+    await endFlow(ctx, "Рахунок не знайдено.");
     return;
   }
   delete draft.options;
@@ -600,8 +638,9 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
 }
 
 async function finish(ctx: Ctx, result: OperationResult): Promise<void> {
-  await clearFlow(ctx.telegramUserId);
   await reply(ctx, result.text, result.undo ? undoKeyboard(result.undo) : undefined);
+  await clearFlow(ctx.telegramUserId);
+  ctx.messageId = null;
 }
 
 async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
@@ -663,8 +702,7 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
     });
     return;
   }
-  await clearFlow(ctx.telegramUserId);
-  await reply(ctx, GENERIC_ERROR, menuKeyboard());
+  await endFlow(ctx, GENERIC_ERROR);
 }
 
 async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, text: string): Promise<void> {
@@ -801,7 +839,7 @@ async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string, dra
 async function handleQuickEntry(ctx: Ctx, text: string): Promise<void> {
   const probe = parseQuickEntry(text);
   if (!probe || D(probe.amount).lte(0)) {
-    await reply(ctx, hintText(), menuKeyboard());
+    await sendNew(ctx, hintText());
     return;
   }
   const isIncome = probe.kind === "income";

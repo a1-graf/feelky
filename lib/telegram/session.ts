@@ -29,6 +29,8 @@ export type Draft = {
   /** Backdating: `YYYY-MM-DD` in the Kyiv calendar, empty means today. */
   date?: string;
   note?: string | null;
+  /** Chat message the whole scenario lives in, so steps replace each other in place. */
+  messageId?: number;
   /** Ids rendered in the current option keyboard - the buttons only carry their index. */
   options?: string[];
   /** Step to come back to after the user changes the account or the date mid-flow. */
@@ -115,4 +117,20 @@ export function readLastIncomeAccount(session: TelegramSession, currency: Telegr
   if (currency === "USDT") return session.lastIncomeAccountUsdt;
   if (currency === "USD") return session.lastIncomeAccountUsd;
   return session.lastIncomeAccountUah;
+}
+
+/** Remembers which message the scenario is being drawn in, so typed steps can edit it too. */
+export async function setDraftMessageId(telegramUserId: number, messageId: number): Promise<void> {
+  const session = await prisma.telegramSession.findUnique({
+    where: { telegramUserId: BigInt(telegramUserId) },
+    select: { draft: true }
+  });
+  if (!session) return;
+  const draft = readDraft(session);
+  if (draft.messageId === messageId) return;
+  draft.messageId = messageId;
+  await prisma.telegramSession.update({
+    where: { telegramUserId: BigInt(telegramUserId) },
+    data: { draft: draft as unknown as Prisma.InputJsonValue }
+  });
 }
