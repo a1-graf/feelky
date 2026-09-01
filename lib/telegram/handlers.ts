@@ -439,6 +439,9 @@ async function refreshSession(ctx: Ctx): Promise<TelegramSession> {
 }
 
 async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
+  // Persist the step here too: this runs both on flow start and when coming back
+  // from the date screen, and without it the session would still say "date".
+  await saveFlow(ctx.telegramUserId, { action, step: firstStep(action), draft });
   if (action === "manual") {
     await promptAccount(ctx, action, draft);
     return;
