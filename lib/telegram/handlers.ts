@@ -22,7 +22,7 @@ import {
   menuText,
   optionKeyboard,
   optionLabel,
-  undoKeyboard
+  receiptKeyboard
 } from "@/lib/telegram/keyboards";
 import {
   parseCashEntry,
@@ -377,9 +377,12 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
   }
   const flow = toFlowAction(action);
   if (!flow) {
-    await reply(ctx, "Невідома дія.", menuKeyboard());
+    await sendNew(ctx, menuText(), mainReplyKeyboard());
     return;
   }
+  // A new operation always takes a fresh message, so an earlier receipt and its
+  // undo button stay intact when the menu is tapped from underneath one.
+  ctx.messageId = null;
   await startFlow(ctx, flow);
 }
 
@@ -648,7 +651,7 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
 }
 
 async function finish(ctx: Ctx, result: OperationResult): Promise<void> {
-  await reply(ctx, result.text, result.undo ? undoKeyboard(result.undo) : undefined);
+  await reply(ctx, result.text, receiptKeyboard(result.undo));
   await clearFlow(ctx.telegramUserId);
   ctx.messageId = null;
 }

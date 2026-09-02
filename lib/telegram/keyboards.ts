@@ -79,16 +79,20 @@ export function noteKeyboard(): InlineKeyboardMarkup {
   };
 }
 
-export function undoKeyboard(ref: UndoRef): InlineKeyboardMarkup | undefined {
-  const data = encodeUndoRef(ref);
-  if (!isCallbackDataWithinLimit(data)) return undefined;
-  return {
-    inline_keyboard: [[
-      { text: "Скасувати операцію", callback_data: data },
-      { text: "Меню", callback_data: CALLBACK.back }
-    ]]
-  };
+/**
+ * Shown after an operation is saved: the undo button plus the whole menu, so the next
+ * operation is one tap away without the bot posting a separate menu message.
+ */
+export function receiptKeyboard(ref?: UndoRef): InlineKeyboardMarkup {
+  const rows: InlineKeyboardButton[][] = [];
+  if (ref) {
+    const data = encodeUndoRef(ref);
+    if (isCallbackDataWithinLimit(data)) rows.push([{ text: "Скасувати операцію", callback_data: data }]);
+  }
+  rows.push(...menuKeyboard().inline_keyboard);
+  return { inline_keyboard: rows };
 }
+
 
 export function optionLabel(name: string, detail?: string | null): string {
   const label = detail ? `${name} · ${detail}` : name;
