@@ -668,7 +668,9 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
 async function finish(ctx: Ctx, result: OperationResult): Promise<void> {
   await reply(ctx, result.text, receiptKeyboard(result.undo));
   await clearFlow(ctx.telegramUserId);
-  ctx.messageId = null;
+  // A message carrying the reply keyboard is what makes Telegram unfold it, so the menu
+  // comes back on its own after a saved operation - the same way it does after a cancel.
+  await sendNew(ctx, "Що далі?", mainReplyKeyboard());
 }
 
 async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
