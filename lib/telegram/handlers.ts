@@ -2,6 +2,7 @@ import type { TelegramSession } from "@prisma/client";
 import { D } from "@/lib/money";
 import {
   answerCallbackQuery,
+  deleteMessage,
   editMessageReplyMarkup,
   editMessageText,
   sendMessage
@@ -148,6 +149,18 @@ async function sendSafely(config: TelegramConfig, chatId: number, text: string, 
   }
 }
 
+/**
+ * Keyboard taps and typed step answers are throwaway input. Removing them keeps the
+ * scenario bubble as the newest message, instead of stranding it above the replies.
+ */
+async function dropUserMessage(ctx: Ctx, messageId: number): Promise<void> {
+  try {
+    await deleteMessage(ctx.config.botToken, ctx.chatId, messageId);
+  } catch (error) {
+    logError("deleteMessage", error);
+  }
+}
+
 export async function handleTelegramUpdate(update: TelegramUpdatePayload, config: TelegramConfig): Promise<void> {
   if (update.message) return handleMessage(update.message, config);
   if (update.callback_query) return handleCallbackQuery(update.callback_query, config);
@@ -209,10 +222,12 @@ async function handleMessage(message: TelegramIncomingMessage, config: TelegramC
     const tapped = matchMenuLabel(text);
     if (tapped) {
       await handleMenuAction(ctx, tapped);
+      await dropUserMessage(ctx, message.message_id);
       return;
     }
     if (ctx.session.action && ctx.session.step) {
       await handleFlowMessage(ctx, ctx.session.action as FlowAction, ctx.session.step as FlowStep, text);
+      await dropUserMessage(ctx, message.message_id);
       return;
     }
     await handleQuickEntry(ctx, text);

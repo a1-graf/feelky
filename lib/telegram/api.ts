@@ -97,6 +97,18 @@ export async function editMessageReplyMarkup(
   );
 }
 
+/**
+ * Removes a message the bot can delete. In a private chat Telegram lets a bot delete both
+ * its own and incoming messages, which is what keeps a scenario pinned to the bottom.
+ */
+export async function deleteMessage(botToken: string, chatId: number | bigint, messageId: number) {
+  return callTelegram<boolean>(
+    "deleteMessage",
+    { chat_id: typeof chatId === "bigint" ? chatId.toString() : chatId, message_id: messageId },
+    botToken
+  );
+}
+
 export async function answerCallbackQuery(botToken: string, callbackQueryId: string, text?: string, showAlert = false) {
   return callTelegram<boolean>(
     "answerCallbackQuery",
