@@ -80,18 +80,19 @@ export function noteKeyboard(): InlineKeyboardMarkup {
 }
 
 /**
- * Shown after an operation is saved: the undo button plus the whole menu, so the next
- * operation is one tap away without the bot posting a separate menu message.
+ * Shown after an operation is saved. Deliberately small: the full menu lives in the
+ * persistent keyboard under the input field, reachable any time from its toggle.
  */
 export function receiptKeyboard(ref?: UndoRef): InlineKeyboardMarkup {
-  const rows: InlineKeyboardButton[][] = [];
+  const buttons: InlineKeyboardButton[] = [];
   if (ref) {
     const data = encodeUndoRef(ref);
-    if (isCallbackDataWithinLimit(data)) rows.push([{ text: "Скасувати операцію", callback_data: data }]);
+    if (isCallbackDataWithinLimit(data)) buttons.push({ text: "Скасувати операцію", callback_data: data });
   }
-  rows.push(...menuKeyboard().inline_keyboard);
-  return { inline_keyboard: rows };
+  buttons.push({ text: "Меню", callback_data: CALLBACK.back });
+  return { inline_keyboard: [buttons] };
 }
+
 
 
 export function optionLabel(name: string, detail?: string | null): string {
