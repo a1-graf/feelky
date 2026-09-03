@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -143,15 +143,41 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
   );
 }
 
+type PnlTooltipPoint = PnlTimelinePoint & { dayNet: number };
+
+function PnlTooltip({ active, payload, hidden }: { active?: boolean; payload?: Array<{ payload: PnlTooltipPoint }>; hidden: boolean }) {
+  const point = active ? payload?.[0]?.payload : undefined;
+  if (!point) return null;
+  const rows: Array<[string, number, string]> = [
+    ["Плюс", point.profit, "#16a34a"],
+    ["Мінус", -point.loss, "#e04d65"],
+    ["Разом за день", point.dayNet, point.dayNet >= 0 ? "#16a34a" : "#e04d65"],
+    ["Накопичено", point.net, "#2563eb"]
+  ];
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-soft">
+      <div className="mb-1 font-semibold text-[hsl(var(--card-foreground))]">{point.label}</div>
+      {rows.map(([label, value, color]) => (
+        <div key={label} className="flex items-center justify-between gap-4">
+          <span className="text-[hsl(var(--card-muted-foreground))]">{label}</span>
+          <span style={{ color }}>{formatMoney(value, "USDT", hidden)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]; hidden?: boolean }) {
-  const sortedData = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)).map((point) => ({ ...point, lossBar: -point.loss })), [data]);
+  const sortedData = useMemo<PnlTooltipPoint[]>(
+    () => [...data]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => ({ ...point, dayNet: point.profit - point.loss })),
+    [data]
+  );
   const latest = sortedData[sortedData.length - 1];
   const totals = useMemo(
     () => sortedData.reduce(
-      (result, point) => ({
-        profit: result.profit + point.profit,
-        loss: result.loss + point.loss
-      }),
+      (result, point) => ({ profit: result.profit + point.profit, loss: result.loss + point.loss }),
       { profit: 0, loss: 0 }
     ),
     [sortedData]
@@ -162,33 +188,56 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
   }
 
   const showDots = sortedData.length <= 100;
+  // A day's result and the running total differ by orders of magnitude, so each gets its own
+  // axis: otherwise a small day is invisible next to a large accumulated result.
+  const includeZero = ([min, max]: [number, number]): [number, number] => [Math.min(0, min), Math.max(0, max)];
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <ChartTotal color="#16a34a" label="Плюси" value={formatMoney(totals.profit, "USDT", hidden)} />
-        <ChartTotal color="#e04d65" label="Мінуси" value={formatMoney(totals.loss, "USDT", hidden)} />
+        <ChartTotal color="#16a34a" label="Плюси за період" value={formatMoney(totals.profit, "USDT", hidden)} />
+        <ChartTotal color="#e04d65" label="Мінуси за період" value={formatMoney(-totals.loss, "USDT", hidden)} />
         <ChartTotal color="#2563eb" label="Чистий PnL" value={formatMoney(latest.net, "USDT", hidden)} />
       </div>
       <div className="h-72 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={sortedData} barGap={2} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <ComposedChart data={sortedData} margin={{ left: 0, right: 0, top: 16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={62} />
-            <Tooltip
-              formatter={(value, name, item) => {
-                const key = item.dataKey;
-                const label = key === "net" ? "Чистий PnL" : key === "profit" ? "Плюс за дату" : "Мінус за дату";
-                const amount = key === "lossBar" ? Math.abs(Number(value)) : Number(value);
-                return [formatMoney(amount, "USDT", hidden), label];
-              }}
-              labelFormatter={(label) => `Дата: ${label}`}
+            <YAxis
+              yAxisId="daily"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
+              tickFormatter={(value) => axisValue(Number(value), hidden)}
+              domain={includeZero}
+              width={58}
             />
-            <Bar dataKey="profit" name="Плюс за дату" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="lossBar" name="Мінус за дату" fill="#e04d65" radius={[0, 0, 4, 4]} maxBarSize={28} />
-            <Line type="monotone" dataKey="net" name="Чистий PnL" stroke="#2563eb" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
+            <YAxis
+              yAxisId="net"
+              orientation="right"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "#2563eb", fontSize: 12 }}
+              tickFormatter={(value) => axisValue(Number(value), hidden)}
+              domain={includeZero}
+              width={58}
+            />
+            <Tooltip content={<PnlTooltip hidden={hidden} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <ReferenceLine yAxisId="daily" y={0} stroke="hsl(var(--border))" />
+            {/* One bar per day keeps it centred under the dot; the split into plus and minus lives in the tooltip. */}
+            <Bar yAxisId="daily" dataKey="dayNet" name="Разом за день" maxBarSize={26} radius={[3, 3, 3, 3]} isAnimationActive={false}>
+              {sortedData.map((point) => (
+                <Cell key={point.date} fill={point.dayNet >= 0 ? "#16a34a" : "#e04d65"} />
+              ))}
+            </Bar>
+            <Line yAxisId="net" type="linear" dataKey="net" name="Накопичено" stroke="#2563eb" strokeWidth={3} isAnimationActive={false} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </ComposedChart>
         </ResponsiveContainer>
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-[hsl(var(--card-muted-foreground))]">
+        <span>Ліва вісь — результат дня</span>
+        <span className="text-[#2563eb]">Права вісь — накопичено</span>
       </div>
     </div>
   );
