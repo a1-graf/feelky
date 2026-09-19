@@ -47,9 +47,9 @@ export default async function OverviewPage() {
           </div>
           <div className="mt-2 text-lg font-semibold text-white/85">{asUah(data.totals.availableBankUsdt)}</div>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div>
-              <div className="text-[11px] uppercase tracking-wide text-white/60">Потенційний</div>
-              <div className="mt-0.5 text-sm font-semibold text-white/90">{formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)}</div>
+            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-200">Повний</div>
+              <div className="mt-0.5 text-base font-extrabold text-amber-100">{formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wide text-white/60">Заморожено</div>
