@@ -188,20 +188,40 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
   }
 
   const showDots = sortedData.length <= 100;
-  // A day's result and the running total differ by orders of magnitude, so each gets its own
-  // axis: otherwise a small day is invisible next to a large accumulated result.
+  const netColor = latest.net >= 0 ? "#16a34a" : "#e04d65";
   const includeZero = ([min, max]: [number, number]): [number, number] => [Math.min(0, min), Math.max(0, max)];
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <ChartTotal color="#16a34a" label="Плюси за період" value={formatMoney(totals.profit, "USDT", hidden)} />
-        <ChartTotal color="#e04d65" label="Мінуси за період" value={formatMoney(-totals.loss, "USDT", hidden)} />
-        <ChartTotal color="#2563eb" label="Чистий PnL" value={formatMoney(latest.net, "USDT", hidden)} />
+      {/* Period summary chips */}
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Плюси</div>
+          <div className="mt-0.5 break-words text-sm font-bold text-success sm:text-base">{formatMoney(totals.profit, "USDT", hidden)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Мінуси</div>
+          <div className="mt-0.5 break-words text-sm font-bold text-danger sm:text-base">{formatMoney(-totals.loss, "USDT", hidden)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Чистий PnL</div>
+          <div className={`mt-0.5 break-words text-sm font-bold sm:text-base ${latest.net >= 0 ? "text-success" : "text-danger"}`}>
+            {formatMoney(latest.net, "USDT", hidden)}
+          </div>
+        </div>
       </div>
-      <div className="h-72 w-full">
+
+      {/* 1. Per-day results: green bars up, red bars down from the zero line */}
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <div className="text-sm font-medium">Результат кожного дня</div>
+        <div className="flex gap-3 text-xs text-[hsl(var(--card-muted-foreground))]">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" />прибуток</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" />збиток</span>
+        </div>
+      </div>
+      <div className="h-52 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={sortedData} margin={{ left: 0, right: 0, top: 16, bottom: 0 }}>
+          <ComposedChart data={sortedData} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis
@@ -213,31 +233,40 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
               domain={includeZero}
               width={58}
             />
-            <YAxis
-              yAxisId="net"
-              orientation="right"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "#2563eb", fontSize: 12 }}
-              tickFormatter={(value) => axisValue(Number(value), hidden)}
-              domain={includeZero}
-              width={58}
-            />
             <Tooltip content={<PnlTooltip hidden={hidden} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
-            <ReferenceLine yAxisId="daily" y={0} stroke="hsl(var(--border))" />
-            {/* One bar per day keeps it centred under the dot; the split into plus and minus lives in the tooltip. */}
+            <ReferenceLine yAxisId="daily" y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
             <Bar yAxisId="daily" dataKey="dayNet" name="Разом за день" maxBarSize={26} radius={[3, 3, 3, 3]} isAnimationActive={false}>
               {sortedData.map((point) => (
                 <Cell key={point.date} fill={point.dayNet >= 0 ? "#16a34a" : "#e04d65"} />
               ))}
             </Bar>
-            <Line yAxisId="net" type="linear" dataKey="net" name="Накопичено" stroke="#2563eb" strokeWidth={3} isAnimationActive={false} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 flex justify-between text-xs text-[hsl(var(--card-muted-foreground))]">
-        <span>Ліва вісь — результат дня</span>
-        <span className="text-[#2563eb]">Права вісь — накопичено</span>
+
+      {/* 2. Running total: a single clean line, colored by the final result */}
+      <div className="mb-1.5 mt-6 flex items-baseline justify-between gap-3">
+        <div className="text-sm font-medium">Накопичений результат</div>
+        <div className="text-xs text-[hsl(var(--card-muted-foreground))]">як змінювався PnL з початку періоду</div>
+      </div>
+      <div className="h-52 w-full">
+        <ResponsiveContainer>
+          <LineChart data={sortedData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
+              tickFormatter={(value) => axisValue(Number(value), hidden)}
+              domain={includeZero}
+              width={58}
+            />
+            <Tooltip content={<PnlTooltip hidden={hidden} />} cursor={{ stroke: "hsl(var(--border))" }} />
+            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
+            <Line type="monotone" dataKey="net" name="Накопичено" stroke={netColor} strokeWidth={3} isAnimationActive={false} dot={showDots ? { r: 3.5, fill: netColor, strokeWidth: 0 } : false} activeDot={{ r: 6 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

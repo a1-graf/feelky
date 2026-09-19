@@ -93,7 +93,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Чистий PnL</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Стовпчик - результат дня, синя лінія - накопичений чистий результат у USDT · {data.period.rangeLabel}</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Скільки зароблено чи втрачено кожного дня і як це накопичувалось · {data.period.rangeLabel}</div>
         <NetPnlChart data={data.pnlTimeline} hidden={hidden} />
         <div className="my-5 border-t border-border" />
         <div className="mb-1 font-semibold">Де найбільші мінуси</div>
