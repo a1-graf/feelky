@@ -42,6 +42,18 @@ const actionOptions = [
 export function QuickAdd() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  /** Any part of the app (e.g. the mobile nav "+" button) can open the sheet. */
+  useEffect(() => {
+    function handleOpen() {
+      setMessage("");
+      setOpen(true);
+      void loadOptions();
+    }
+    window.addEventListener("feelky:open-quick-add", handleOpen);
+    return () => window.removeEventListener("feelky:open-quick-add", handleOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [settings, setSettings] = useState<QuickAddSettings | null>(null);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
@@ -183,7 +195,7 @@ export function QuickAdd() {
   return (
     <>
       <button
-        className="fixed bottom-24 right-4 z-50 inline-flex h-14 items-center gap-2 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-soft md:bottom-6"
+        className="fixed bottom-6 right-4 z-50 hidden h-14 items-center gap-2 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-glow transition-transform duration-150 hover:scale-[1.03] active:scale-95 md:inline-flex"
         onClick={() => {
           setMessage("");
           setOpen(true);
@@ -199,8 +211,8 @@ export function QuickAdd() {
         </div>
       )}
       {open && (
-        <div className="fixed inset-0 z-50 grid items-end bg-black/30 md:place-items-center">
-          <div className="max-h-[90vh] w-full overflow-auto rounded-t-xl border border-border bg-card p-3 shadow-soft md:max-w-md md:rounded-lg md:p-4">
+        <div className="fixed inset-0 z-50 grid items-end bg-black/50 backdrop-blur-sm md:place-items-center">
+          <div className="max-h-[92vh] w-full overflow-auto rounded-t-3xl border border-border bg-card p-4 shadow-soft md:max-w-md md:rounded-2xl md:p-5">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">Швидке додавання</h2>
