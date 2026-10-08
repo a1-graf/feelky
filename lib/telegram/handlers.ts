@@ -557,12 +557,13 @@ async function promptCategory(ctx: Ctx, action: FlowAction, draft: Draft, prefix
 async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?: string): Promise<void> {
   const sources = ctx.data.incomeSources;
   if (!sources.length) {
-    await endFlow(ctx, "Немає активних джерел доходу. Створи їх на сайті Feelky.");
+    await endFlow(ctx, action === "work" ? "Немає активних напрямків. Створи їх на сайті Feelky." : "Немає активних джерел доходу. Створи їх на сайті Feelky.");
     return;
   }
   draft.options = sources.map((source) => source.id);
   await saveFlow(ctx.telegramUserId, { action, step: "source", draft });
-  const label = action === "work" ? "Напрямок доходу?" : "Джерело доходу?";
+  // A work expense is filed under a business direction; "income" in that question reads wrong.
+  const label = action === "work" ? "До якого напрямку віднести?" : "Джерело доходу?";
   const title = prefix ? `${prefix}\n${label}` : label;
   await reply(ctx, title, optionKeyboard(sources.map((source) => optionLabel(source.name)), 2, stepExtraRows(ctx, action, draft)));
 }
