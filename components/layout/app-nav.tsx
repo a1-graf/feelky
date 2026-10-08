@@ -9,6 +9,7 @@ import {
   ArrowUpFromLine,
   Banknote,
   BarChart3,
+  CandlestickChart,
   LayoutDashboard,
   PiggyBank,
   Settings,
@@ -28,6 +29,7 @@ export type NavIcon =
   | "frozen"
   | "savings"
   | "flips"
+  | "fx"
   | "steam"
   | "archive"
   | "settings";
@@ -61,6 +63,7 @@ const icons: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
   frozen: Snowflake,
   savings: PiggyBank,
   flips: TrendingUp,
+  fx: CandlestickChart,
   steam: SteamIcon,
   archive: Archive,
   settings: Settings

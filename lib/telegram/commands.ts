@@ -9,6 +9,7 @@ export const BOT_COMMANDS: BotCommand[] = [
   { command: "p2p", description: "P2P-вивід" },
   { command: "cash", description: "Вивід у готівку" },
   { command: "savings", description: "Відкладення" },
+  { command: "transfer", description: "Переказ між рахунками" },
   { command: "expected", description: "Очікувані/заморожені гроші" },
   { command: "flip", description: "Фліп" },
   { command: "balance", description: "Поточні баланси" },

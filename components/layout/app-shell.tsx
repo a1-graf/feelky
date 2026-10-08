@@ -28,6 +28,7 @@ const navSections: readonly NavSection[] = [
     label: "Модулі",
     items: [
       { href: "/flips", label: "Фліпи", icon: "flips" },
+      { href: "/fx", label: "FX", icon: "fx" },
       { href: "/steam", label: "Steam", icon: "steam" }
     ]
   },

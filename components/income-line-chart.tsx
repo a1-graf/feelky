@@ -145,7 +145,7 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
 
 type PnlTooltipPoint = PnlTimelinePoint & { dayNet: number };
 
-function PnlTooltip({ active, payload, hidden }: { active?: boolean; payload?: Array<{ payload: PnlTooltipPoint }>; hidden: boolean }) {
+function PnlTooltip({ active, payload, hidden, currency = "USDT" }: { active?: boolean; payload?: Array<{ payload: PnlTooltipPoint }>; hidden: boolean; currency?: string }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
   const rows: Array<[string, number, string]> = [
@@ -160,14 +160,14 @@ function PnlTooltip({ active, payload, hidden }: { active?: boolean; payload?: A
       {rows.map(([label, value, color]) => (
         <div key={label} className="flex items-center justify-between gap-4">
           <span className="text-[hsl(var(--card-muted-foreground))]">{label}</span>
-          <span style={{ color }}>{formatMoney(value, "USDT", hidden)}</span>
+          <span style={{ color }}>{formatMoney(value, currency, hidden)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]; hidden?: boolean }) {
+export function NetPnlChart({ data, hidden = false, currency = "USDT" }: { data: PnlTimelinePoint[]; hidden?: boolean; currency?: string }) {
   const sortedData = useMemo<PnlTooltipPoint[]>(
     () => [...data]
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -197,16 +197,16 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
       <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
         <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
           <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Плюси</div>
-          <div className="mt-0.5 break-words text-sm font-bold text-success sm:text-base">{formatMoney(totals.profit, "USDT", hidden)}</div>
+          <div className="mt-0.5 break-words text-sm font-bold text-success sm:text-base">{formatMoney(totals.profit, currency, hidden)}</div>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
           <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Мінуси</div>
-          <div className="mt-0.5 break-words text-sm font-bold text-danger sm:text-base">{formatMoney(-totals.loss, "USDT", hidden)}</div>
+          <div className="mt-0.5 break-words text-sm font-bold text-danger sm:text-base">{formatMoney(-totals.loss, currency, hidden)}</div>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
           <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Чистий PnL</div>
           <div className={`mt-0.5 break-words text-sm font-bold sm:text-base ${latest.net >= 0 ? "text-success" : "text-danger"}`}>
-            {formatMoney(latest.net, "USDT", hidden)}
+            {formatMoney(latest.net, currency, hidden)}
           </div>
         </div>
       </div>
@@ -233,7 +233,7 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
               domain={includeZero}
               width={58}
             />
-            <Tooltip content={<PnlTooltip hidden={hidden} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
+            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
             <ReferenceLine yAxisId="daily" y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
             <Bar yAxisId="daily" dataKey="dayNet" name="Разом за день" maxBarSize={26} radius={[3, 3, 3, 3]} isAnimationActive={false}>
               {sortedData.map((point) => (
@@ -262,7 +262,7 @@ export function NetPnlChart({ data, hidden = false }: { data: PnlTimelinePoint[]
               domain={includeZero}
               width={58}
             />
-            <Tooltip content={<PnlTooltip hidden={hidden} />} cursor={{ stroke: "hsl(var(--border))" }} />
+            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ stroke: "hsl(var(--border))" }} />
             <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
             <Line type="monotone" dataKey="net" name="Накопичено" stroke={netColor} strokeWidth={3} isAnimationActive={false} dot={showDots ? { r: 3.5, fill: netColor, strokeWidth: 0 } : false} activeDot={{ r: 6 }} />
           </LineChart>

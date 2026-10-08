@@ -55,7 +55,8 @@ import {
   submitIncome,
   submitManualAdjustment,
   submitP2P,
-  submitSavings
+  submitSavings,
+  submitTransfer
 } from "@/lib/telegram/operations";
 import type { OperationResult, ReferenceData } from "@/lib/telegram/operations";
 import {
@@ -350,6 +351,15 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
     await advance(ctx, action, draft);
     return "";
   }
+  if (step === "toAccount") {
+    const account = findAccountById(ctx.data.accounts, id);
+    if (!account) return "Рахунок не знайдено.";
+    if (account.id === draft.accountId) return "Обери інший рахунок.";
+    draft.toAccountId = account.id;
+    delete draft.options;
+    await advance(ctx, action, draft);
+    return "";
+  }
   if (step === "category") {
     const category = ctx.data.categories.find((item) => item.id === id);
     if (!category) return "Категорію не знайдено.";
@@ -402,7 +412,7 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
 }
 
 function toFlowAction(value: string): FlowAction | null {
-  const actions: FlowAction[] = ["expense", "income", "work", "savings", "p2p", "cash", "expected", "flip", "manual"];
+  const actions: FlowAction[] = ["expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual"];
   return actions.includes(value as FlowAction) ? (value as FlowAction) : null;
 }
 
@@ -500,6 +510,7 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
     income: "<b>Дохід</b>\nСума? Напр. <code>1500 UAH</code> або <code>300 USDT</code>",
     work: "<b>Робоча витрата</b>\nСума? <code>20</code> — це USDT, або <code>250 грн</code>",
     savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>",
+    transfer: "<b>Переказ</b>\nСума? <code>500</code> — це гривні",
     flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>"
   };
   delete draft.options;
@@ -515,7 +526,7 @@ function supportsDate(action: FlowAction): boolean {
 function stepExtraRows(ctx: Ctx, action: FlowAction, draft: Draft): InlineKeyboardButton[][] {
   const row: InlineKeyboardButton[] = [];
   const account = findAccountById(ctx.data.accounts, draft.accountId);
-  if (account) row.push(changeAccountButton(account.name));
+  if (account) row.push(changeAccountButton(account.name, action === "transfer" ? "Звідки" : "Рахунок"));
   if (supportsDate(action)) row.push(changeDateButton(dateLabel(draft.date || kyivToday())));
   return row.length ? [row] : [];
 }
@@ -538,8 +549,22 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
   }
   draft.options = accounts.map((account) => account.id);
   await saveFlow(ctx.telegramUserId, { action, step: "account", draft });
-  const title = action === "manual" ? "Який рахунок оновити?" : action === "savings" ? "Звідки відкласти?" : "Рахунок?";
+  const title =
+    action === "manual" ? "Який рахунок оновити?" : action === "savings" ? "Звідки відкласти?" : action === "transfer" ? "Звідки переказати?" : "Рахунок?";
   await reply(ctx, title, optionKeyboard(accounts.map((account) => optionLabel(accountLabel(account))), 1));
+}
+
+async function promptToAccount(ctx: Ctx, draft: Draft): Promise<void> {
+  const from = findAccountById(ctx.data.accounts, draft.accountId);
+  const currency: TelegramCurrency = (from?.currency as TelegramCurrency) || draft.currency || "UAH";
+  const accounts = accountsForCurrency(ctx.data.accounts, currency).filter((account) => account.id !== draft.accountId);
+  if (!accounts.length) {
+    await endFlow(ctx, `Немає іншого рахунку ${escapeHtml(currency)}, куди можна переказати.`);
+    return;
+  }
+  draft.options = accounts.map((account) => account.id);
+  await saveFlow(ctx.telegramUserId, { action: "transfer", step: "toAccount", draft });
+  await reply(ctx, "Куди переказати?", optionKeyboard(accounts.map((account) => optionLabel(accountLabel(account))), 1, stepExtraRows(ctx, "transfer", draft)));
 }
 
 async function promptCategory(ctx: Ctx, action: FlowAction, draft: Draft, prefix?: string): Promise<void> {
@@ -597,6 +622,7 @@ async function renderStep(ctx: Ctx, action: FlowAction, step: FlowStep, draft: D
   if (step === "setup") return promptSetup(ctx, draft);
   if (step === "note") return promptNote(ctx, action, draft);
   if (step === "account") return promptAccount(ctx, action, draft);
+  if (step === "toAccount") return promptToAccount(ctx, draft);
   if (step === "amount") return promptAmount(ctx, action, draft);
   if (step === "input") return promptFirstStep(ctx, action, draft);
   return advance(ctx, action, draft);
@@ -636,6 +662,13 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
     return promptNewBalance(ctx, draft);
   }
   if (!draft.amount) return promptAmount(ctx, action, draft);
+
+  if (action === "transfer") {
+    // Both ends are always chosen by hand: transfers go every which way between card and jars.
+    if (!draft.accountId) return promptAccount(ctx, action, draft);
+    if (!draft.toAccountId) return promptToAccount(ctx, draft);
+    return complete(ctx, action, draft);
+  }
 
   if (action === "flip") {
     if (!draft.setup) return promptSetup(ctx, draft);
@@ -684,6 +717,12 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   const categoryId = draft.categoryId ?? null;
   const incomeSourceId = draft.incomeSourceId ?? null;
 
+  if (action === "transfer") {
+    if (!accountId) return promptAccount(ctx, action, draft);
+    if (!draft.toAccountId) return promptToAccount(ctx, draft);
+    await finish(ctx, await submitTransfer(ctx.userId, { amount, fromAccountId: accountId, toAccountId: draft.toAccountId, note, date }, ctx.data));
+    return;
+  }
   if (action === "flip") {
     await finish(ctx, await submitFlip(ctx.userId, { pnl: draft.amount || "0", setup: draft.setup || "", date }));
     return;

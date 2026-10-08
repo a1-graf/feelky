@@ -20,6 +20,7 @@ export const MENU_ITEMS: Array<{ text: string; data: string }> = [
   { text: "Дохід", data: "m:income" },
   { text: "Робоча витрата", data: "m:work" },
   { text: "Відкладення", data: "m:savings" },
+  { text: "Переказ", data: "m:transfer" },
   { text: "P2P-вивід", data: "m:p2p" },
   { text: "Готівка", data: "m:cash" },
   { text: "Очікувані", data: "m:expected" },
@@ -58,8 +59,8 @@ export function cancelButton(): InlineKeyboardButton {
   return { text: "Скасувати", callback_data: CALLBACK.cancel };
 }
 
-export function changeAccountButton(accountName: string): InlineKeyboardButton {
-  return { text: `Рахунок: ${accountName}`, callback_data: CALLBACK.changeAccount };
+export function changeAccountButton(accountName: string, label = "Рахунок"): InlineKeyboardButton {
+  return { text: `${label}: ${accountName}`, callback_data: CALLBACK.changeAccount };
 }
 
 export function changeDateButton(label: string): InlineKeyboardButton {

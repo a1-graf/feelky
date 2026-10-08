@@ -20,6 +20,7 @@ export class LedgerService {
     provider?: string | null;
     note?: string | null;
     parentAccountId?: string | null;
+    isReserved?: boolean;
   }) {
     const initial = D(input.initialBalance || 0);
     return this.db.account.create({
@@ -32,8 +33,45 @@ export class LedgerService {
         initialBalance: initial.toString(),
         currentBalance: initial.toString(),
         note: input.note,
-        parentAccountId: input.parentAccountId
+        parentAccountId: input.parentAccountId,
+        isReserved: input.isReserved ?? false
       }
+    });
+  }
+
+  /**
+   * Moves money between two of the user's own accounts in the same currency - a card and a
+   * Monobank jar, two jars. Neither income nor spending, so it never touches the month totals.
+   */
+  async createTransfer(userId: string, input: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: Decimal.Value;
+    transactionDate: Date;
+    note?: string | null;
+  }) {
+    if (input.fromAccountId === input.toAccountId) throw new Error("Обери два різні рахунки");
+    return this.db.$transaction(async (tx) => {
+      const from = await this.requireAccount(tx, userId, input.fromAccountId);
+      const to = await this.requireAccount(tx, userId, input.toAccountId);
+      if (from.currency !== to.currency) throw new Error(`Переказ можливий лише в одній валюті: ${from.currency} ≠ ${to.currency}`);
+      const amount = roundCurrency(input.amount, from.currency as CurrencyCode);
+      if (amount.lte(0)) throw new Error("Сума має бути більшою за нуль");
+      await this.adjustAccount(tx, userId, from.id, amount.negated(), false);
+      await this.adjustAccount(tx, userId, to.id, amount, false);
+      return tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.TRANSFER,
+          amount: amount.toString(),
+          currency: from.currency,
+          sourceAccountId: from.id,
+          destinationAccountId: to.id,
+          note: input.note,
+          transactionDate: input.transactionDate,
+          metadata: { isTransfer: true }
+        }
+      });
     });
   }
 

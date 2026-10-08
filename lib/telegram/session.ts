@@ -14,14 +14,17 @@ export type FlowAction =
   | "cash"
   | "expected"
   | "flip"
-  | "manual";
+  | "manual"
+  | "transfer";
 
-export type FlowStep = "amount" | "account" | "category" | "source" | "setup" | "date" | "note" | "input" | "balance";
+export type FlowStep = "amount" | "account" | "toAccount" | "category" | "source" | "setup" | "date" | "note" | "input" | "balance";
 
 export type Draft = {
   amount?: string;
   currency?: TelegramCurrency;
   accountId?: string;
+  /** Destination of a transfer between the user's own accounts. */
+  toAccountId?: string;
   categoryId?: string;
   incomeSourceId?: string;
   /** Flip setup picked from the buttons. */

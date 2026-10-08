@@ -23,6 +23,12 @@ enum AccountType {
   CASH
   CRYPTO_WALLET
   OTHER
+  BROKER
+}
+
+enum FxSide {
+  BUY
+  SELL
 }
 
 enum TransactionType {
@@ -111,6 +117,7 @@ model User {
   steamExpenseAllocations   SteamExpenseAllocation[]
   flips                     Flip[]
   telegramSessions          TelegramSession[]
+  fxTrades                  FxTrade[]
 }
 
 model Account {
@@ -125,6 +132,8 @@ model Account {
   note                               String?
   parentAccountId                    String?
   isActive                           Boolean                  @default(true)
+  /// Set aside (savings, tithe): counted in the full bank but never as available money.
+  isReserved                         Boolean                  @default(false)
   createdAt                          DateTime                 @default(now())
   updatedAt                          DateTime                 @updatedAt
   user                               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -140,6 +149,7 @@ model Account {
   steamArbitrageRoundSources         SteamArbitrageRound[]    @relation("SteamArbitrageRoundSourceAccount")
   steamArbitrageRoundDestinations    SteamArbitrageRound[]    @relation("SteamArbitrageRoundDestinationAccount")
   steamArbitrageResidualDestinations SteamArbitrageResidual[] @relation("SteamArbitrageResidualDestinationAccount")
+  fxTrades                           FxTrade[]
 
   @@index([userId, type])
   @@index([userId, currency])
@@ -520,4 +530,34 @@ model TelegramUpdate {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// A closed forex trade. Its net `pnl` is posted to the broker account, like a flip is to the wallet.
+model FxTrade {
+  id         String    @id @default(cuid())
+  userId     String
+  accountId  String
+  /// Broker ticket or any id the agent sends, so a resent trade is never recorded twice.
+  externalId String?
+  instrument String
+  side       FxSide
+  lots       Decimal?  @db.Decimal(18, 6)
+  openPrice  Decimal?  @db.Decimal(18, 8)
+  closePrice Decimal?  @db.Decimal(18, 8)
+  openedAt   DateTime?
+  closedAt   DateTime
+  /// Net result after commission and swap, in the broker account currency.
+  pnl        Decimal   @db.Decimal(18, 6)
+  commission Decimal?  @db.Decimal(18, 6)
+  swap       Decimal?  @db.Decimal(18, 6)
+  setup      String?
+  note       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account    Account   @relation(fields: [accountId], references: [id])
+
+  @@unique([userId, externalId])
+  @@index([userId, closedAt])
+  @@index([userId, instrument])
 }

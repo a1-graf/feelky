@@ -72,7 +72,9 @@ export async function agentSummary(userId: string, month?: string | null) {
       name: account.name,
       type: account.type,
       currency: account.currency,
-      balance: account.currentBalance.toString()
+      balance: account.currentBalance.toString(),
+      // Set aside (savings, tithe): part of the full bank, never of available money.
+      isReserved: account.isReserved
     })),
     totals: {
       availableBankUsdt: data.totals.availableBankUsdt,
@@ -84,6 +86,7 @@ export async function agentSummary(userId: string, month?: string | null) {
       cashUah: data.totals.cashUah,
       cashUsd: data.totals.cashUsd,
       savingsUah: data.totals.savingsUah,
+      brokerUsdt: data.totals.brokerUsdt,
       cryptoUsdt: data.totals.cryptoTotal,
       frozenTotalUsdt: data.totals.frozenTotalUsdt,
       netPnlUsdt: data.totals.netPnlUsdt,

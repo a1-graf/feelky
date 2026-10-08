@@ -16,7 +16,7 @@ const expectedLabels: Array<[ExpectedMoneyStatus, string]> = [
   [ExpectedMoneyStatus.SCAMMED, "Скам"]
 ];
 
-async function ensureAccount(userId: string, input: { idSuffix: string; name: string; type: AccountType; currency: "UAH" | "USDT" | "USD"; provider?: string }) {
+async function ensureAccount(userId: string, input: { idSuffix: string; name: string; type: AccountType; currency: "UAH" | "USDT" | "USD"; provider?: string; isReserved?: boolean }) {
   const id = `${userId}-${input.idSuffix}`;
   return prisma.account.upsert({
     where: { id },
@@ -28,6 +28,7 @@ async function ensureAccount(userId: string, input: { idSuffix: string; name: st
       type: input.type,
       currency: input.currency,
       provider: input.provider || null,
+      isReserved: input.isReserved ?? false,
       initialBalance: "0",
       currentBalance: "0"
     }
@@ -54,7 +55,7 @@ export async function ensureUserDefaults(userId: string) {
     (await ensureAccount(userId, { idSuffix: "main-card", name: "Мейн картка", type: AccountType.BANK_CARD, currency: "UAH", provider: "Bank" }));
   await ensureAccount(userId, { idSuffix: "cash-uah", name: "Cash UAH", type: AccountType.CASH, currency: "UAH", provider: "Cash" });
   await ensureAccount(userId, { idSuffix: "cash-usd", name: "Cash USD", type: AccountType.CASH, currency: "USD", provider: "Cash" });
-  await ensureAccount(userId, { idSuffix: "savings-uah", name: SAVINGS_ACCOUNT_NAME, type: AccountType.OTHER, currency: "UAH", provider: "Feelky" });
+  await ensureAccount(userId, { idSuffix: "savings-uah", name: SAVINGS_ACCOUNT_NAME, type: AccountType.OTHER, currency: "UAH", provider: "Feelky", isReserved: true });
 
   await Promise.all([
     ...(existingCategoryCount === 0

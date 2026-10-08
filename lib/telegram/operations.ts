@@ -45,7 +45,7 @@ export function accountsForCurrency(accounts: Account[], currency: TelegramCurre
 }
 
 export function savingsSourceAccounts(accounts: Account[]): Account[] {
-  return accounts.filter((account) => account.currency === "UAH" && account.name !== SAVINGS_ACCOUNT_NAME);
+  return accounts.filter((account) => account.currency === "UAH" && !account.isReserved);
 }
 
 export function findAccountById(accounts: Account[], id: string | null | undefined): Account | null {
@@ -58,8 +58,9 @@ export function accountLabel(account: Account): string {
 }
 
 /** Default expense account: settings default, then the last one used from Telegram, then any account of that currency. */
+/** Set-aside accounts are never picked automatically - spending from a jar is always an explicit choice. */
 export function pickExpenseAccount(data: ReferenceData, session: TelegramSession, currency: TelegramCurrency): Account | null {
-  const candidates = accountsForCurrency(data.accounts, currency);
+  const candidates = accountsForCurrency(data.accounts, currency).filter((account) => !account.isReserved);
   if (!candidates.length) return null;
   const preferred = [data.settings?.expenseDefaultSourceId, session.lastExpenseAccountId];
   if (currency === "USDT") preferred.unshift(data.settings?.p2pSourceAccountId ?? null);
@@ -72,7 +73,7 @@ export function pickExpenseAccount(data: ReferenceData, session: TelegramSession
 
 /** Income accounts are remembered per currency, as asked. */
 export function pickIncomeAccount(data: ReferenceData, session: TelegramSession, currency: TelegramCurrency): Account | null {
-  const candidates = accountsForCurrency(data.accounts, currency);
+  const candidates = accountsForCurrency(data.accounts, currency).filter((account) => !account.isReserved);
   if (!candidates.length) return null;
   const remembered = candidates.find((item) => item.id === readLastIncomeAccount(session, currency));
   if (remembered) return remembered;
@@ -186,6 +187,30 @@ export async function submitIncome(userId: string, input: IncomeInput, data: Ref
       ["Сума", formatAmount(transaction.amount.toString(), transaction.currency)],
       ["Джерело", incomeSource?.name],
       ["Рахунок", account?.name],
+      ["Примітка", noteText(input.note)],
+      ["Дата", formatKyivDateTime(transaction.transactionDate)]
+    ]),
+    undo: { kind: "tx", id: transaction.id }
+  };
+}
+
+export async function submitTransfer(
+  userId: string,
+  input: { amount: string; fromAccountId: string; toAccountId: string; note: string | null; date?: Date },
+  data: ReferenceData
+): Promise<OperationResult> {
+  const transaction = await ledger.createTransfer(userId, {
+    fromAccountId: input.fromAccountId,
+    toAccountId: input.toAccountId,
+    amount: input.amount,
+    transactionDate: input.date ?? kyivNow(),
+    note: input.note
+  });
+  return {
+    text: confirmation("Переказ", [
+      ["Сума", formatAmount(transaction.amount.toString(), transaction.currency)],
+      ["Звідки", findAccountById(data.accounts, input.fromAccountId)?.name],
+      ["Куди", findAccountById(data.accounts, input.toAccountId)?.name],
       ["Примітка", noteText(input.note)],
       ["Дата", formatKyivDateTime(transaction.transactionDate)]
     ]),

@@ -51,3 +51,10 @@ export function isFlipLedgerTransaction(transaction: {
   const metadata = transaction.metadata;
   return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).source === "FLIP_PNL");
 }
+
+export function isFxLedgerTransaction(transaction: {
+  metadata?: unknown;
+}) {
+  const metadata = transaction.metadata;
+  return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).source === "FX_PNL");
+}

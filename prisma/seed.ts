@@ -37,7 +37,8 @@ async function main() {
         currency: item.currency,
         provider: item.provider,
         initialBalance: item.initialBalance,
-        currentBalance: item.initialBalance
+        currentBalance: item.initialBalance,
+        isReserved: item.name === SAVINGS_ACCOUNT_NAME
       }
     }));
   }

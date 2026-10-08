@@ -5,7 +5,6 @@ import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
-import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 type DashboardPeriod = {
   month?: string;
@@ -131,11 +130,16 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     frozenByAccount.set(frozen.accountId, D(frozenByAccount.get(frozen.accountId) || 0).plus(frozen.amount));
   }
 
+  // Set-aside accounts (savings, a tithe jar) are in the full bank but never in available money,
+  // whatever their type - so they are taken out before cards, cash and crypto are summed.
+  const reservedAccounts = accounts.filter((account) => account.isReserved);
+  const reservedIds = new Set(reservedAccounts.map((account) => account.id));
+  const spendable = accounts.filter((account) => !account.isReserved);
   const cryptoTypes: AccountType[] = [AccountType.EXCHANGE, AccountType.EXCHANGE_SUBACCOUNT, AccountType.CRYPTO_WALLET];
-  const cryptoAccounts = accounts.filter((account) => cryptoTypes.includes(account.type));
-  const bankCards = accounts.filter((account) => account.type === AccountType.BANK_CARD);
-  const cashAccounts = accounts.filter((account) => account.type === AccountType.CASH);
-  const savingsAccount = accounts.find((account) => account.name === SAVINGS_ACCOUNT_NAME && account.currency === "UAH");
+  const cryptoAccounts = spendable.filter((account) => cryptoTypes.includes(account.type));
+  const bankCards = spendable.filter((account) => account.type === AccountType.BANK_CARD);
+  const cashAccounts = spendable.filter((account) => account.type === AccountType.CASH);
+  const brokerAccounts = spendable.filter((account) => account.type === AccountType.BROKER);
 
   const cryptoTotal = cryptoAccounts.reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const frozenCrypto = frozenFunds.filter((fund) => fund.currency === "USDT").reduce((sum, fund) => sum.plus(fund.amount), new Decimal(0));
@@ -143,9 +147,19 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const cardUah = bankCards.filter((account) => account.currency === "UAH").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const cashUah = cashAccounts.filter((account) => account.currency === "UAH").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const cashUsd = cashAccounts.filter((account) => account.currency === "USD").reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
-  const savingsUah = D(savingsAccount?.currentBalance || 0);
+  const savingsUah = reservedAccounts
+    .filter((account) => account.currency === "UAH")
+    .reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
+  const reservedForeignUsdt = reservedAccounts
+    .filter((account) => account.currency !== "UAH")
+    .reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
+  // Money sitting at a broker is trading capital: part of the full bank, like Steam turnover.
+  const brokerUsdt = brokerAccounts.reduce(
+    (sum, account) => sum.plus(account.currency === "UAH" ? D(account.currentBalance).div(rate) : account.currentBalance),
+    new Decimal(0)
+  );
   const uahAsUsdt = cardUah.plus(cashUah).div(rate);
-  const savingsAsUsdt = savingsUah.div(rate);
+  const savingsAsUsdt = savingsUah.div(rate).plus(reservedForeignUsdt);
   const cashUsdAsUsdt = cashUsd;
   const availableBankUsdt = availableCrypto.plus(uahAsUsdt).plus(cashUsdAsUsdt);
   const potentialExpected = expectedMoney.reduce((sum, item) => {
@@ -154,8 +168,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   }, new Decimal(0));
   const frozenTotalUsdt = frozenCrypto.plus(potentialExpected);
   const steamFrozenCapital = D(steam.totals.frozenCapital);
-  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital);
-  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital);
+  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt);
+  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt);
 
   const monthIncome = periodTransactions
     .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
@@ -315,8 +329,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
   for (const transaction of balanceTransactions) {
     const amount = asUsdt(transaction.amount, transaction.currency);
-    const comesFromSavings = Boolean(savingsAccount && transaction.sourceAccountId === savingsAccount.id);
-    const goesToSavings = Boolean(savingsAccount && transaction.destinationAccountId === savingsAccount.id);
+    const comesFromSavings = Boolean(transaction.sourceAccountId && reservedIds.has(transaction.sourceAccountId));
+    const goesToSavings = Boolean(transaction.destinationAccountId && reservedIds.has(transaction.destinationAccountId));
     if (transaction.type === TransactionType.INCOME) {
       balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
     } else if (transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) {
@@ -409,6 +423,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       cashUah: cashUah.toString(),
       cashUsd: cashUsd.toString(),
       savingsUah: savingsUah.toString(),
+      brokerUsdt: brokerUsdt.toString(),
       availableBankUsdt: availableBankUsdt.toString(),
       potentialBankUsdt: potentialBankUsdt.toString(),
       monthIncomeUsdt: monthIncome.toString(),

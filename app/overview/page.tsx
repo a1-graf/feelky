@@ -16,6 +16,7 @@ const financeLinks = [
   { href: "/expected", label: "Заморожені" },
   { href: "/savings", label: "Відкладення" },
   { href: "/flips", label: "Фліпи" },
+  { href: "/fx", label: "FX" },
   { href: "/steam", label: "Steam" }
 ];
 
