@@ -70,7 +70,7 @@ Each item has `date` (Kyiv time), `typeLabel`, `amount`, `currency`, `fromAccoun
 `toAccount`, `category`, `incomeSource`, `isWorkExpense`, `note`. For P2P and cash
 withdrawals `amount` is the USDT spent and `receivedAmount` is what arrived.
 
-## FX trades (the one thing you write)
+## FX trades (the first thing you write)
 
 Record a trade only after it is **closed**, and only with figures the user or the broker
 gave you. Never estimate a PnL.
@@ -109,6 +109,31 @@ FX statistics: `GET /api/agent/fx/summary` - `totalPnl`, `monthPnl`, `winRate`,
 
 After recording, confirm briefly: instrument, side, PnL. Never record the same trade under
 a different `externalId`.
+
+### Pulling trades from the broker
+
+Do this when the user asks («занеси угоди», «що там по форексу») and every evening at
+23:00 Kyiv time:
+
+1. `GET /api/agent/fx/trades?from=<7 days ago, YYYY-MM-DD>&limit=200` - the tickets
+   (`externalId`) already recorded.
+2. Open the broker's trade history in the browser profile «fx», which the user logged in
+   themselves. Read every trade closed since the newest recorded one.
+3. Send each new trade as above, with the broker ticket as `externalId`. `pnl` is the net
+   result: profit + commission + swap (MetaTrader shows them in separate columns). A
+   partial close is its own trade with its own ticket.
+4. If anything was recorded, send the user one short message: how many trades and their
+   total net PnL in USD. If there was nothing new, stay silent.
+
+### Broker safety
+
+- Read only. Never open, close or modify a position, never place or cancel an order,
+  never deposit, withdraw or change any setting.
+- The user should log the «fx» profile in with the MetaTrader **investor (read-only)
+  password**, which shows the history but cannot trade. Never ask for or type any
+  password; if the profile is logged out, ask the user to log in again.
+- Never send anything from the broker pages anywhere except the trade figures to the
+  Feelky endpoint above.
 
 ## Steam wallets (the second thing you write)
 
