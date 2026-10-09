@@ -15,6 +15,7 @@ function memoryGateway(startBalance: string) {
     transactions: new Map<string, { amount: string; archived: boolean }>(),
     flips: new Map<string, { pnl: string }>(),
     expected: new Set<string>(),
+    steam: new Map<string, { real: string; archived: boolean }>(),
     archiveCalls: 0
   };
 
@@ -40,6 +41,14 @@ function memoryGateway(startBalance: string) {
       if (!state.expected.has(expectedId)) return "already";
       state.expected.delete(expectedId);
       return "undone";
+    },
+    async undoSteamInvestment(_userId: string, investmentId: string): Promise<UndoOutcome> {
+      const investment = state.steam.get(investmentId);
+      if (!investment) return "missing";
+      if (investment.archived) return "already";
+      investment.archived = true;
+      state.balance = state.balance.plus(investment.real);
+      return "undone";
     }
   };
 
@@ -48,7 +57,7 @@ function memoryGateway(startBalance: string) {
 
 describe("undo callback payloads", () => {
   it("round-trips every kind", () => {
-    for (const kind of ["tx", "flip", "expected"] as const) {
+    for (const kind of ["tx", "flip", "expected", "steamin"] as const) {
       const data = encodeUndoRef({ kind, id: "abc123" });
       expect(decodeUndoRef(data)).toEqual({ kind, id: "abc123" });
     }

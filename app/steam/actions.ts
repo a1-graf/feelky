@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { steamArbitrage, steamResale } from "@/lib/steam";
 import { requireUserId } from "@/lib/session";
+import { recordSteamBalance } from "@/lib/steam-wallets";
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -78,11 +79,11 @@ export async function addSteamResaleInvestmentAmountAction(formData: FormData) {
 
 export async function createSteamSnapshotAction(formData: FormData) {
   const userId = await requireUserId();
-  await steamResale.createSnapshot(userId, {
+  // "Now", like the agent's snapshots, so a manual update is never older than the last automatic one.
+  await recordSteamBalance(userId, {
     resaleAccountId: required(formData, "resaleAccountId"),
-    balance: required(formData, "balance"),
-    snapshotDate: dateValue(formData, "snapshotDate"),
-    note: text(formData, "note")
+    balance: required(formData, "balance").replace(/\s/g, "").replace(",", "."),
+    observedAt: new Date()
   });
   revalidatePath("/steam");
 }

@@ -15,9 +15,25 @@ export type FlowAction =
   | "expected"
   | "flip"
   | "manual"
-  | "transfer";
+  | "transfer"
+  /** A завоз into Steam: real USDT in, Steam dollars out. */
+  | "steamin"
+  /** A Steam wallet balance typed by hand. */
+  | "steambal";
 
-export type FlowStep = "amount" | "account" | "toAccount" | "category" | "source" | "setup" | "date" | "note" | "input" | "balance";
+export type FlowStep =
+  | "amount"
+  | "account"
+  | "toAccount"
+  | "category"
+  | "source"
+  | "setup"
+  | "date"
+  | "note"
+  | "input"
+  | "balance"
+  | "steam"
+  | "received";
 
 export type Draft = {
   amount?: string;
@@ -27,6 +43,10 @@ export type Draft = {
   toAccountId?: string;
   categoryId?: string;
   incomeSourceId?: string;
+  /** Steam account (resale account) of a завоз or a balance update. */
+  steamAccountId?: string;
+  /** What arrived on Steam for a завоз, in dollars. */
+  received?: string;
   /** Flip setup picked from the buttons. */
   setup?: string;
   /** Backdating: `YYYY-MM-DD` in the Kyiv calendar, empty means today. */

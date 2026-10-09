@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { createFlipWithLedger, undoFlipWithLedger } from "@/lib/flips";
 import { ledger } from "@/lib/ledger";
 import { D } from "@/lib/money";
+import { steamResale } from "@/lib/steam";
+import { recordSteamBalance, steamWallets, TELEGRAM_SNAPSHOT_NOTE, undoSteamInvestment } from "@/lib/steam-wallets";
 import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 import { escapeHtml, formatAmount, formatKyivDateTime, kyivNow, truncate } from "@/lib/telegram/format";
 import type { TelegramCurrency } from "@/lib/telegram/parse";
@@ -399,6 +401,92 @@ export async function formatBalances(userId: string): Promise<string> {
 }
 
 /** Everything the undo button touches. Each branch is safe to run twice. */
+function bonusText(real: string, received: string): string | null {
+  const invested = D(real);
+  if (invested.lte(0) || D(received).lte(0)) return null;
+  const percent = D(received).minus(invested).div(invested).mul(100).toDecimalPlaces(1);
+  return `${percent.gt(0) ? "+" : ""}${percent.toString()}%`;
+}
+
+const steamTimeFormatter = new Intl.DateTimeFormat("uk-UA", {
+  timeZone: "Europe/Kyiv",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit"
+});
+
+/** The Steam screen of the bot: per wallet what sits there now and what was brought in. */
+export async function formatSteamSummary(userId: string): Promise<string> {
+  const { wallets, totals } = await steamWallets(userId, { historyDays: 0 });
+  if (!wallets.length) return "<b>Steam</b>\nЩе немає Steam акаунтів. Додай їх на сайті: Steam → Перепродаж → Steam акаунти.";
+  const lines = ["<b>Steam</b>"];
+  for (const wallet of wallets) {
+    const bonus = bonusText(wallet.investedReal, wallet.receivedSteam);
+    lines.push("");
+    lines.push(`<b>${escapeHtml(wallet.name)}</b> — ${escapeHtml(formatAmount(wallet.balance, "USD"))} зараз`);
+    if (D(wallet.investedReal).gt(0)) {
+      lines.push(`завезено ${escapeHtml(formatAmount(wallet.investedReal, "USDT"))} → зайшло ${escapeHtml(formatAmount(wallet.receivedSteam, "USD"))}${bonus ? ` (${bonus})` : ""}`);
+    }
+    lines.push(wallet.updatedAt ? `оновлено ${steamTimeFormatter.format(wallet.updatedAt)} · ${escapeHtml(wallet.updatedBy || "")}` : "баланс ще не оновлювали");
+  }
+  if (wallets.length > 1) {
+    lines.push("");
+    lines.push(`Разом на Steam: <b>${escapeHtml(formatAmount(totals.balance, "USD"))}</b>, завезено ${escapeHtml(formatAmount(totals.investedReal, "USDT"))}`);
+  }
+  return lines.join("\n");
+}
+
+export async function submitSteamInvestment(
+  userId: string,
+  input: { resaleAccountId: string; sourceAccountId: string; amount: string; received: string; date?: Date },
+  data: ReferenceData
+): Promise<OperationResult> {
+  const source = findAccountById(data.accounts, input.sourceAccountId);
+  if (!source) throw new Error("Рахунок не знайдено.");
+  // The Steam module refuses an overdraft in English; say it the bot's way first.
+  if (D(source.currentBalance).lt(input.amount)) throw new Error(`Недостатньо коштів на ${source.name}.`);
+  const investment = await steamResale.createInvestment(userId, {
+    resaleAccountId: input.resaleAccountId,
+    sourceAccountId: input.sourceAccountId,
+    externalAmount: input.amount,
+    receivedSteamAmount: input.received,
+    startedAt: input.date ?? kyivNow(),
+    // Nothing arrived yet: the amount is filled in on the site once it does.
+    completedAt: D(input.received).gt(0) ? input.date ?? kyivNow() : null
+  });
+  const wallet = await prisma.steamResaleAccount.findFirst({ where: { id: input.resaleAccountId, userId }, select: { name: true, currentSoftwareBalance: true } });
+  const bonus = bonusText(investment.externalAmount.toString(), investment.receivedSteamAmount.toString());
+  return {
+    text: confirmation("Завоз у Steam", [
+      ["Steam", wallet?.name],
+      ["Вкинув", formatAmount(investment.externalAmount.toString(), "USDT")],
+      ["Звідки", source.name],
+      ["Зайшло на Steam", D(investment.receivedSteamAmount).gt(0) ? `${formatAmount(investment.receivedSteamAmount.toString(), "USD")}${bonus ? ` (${bonus})` : ""}` : "ще не зайшло, впишеш на сайті"],
+      ["Зараз на Steam", wallet ? formatAmount(wallet.currentSoftwareBalance.toString(), "USD") : null],
+      ["Дата", formatKyivDateTime(investment.startedAt)]
+    ]),
+    undo: { kind: "steamin", id: investment.id }
+  };
+}
+
+export async function submitSteamBalance(userId: string, input: { resaleAccountId: string; balance: string }): Promise<OperationResult> {
+  const result = await recordSteamBalance(userId, {
+    resaleAccountId: input.resaleAccountId,
+    balance: input.balance,
+    observedAt: new Date(),
+    note: TELEGRAM_SNAPSHOT_NOTE
+  });
+  const change = D(result.currentBalance).minus(result.previousBalance);
+  return {
+    text: confirmation("Баланс Steam оновлено", [
+      ["Steam", result.accountName],
+      ["Було", formatAmount(result.previousBalance, "USD")],
+      ["Стало", `${formatAmount(result.currentBalance, "USD")}${change.isZero() ? "" : ` (${change.gt(0) ? "+" : "-"}${formatAmount(change.abs(), "USD")})`}`]
+    ])
+  };
+}
+
 export const prismaUndoGateway: UndoGateway = {
   async archiveTransaction(userId: string, transactionId: string): Promise<UndoOutcome> {
     const existing = await prisma.transaction.findFirst({ where: { id: transactionId, userId }, select: { archivedAt: true } });
@@ -418,5 +506,8 @@ export const prismaUndoGateway: UndoGateway = {
     if (removed.count > 0) return "undone";
     const stillThere = await prisma.expectedMoney.findFirst({ where: { id: expectedMoneyId, userId }, select: { id: true } });
     return stillThere ? "failed" : "already";
+  },
+  async undoSteamInvestment(userId: string, investmentId: string): Promise<UndoOutcome> {
+    return undoSteamInvestment(userId, investmentId);
   }
 };

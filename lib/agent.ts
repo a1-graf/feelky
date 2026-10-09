@@ -3,11 +3,13 @@ import { getDashboard } from "@/lib/dashboard";
 import { bearerToken, kyivStamp, TYPE_LABELS } from "@/lib/agent-query";
 import type { TransactionQuery } from "@/lib/agent-query";
 import { isValidSecretToken } from "@/lib/telegram/security";
+import { steamWallets } from "@/lib/steam-wallets";
 import { isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
 /**
- * Read-only access for an external AI agent (OpenClaw). It never writes: the routes built on
- * this module only export GET, and every figure is computed by the same code the site uses.
+ * Access for an external AI agent (OpenClaw). Everything here is read-only and computed by the
+ * same code the site uses; the agent's only writes are FX trades and Steam wallet balances,
+ * each in its own route.
  */
 
 export type AgentAuth =
@@ -64,7 +66,7 @@ export async function agentTransactions(userId: string, query: TransactionQuery)
 }
 
 export async function agentSummary(userId: string, month?: string | null) {
-  const data = await getDashboard(userId, { month: month || undefined });
+  const [data, steam] = await Promise.all([getDashboard(userId, { month: month || undefined }), steamWallets(userId, { historyDays: 1 })]);
   return {
     period: { month: data.period.month, label: data.period.label, range: data.period.rangeLabel, isCurrentMonth: data.period.isCurrentMonth },
     rate: { uahPerUsdt: data.rate, source: data.rateSource },
@@ -103,6 +105,18 @@ export async function agentSummary(userId: string, month?: string | null) {
       count: data.flips.count,
       winRatePercent: data.flips.winRate,
       bySetup: data.flips.setups
+    },
+    // Steam money is in dollars and is not part of the bank totals: the bank counts the real money put in.
+    steam: {
+      inTurnoverUsdt: data.steam.frozenCapital,
+      wallets: steam.wallets.map((wallet) => ({
+        name: wallet.name,
+        balanceUsd: wallet.balance,
+        investedRealUsdt: wallet.investedReal,
+        receivedSteamUsd: wallet.receivedSteam,
+        bonusPercent: wallet.bonusPercent,
+        updatedAt: wallet.updatedAt ? kyivStamp(wallet.updatedAt) : null
+      }))
     },
     expectedMoney: data.expectedMoney.map((item) => ({
       title: item.title,

@@ -5,7 +5,7 @@ import { z } from "zod";
  * number is accepted but converted, never used for arithmetic.
  */
 
-const decimalString = z.preprocess(
+export const decimalString = z.preprocess(
   (value) => (typeof value === "number" ? String(value) : typeof value === "string" ? value.trim().replace(/\s/g, "").replace(",", ".") : value),
   z.string().regex(/^-?\d+(\.\d+)?$/, "Очікується число")
 );

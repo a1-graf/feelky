@@ -7,6 +7,8 @@ export const CALLBACK = {
   menu: "m",
   option: "o",
   skipNote: "n:skip",
+  /** A завоз whose Steam money has not arrived yet. */
+  notArrived: "n:pending",
   changeAccount: "o:acc",
   changeDate: "o:date",
   today: "o:today",
@@ -25,6 +27,7 @@ export const MENU_ITEMS: Array<{ text: string; data: string }> = [
   { text: "Готівка", data: "m:cash" },
   { text: "Очікувані", data: "m:expected" },
   { text: "Фліп", data: "m:flip" },
+  { text: "Steam", data: "m:steam" },
   { text: "Баланс рахунку", data: "m:manual" },
   { text: "Баланси", data: "m:balance" },
   { text: "Скасувати дію", data: "m:cancel" }

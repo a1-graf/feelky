@@ -7,6 +7,8 @@ import {
   editMessageText,
   sendMessage
 } from "@/lib/telegram/api";
+import { findSteamAccount, listSteamAccounts } from "@/lib/steam-wallets";
+import { resolveReceivedAmount } from "@/lib/steam-wallet-math";
 import { BOT_COMMANDS, parseCommand } from "@/lib/telegram/commands";
 import type { TelegramConfig } from "@/lib/telegram/config";
 import { dateLabel, kyivToday, parseTypedDate, resolveTransactionDate } from "@/lib/telegram/dates";
@@ -41,6 +43,7 @@ import {
   findCategory,
   findIncomeSource,
   formatBalances,
+  formatSteamSummary,
   loadFlipSetups,
   loadReferenceData,
   pickExpenseAccount,
@@ -56,6 +59,8 @@ import {
   submitManualAdjustment,
   submitP2P,
   submitSavings,
+  submitSteamBalance,
+  submitSteamInvestment,
   submitTransfer
 } from "@/lib/telegram/operations";
 import type { OperationResult, ReferenceData } from "@/lib/telegram/operations";
@@ -316,6 +321,14 @@ async function routeCallback(ctx: Ctx, callback: TelegramCallbackQuery, data: st
     return "";
   }
 
+  if (data === CALLBACK.notArrived) {
+    if (ctx.session.action !== "steamin" || ctx.session.step !== "received") return "Дія вже неактуальна.";
+    const draft = readDraft(ctx.session);
+    draft.received = "0";
+    await advance(ctx, "steamin", draft);
+    return "";
+  }
+
   if (data === CALLBACK.skipNote) {
     const action = ctx.session.action as FlowAction | null;
     if (!action || ctx.session.step !== "note") return "Дія вже неактуальна.";
@@ -376,6 +389,15 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
     await advance(ctx, action, draft);
     return "";
   }
+  if (step === "steam") {
+    // Like accounts: the index only points into the stored list, ownership is checked again.
+    const wallet = await findSteamAccount(ctx.userId, id);
+    if (!wallet || wallet.id !== id) return "Steam акаунт не знайдено.";
+    draft.steamAccountId = wallet.id;
+    delete draft.options;
+    await advance(ctx, action, draft);
+    return "";
+  }
   if (step === "setup") {
     draft.setup = id;
     delete draft.options;
@@ -400,6 +422,10 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
     await sendNew(ctx, await formatBalances(ctx.userId));
     return;
   }
+  if (action === "steam") {
+    await sendSteamSummary(ctx);
+    return;
+  }
   const flow = toFlowAction(action);
   if (!flow) {
     await sendNew(ctx, menuText(), mainReplyKeyboard());
@@ -412,7 +438,7 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
 }
 
 function toFlowAction(value: string): FlowAction | null {
-  const actions: FlowAction[] = ["expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual"];
+  const actions: FlowAction[] = ["expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual", "steamin", "steambal"];
   return actions.includes(value as FlowAction) ? (value as FlowAction) : null;
 }
 
@@ -435,6 +461,10 @@ async function handleCommand(ctx: Ctx, command: string, args: string): Promise<v
     await sendNew(ctx, await formatBalances(ctx.userId));
     return;
   }
+  if (command === "steam") {
+    await sendSteamSummary(ctx);
+    return;
+  }
   const flow = toFlowAction(command);
   if (!flow) {
     await reply(ctx, "Невідома команда. Відкрий /menu або /help.", menuKeyboard());
@@ -454,8 +484,18 @@ async function startFlow(ctx: Ctx, action: FlowAction, args = ""): Promise<void>
   await promptFirstStep(ctx, action, draft);
 }
 
+async function sendSteamSummary(ctx: Ctx): Promise<void> {
+  await sendNew(ctx, await formatSteamSummary(ctx.userId), {
+    inline_keyboard: [[
+      { text: "Завоз", callback_data: "m:steamin" },
+      { text: "Оновити баланс", callback_data: "m:steambal" }
+    ]]
+  });
+}
+
 function firstStep(action: FlowAction): FlowStep {
   if (action === "manual") return "account";
+  if (action === "steambal") return "steam";
   if (action === "p2p" || action === "cash" || action === "expected") return "input";
   return "amount";
 }
@@ -472,6 +512,10 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
   await saveFlow(ctx.telegramUserId, { action, step: firstStep(action), draft });
   if (action === "manual") {
     await promptAccount(ctx, action, draft);
+    return;
+  }
+  if (action === "steambal") {
+    await advance(ctx, action, draft);
     return;
   }
   if (action === "p2p") {
@@ -500,7 +544,7 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
 /** Currency assumed when the user types a bare number: work is paid out of USDT, the rest is UAH. */
 function defaultCurrency(action: FlowAction): TelegramCurrency {
   if (action === "savings") return "UAH";
-  if (action === "work") return "USDT";
+  if (action === "work" || action === "steamin") return "USDT";
   return "UAH";
 }
 
@@ -511,7 +555,8 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
     work: "<b>Робоча витрата</b>\nСума? <code>20</code> — це USDT, або <code>250 грн</code>",
     savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>",
     transfer: "<b>Переказ</b>\nСума? <code>500</code> — це гривні",
-    flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>"
+    flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>",
+    steamin: "<b>Завоз у Steam</b>\nСкільки реальних грошей вкинув? <code>600</code> — це USDT"
   };
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "amount", draft });
@@ -520,13 +565,13 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
 
 /** ExpectedMoney and manual balance corrections are always "now", so they get no date button. */
 function supportsDate(action: FlowAction): boolean {
-  return action !== "expected" && action !== "manual";
+  return action !== "expected" && action !== "manual" && action !== "steambal";
 }
 
 function stepExtraRows(ctx: Ctx, action: FlowAction, draft: Draft): InlineKeyboardButton[][] {
   const row: InlineKeyboardButton[] = [];
   const account = findAccountById(ctx.data.accounts, draft.accountId);
-  if (account) row.push(changeAccountButton(account.name, action === "transfer" ? "Звідки" : "Рахунок"));
+  if (account) row.push(changeAccountButton(account.name, action === "transfer" || action === "steamin" ? "Звідки" : "Рахунок"));
   if (supportsDate(action)) row.push(changeDateButton(dateLabel(draft.date || kyivToday())));
   return row.length ? [row] : [];
 }
@@ -550,7 +595,15 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
   draft.options = accounts.map((account) => account.id);
   await saveFlow(ctx.telegramUserId, { action, step: "account", draft });
   const title =
-    action === "manual" ? "Який рахунок оновити?" : action === "savings" ? "Звідки відкласти?" : action === "transfer" ? "Звідки переказати?" : "Рахунок?";
+    action === "manual"
+      ? "Який рахунок оновити?"
+      : action === "savings"
+        ? "Звідки відкласти?"
+        : action === "transfer"
+          ? "Звідки переказати?"
+          : action === "steamin"
+            ? "Звідки вкинув?"
+            : "Рахунок?";
   await reply(ctx, title, optionKeyboard(accounts.map((account) => optionLabel(accountLabel(account))), 1));
 }
 
@@ -625,6 +678,8 @@ async function renderStep(ctx: Ctx, action: FlowAction, step: FlowStep, draft: D
   if (step === "toAccount") return promptToAccount(ctx, draft);
   if (step === "amount") return promptAmount(ctx, action, draft);
   if (step === "input") return promptFirstStep(ctx, action, draft);
+  if (step === "steam") return promptSteamAccount(ctx, action, draft);
+  if (step === "received") return promptReceived(ctx, draft);
   return advance(ctx, action, draft);
 }
 
@@ -638,6 +693,65 @@ async function promptNote(ctx: Ctx, action: FlowAction, draft: Draft): Promise<v
       [cancelButton()]
     ]
   });
+}
+
+async function promptSteamAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
+  const wallets = await listSteamAccounts(ctx.userId);
+  if (!wallets.length) {
+    await endFlow(ctx, "Ще немає Steam акаунтів. Додай їх на сайті: Steam → Перепродаж → Steam акаунти.");
+    return;
+  }
+  draft.options = wallets.map((wallet) => wallet.id);
+  await saveFlow(ctx.telegramUserId, { action, step: "steam", draft });
+  const title = action === "steambal" ? "<b>Баланс Steam</b>\nЯкий акаунт оновити?" : "На який Steam?";
+  await reply(
+    ctx,
+    title,
+    optionKeyboard(wallets.map((wallet) => optionLabel(wallet.name, formatAmount(wallet.currentSoftwareBalance.toString(), "USD"))), 1)
+  );
+}
+
+async function promptReceived(ctx: Ctx, draft: Draft): Promise<void> {
+  delete draft.options;
+  await saveFlow(ctx.telegramUserId, { action: "steamin", step: "received", draft });
+  await reply(
+    ctx,
+    [
+      `Вкинув <b>${escapeHtml(formatAmount(draft.amount || "0", "USDT"))}</b>. Скільки зайшло на Steam?`,
+      "Сума в $: <code>790</code>, або скільки прилипло: <code>+32%</code>"
+    ].join("\n"),
+    {
+      inline_keyboard: [
+        [{ text: "Ще не зайшло", callback_data: CALLBACK.notArrived }],
+        ...stepExtraRows(ctx, "steamin", draft),
+        [cancelButton()]
+      ]
+    }
+  );
+}
+
+async function promptSteamBalance(ctx: Ctx, draft: Draft): Promise<void> {
+  const wallet = draft.steamAccountId ? await findSteamAccount(ctx.userId, draft.steamAccountId) : null;
+  if (!wallet) {
+    await endFlow(ctx, "Steam акаунт не знайдено.");
+    return;
+  }
+  delete draft.options;
+  await saveFlow(ctx.telegramUserId, { action: "steambal", step: "balance", draft });
+  await reply(
+    ctx,
+    `Скільки зараз на <b>${escapeHtml(wallet.name)}</b>, $?\nБуло: ${escapeHtml(formatAmount(wallet.currentSoftwareBalance.toString(), "USD"))}`,
+    cancelKeyboard()
+  );
+}
+
+/** One Steam account means no question: it is picked straight away. */
+async function autoPickSteamAccount(ctx: Ctx, draft: Draft): Promise<boolean> {
+  if (draft.steamAccountId) return true;
+  const wallets = await listSteamAccounts(ctx.userId);
+  if (wallets.length !== 1) return false;
+  draft.steamAccountId = wallets[0].id;
+  return true;
 }
 
 async function promptNewBalance(ctx: Ctx, draft: Draft): Promise<void> {
@@ -661,7 +775,24 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
     if (!draft.accountId) return promptAccount(ctx, action, draft);
     return promptNewBalance(ctx, draft);
   }
+  if (action === "steambal") {
+    if (!(await autoPickSteamAccount(ctx, draft))) return promptSteamAccount(ctx, action, draft);
+    if (!draft.amount) return promptSteamBalance(ctx, draft);
+    return complete(ctx, action, draft);
+  }
   if (!draft.amount) return promptAmount(ctx, action, draft);
+
+  if (action === "steamin") {
+    draft.currency = "USDT";
+    if (!(await autoPickSteamAccount(ctx, draft))) return promptSteamAccount(ctx, action, draft);
+    if (!draft.accountId) {
+      const auto = pickExpenseAccount(ctx.data, ctx.session, "USDT");
+      if (auto) draft.accountId = auto.id;
+      else return promptAccount(ctx, action, draft);
+    }
+    if (draft.received === undefined) return promptReceived(ctx, draft);
+    return complete(ctx, action, draft);
+  }
 
   if (action === "transfer") {
     // Both ends are always chosen by hand: transfers go every which way between card and jars.
@@ -725,6 +856,24 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   }
   if (action === "flip") {
     await finish(ctx, await submitFlip(ctx.userId, { pnl: draft.amount || "0", setup: draft.setup || "", date }));
+    return;
+  }
+  if (action === "steamin") {
+    if (!draft.steamAccountId) return promptSteamAccount(ctx, action, draft);
+    if (!accountId) return promptAccount(ctx, action, draft);
+    await finish(
+      ctx,
+      await submitSteamInvestment(
+        ctx.userId,
+        { resaleAccountId: draft.steamAccountId, sourceAccountId: accountId, amount, received: draft.received || "0", date },
+        ctx.data
+      )
+    );
+    return;
+  }
+  if (action === "steambal") {
+    if (!draft.steamAccountId) return promptSteamAccount(ctx, action, draft);
+    await finish(ctx, await submitSteamBalance(ctx.userId, { resaleAccountId: draft.steamAccountId, balance: amount }));
     return;
   }
   if (action === "savings") {
@@ -808,6 +957,10 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
       await reply(ctx, "Не зрозумів суму. Напр.: <code>250</code>, <code>1 250,50</code> або <code>20 USDT</code>.", cancelKeyboard());
       return;
     }
+    if (action === "steamin" && parsed.currency && parsed.currency !== "USDT") {
+      await reply(ctx, "Завоз рахується в USDT. Впиши суму в USDT, напр. <code>600</code>.", cancelKeyboard());
+      return;
+    }
     draft.amount = parsed.amount;
     draft.currency = parsed.currency || defaultCurrency(action);
     if (parsed.note) draft.note = truncate(parsed.note, 200);
@@ -838,6 +991,26 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
   if (step === "note") {
     draft.note = truncate(text, 200);
     await advance(ctx, action, draft);
+    return;
+  }
+  if (step === "received") {
+    const received = resolveReceivedAmount(text, draft.amount || "0");
+    if (!received) {
+      await reply(ctx, "Не зрозумів. Сума в $: <code>790</code>, або бонус: <code>+32%</code>.", cancelKeyboard());
+      return;
+    }
+    draft.received = received;
+    await advance(ctx, action, draft);
+    return;
+  }
+  if (step === "balance" && action === "steambal") {
+    const parsed = parseQuickEntry(text);
+    if (!parsed || D(parsed.amount).lt(0)) {
+      await reply(ctx, "Надішли баланс числом, напр. <code>935.56</code>.", cancelKeyboard());
+      return;
+    }
+    draft.amount = parsed.amount;
+    await complete(ctx, action, draft);
     return;
   }
   if (step === "balance") {

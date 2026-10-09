@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { SteamArbitrageResidualStatus, SteamArbitrageRoundStatus, SteamResaleInvestmentStatus } from "@prisma/client";
 import { MetricGrid } from "@/components/metric-grid";
+import { SteamWallets } from "@/components/steam-wallets";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 import { steamAnalytics } from "@/lib/steam";
+import { steamWallets } from "@/lib/steam-wallets";
 import {
   addSteamResaleInvestmentAmountAction,
   completeSteamRoundAction,
@@ -21,12 +23,6 @@ import {
 
 function dateInput(value = new Date()) {
   return value.toISOString().slice(0, 10);
-}
-
-function firstDayOfMonth() {
-  const date = new Date();
-  date.setDate(1);
-  return dateInput(date);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -54,7 +50,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
   const userId = await requireUserId();
   const params = await searchParams;
   const tab = params?.tab === "arbitrage" ? "arbitrage" : "resale";
-  const data = await steamAnalytics.dashboard(userId);
+  const [data, wallets] = await Promise.all([steamAnalytics.dashboard(userId), steamWallets(userId)]);
   const accounts = data.accounts;
   const resaleAccounts = data.resaleAccounts;
   const schemes = data.schemes;
@@ -68,7 +64,16 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
 
   return (
     <>
-      <PageTitle title="Steam" subtitle="Перепродаж, арбітраж і Steam-капітал без змішування із software balance" />
+      <PageTitle title="Steam" subtitle="Скільки завезено і скільки лежить на Steam зараз, перепродаж і арбітраж" />
+      <div className="mb-4">
+        <SteamWallets
+          wallets={wallets.wallets.map((wallet) => ({
+            ...wallet,
+            updatedAt: wallet.updatedAt ? wallet.updatedAt.toISOString() : null,
+            history: wallet.history.map((point) => ({ at: point.at.toISOString(), balance: Number(point.balance) }))
+          }))}
+        />
+      </div>
       <div className="mb-4 grid gap-3 lg:grid-cols-2">
         <Card className="border-primary/40 bg-[hsl(var(--card))]">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -84,7 +89,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                     <span className="text-sm font-semibold">{formatMoney(item.externalAmount.toString(), "USDT")}</span>
                   </div>
                   <div className="text-xs text-[hsl(var(--card-muted-foreground))]">
-                    У Steam/софті: {formatMoney(item.receivedSteamAmount.toString(), "USDT")}
+                    Зайшло на Steam: {formatMoney(item.receivedSteamAmount.toString(), "USD")}
                   </div>
                   <div className="text-xs font-semibold text-success">{bonusLabel(item.externalAmount, item.receivedSteamAmount)}</div>
                 </div>
@@ -124,7 +129,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
       <MetricGrid
         items={[
           { label: "Заморожено в Steam", value: formatMoney(data.totals.frozenCapital, "USDT"), tone: "warn" },
-          { label: "Баланс перепродажу в софті", value: formatMoney(data.totals.softwareBalance, "USDT") },
+          { label: "Зараз на Steam", value: formatMoney(data.totals.softwareBalance, "USD") },
           { label: "Перепродаж в обороті", value: formatMoney(data.totals.activeResaleCapital, "USDT") },
           { label: "Активні круги", value: String(data.totals.activeRounds) },
           { label: "Невиведені залишки", value: formatMoney(data.totals.openResidualCapital, "USDT") },
@@ -148,7 +153,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
               <div>
                 <div className="font-semibold">Відкат останньої дії перепродажу</div>
                 <div className="text-sm text-[hsl(var(--card-muted-foreground))]">
-                  Повертає останнє створення завозу, доповнення завозу або зміну поля “зайшло в софт”.
+                  Повертає останній завоз, доповнення завозу або зміну поля «зайшло на Steam».
                 </div>
               </div>
               <form action={undoLastSteamResaleAction}>
@@ -160,65 +165,65 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
           </Card>
 
           <Card>
-            <div className="mb-3 font-semibold">Акаунти перепродажу</div>
+            <div className="mb-3 font-semibold">Steam акаунти</div>
             {resaleAccounts.length ? (
               <div className="grid gap-2">
                 {resaleAccounts.map((account) => (
                   <div key={account.id} className="flex items-center justify-between border-b border-border py-2 last:border-b-0">
                     <span>{account.name}</span>
-                    <span className="font-semibold">{formatMoney(account.currentSoftwareBalance.toString(), account.currency)}</span>
+                    <span className="font-semibold">{formatMoney(account.currentSoftwareBalance.toString(), "USD")}</span>
                   </div>
                 ))}
               </div>
-            ) : <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Створи перший акаунт перепродажу.</div>}
+            ) : <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Додай свій перший Steam акаунт.</div>}
             <form action={createSteamResaleAccountAction} className="mt-4 grid gap-3">
-              <Field label="Назва"><input name="name" placeholder="Steam resale" required /></Field>
-              <Field label="Поточний баланс у софті"><input name="currentSoftwareBalance" inputMode="decimal" placeholder="0" /></Field>
+              <Field label="Назва"><input name="name" placeholder="Steam 2" required /></Field>
+              <Field label="Баланс на Steam зараз, $"><input name="currentSoftwareBalance" inputMode="decimal" placeholder="0" /></Field>
               <Field label="Примітка"><input name="note" /></Field>
-              <Submit>Додати акаунт</Submit>
+              <Submit>Додати Steam акаунт</Submit>
             </form>
           </Card>
 
           <Card>
-            <div className="mb-3 font-semibold">Steam snapshot</div>
+            <div className="mb-1 font-semibold">Оновити баланс Steam</div>
+            <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">OpenClaw робить це сам, тут — якщо треба вручну.</div>
             <form action={createSteamSnapshotAction} className="grid gap-3">
-              <Field label="Акаунт">
+              <Field label="Steam акаунт">
                 <select name="resaleAccountId" defaultValue={defaultResaleAccount} required>
                   {resaleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </Field>
-              <Field label="Баланс"><input name="balance" inputMode="decimal" required /></Field>
-              <Field label="Дата"><input name="snapshotDate" type="date" defaultValue={firstDayOfMonth()} required /></Field>
-              <Field label="Примітка"><input name="note" /></Field>
-              <Submit>Зафіксувати баланс</Submit>
+              <Field label="Баланс зараз, $"><input name="balance" inputMode="decimal" required /></Field>
+              <Submit>Оновити баланс</Submit>
             </form>
           </Card>
 
           <Card>
-            <div className="mb-3 font-semibold">Зовнішнє вкладення</div>
+            <div className="mb-1 font-semibold">Завоз у Steam</div>
+            <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Реальні гроші, які пішли на Steam, і скільки там з них стало.</div>
             <form action={createSteamResaleInvestmentAction} className="grid gap-3">
-              <Field label="Акаунт перепродажу">
+              <Field label="Steam акаунт">
                 <select name="resaleAccountId" defaultValue={defaultResaleAccount} required>
                   {resaleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </Field>
-              <Field label="Мейн гаманець">
+              <Field label="Звідки, USDT">
                 <select name="sourceAccountId" defaultValue={defaultAccount} required>
                   {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </Field>
-              <Field label="Скільки вкинув"><input name="externalAmount" inputMode="decimal" required /></Field>
-              <Field label="Скільки зайшло в Steam/софт"><input name="receivedSteamAmount" inputMode="decimal" placeholder="можна доповнити потім" /></Field>
-              <Field label="Дата старту"><input name="startedAt" type="date" defaultValue={dateInput()} required /></Field>
+              <Field label="Скільки вкинув, USDT"><input name="externalAmount" inputMode="decimal" required /></Field>
+              <Field label="Скільки зайшло на Steam, $"><input name="receivedSteamAmount" inputMode="decimal" placeholder="можна вписати потім" /></Field>
+              <Field label="Дата"><input name="startedAt" type="date" defaultValue={dateInput()} required /></Field>
               <Field label="Примітка"><input name="note" /></Field>
-              <Submit>Створити вкладення</Submit>
+              <Submit>Записати завоз</Submit>
             </form>
           </Card>
 
           <Card>
             <div className="mb-3 font-semibold">Вивід із перепродажу</div>
             <form action={createSteamResaleWithdrawalAction} className="grid gap-3">
-              <Field label="Акаунт перепродажу">
+              <Field label="Steam акаунт">
                 <select name="resaleAccountId" defaultValue={defaultResaleAccount} required>
                   {resaleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
@@ -228,7 +233,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                   {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </Field>
-              <Field label="Списано із софту"><input name="softwareAmountSpent" inputMode="decimal" required /></Field>
+              <Field label="Списано зі Steam, $"><input name="softwareAmountSpent" inputMode="decimal" required /></Field>
               <Field label="Отримано чистими"><input name="amountReceived" inputMode="decimal" required /></Field>
               <Field label="Дата"><input name="withdrawalDate" type="date" defaultValue={dateInput()} required /></Field>
               <Submit>Створити вивід</Submit>
@@ -236,7 +241,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
           </Card>
 
           <Card className="xl:col-span-2">
-            <div className="mb-3 font-semibold">Активні вкладення перепродажу</div>
+            <div className="mb-3 font-semibold">Активні завози</div>
             <div className="grid gap-2">
               {data.resaleInvestments.filter((item) => item.status === SteamResaleInvestmentStatus.ACTIVE).map((item) => (
                 <div key={item.id} className="grid gap-3 border-b border-border py-3 last:border-b-0 xl:grid-cols-[1fr_360px_420px] xl:items-end">
@@ -244,7 +249,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                     <span>{new Intl.DateTimeFormat("uk-UA").format(item.startedAt)}</span>
                     <span>{formatMoney(item.externalAmount.toString(), "USDT")}</span>
                     <span className="text-sm text-[hsl(var(--card-muted-foreground))]">
-                      Steam: {formatMoney(item.receivedSteamAmount.toString(), "USDT")} · <b className="text-success">{bonusLabel(item.externalAmount, item.receivedSteamAmount)}</b>
+                      Steam: {formatMoney(item.receivedSteamAmount.toString(), "USD")} · <b className="text-success">{bonusLabel(item.externalAmount, item.receivedSteamAmount)}</b>
                     </span>
                   </div>
                   <form action={addSteamResaleInvestmentAmountAction} className="grid gap-2 sm:grid-cols-[1fr_120px_auto] sm:items-end">
@@ -261,7 +266,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                   </form>
                   <form action={updateSteamResaleInvestmentReceivedAction} className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
                     <input type="hidden" name="investmentId" value={item.id} />
-                    <Field label="Зайшло в софт">
+                    <Field label="Зайшло на Steam">
                       <input name="receivedSteamAmount" inputMode="decimal" defaultValue={item.receivedSteamAmount.toString()} required />
                     </Field>
                     <input type="hidden" name="completedAt" value={dateInput()} />

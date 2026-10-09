@@ -5,7 +5,7 @@
  * and stay unit-testable: pressing the button twice must never move a balance twice.
  */
 
-export type UndoKind = "tx" | "flip" | "expected";
+export type UndoKind = "tx" | "flip" | "expected" | "steamin";
 
 export type UndoRef = {
   kind: UndoKind;
@@ -19,6 +19,8 @@ export type UndoGateway = {
   archiveTransaction(userId: string, transactionId: string): Promise<UndoOutcome>;
   undoFlip(userId: string, flipId: string): Promise<UndoOutcome>;
   removeExpectedMoney(userId: string, expectedMoneyId: string): Promise<UndoOutcome>;
+  /** A завоз into Steam: real money back to its account, the credit off the wallet. */
+  undoSteamInvestment(userId: string, investmentId: string): Promise<UndoOutcome>;
 };
 
 const UNDO_PREFIX = "u";
@@ -32,7 +34,7 @@ export function decodeUndoRef(data: string): UndoRef | null {
   if (parts.length !== 3) return null;
   const [prefix, kind, id] = parts;
   if (prefix !== UNDO_PREFIX) return null;
-  if (kind !== "tx" && kind !== "flip" && kind !== "expected") return null;
+  if (kind !== "tx" && kind !== "flip" && kind !== "expected" && kind !== "steamin") return null;
   if (!id || id.length > 40 || !/^[A-Za-z0-9_-]+$/.test(id)) return null;
   return { kind, id };
 }
@@ -40,6 +42,7 @@ export function decodeUndoRef(data: string): UndoRef | null {
 export async function performUndo(userId: string, ref: UndoRef, gateway: UndoGateway): Promise<UndoOutcome> {
   if (ref.kind === "flip") return gateway.undoFlip(userId, ref.id);
   if (ref.kind === "expected") return gateway.removeExpectedMoney(userId, ref.id);
+  if (ref.kind === "steamin") return gateway.undoSteamInvestment(userId, ref.id);
   return gateway.archiveTransaction(userId, ref.id);
 }
 
