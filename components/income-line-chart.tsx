@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useId, useMemo } from "react";
+import { Area, Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { DonutBreakdown } from "@/components/donut-breakdown";
+import { calendarDays, dayLabel, niceScale, shortAxisValue } from "@/lib/chart-scale";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -31,8 +33,6 @@ type LossBreakdownItem = {
 };
 
 const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
-const LOSS_COLORS = ["#e04d65", "#e8795f", "#d99b42", "#b7845b", "#8b5cf6", "#5d8aa8", "#4d9a78", "#6d7f98"];
-
 function axisValue(value: number, hidden: boolean) {
   if (hidden) return "****";
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -143,178 +143,195 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
   );
 }
 
-type PnlTooltipPoint = PnlTimelinePoint & { dayNet: number };
+type PnlDay = PnlTimelinePoint & { dayNet: number; active: boolean };
 
-function PnlTooltip({ active, payload, hidden, currency = "USDT" }: { active?: boolean; payload?: Array<{ payload: PnlTooltipPoint }>; hidden: boolean; currency?: string }) {
+const PROFIT_COLOR = "#16a34a";
+const LOSS_COLOR = "#e04d65";
+// Both PnL charts share these, so a day's bar sits exactly above its point on the running total.
+const PNL_MARGIN = { left: 0, right: 4, top: 8, bottom: 0 };
+const PNL_AXIS_WIDTH = 48;
+const PNL_AXIS_TICK = { fill: "hsl(var(--card-muted-foreground))", fontSize: 12 };
+
+function PnlTooltip({ active, payload, hidden, currency = "USDT" }: { active?: boolean; payload?: Array<{ payload: PnlDay }>; hidden: boolean; currency?: string }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
-  const rows: Array<[string, number, string]> = [
-    ["Плюс", point.profit, "#16a34a"],
-    ["Мінус", -point.loss, "#e04d65"],
-    ["Разом за день", point.dayNet, point.dayNet >= 0 ? "#16a34a" : "#e04d65"],
-    ["Накопичено", point.net, "#2563eb"]
-  ];
+  const rows: Array<[string, number, string]> = point.active
+    ? [
+        ["Плюс", point.profit, PROFIT_COLOR],
+        ["Мінус", -point.loss, LOSS_COLOR],
+        ["Разом за день", point.dayNet, point.dayNet >= 0 ? PROFIT_COLOR : LOSS_COLOR],
+        ["Накопичено", point.net, point.net >= 0 ? PROFIT_COLOR : LOSS_COLOR]
+      ]
+    : [["Накопичено", point.net, point.net >= 0 ? PROFIT_COLOR : LOSS_COLOR]];
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-soft">
       <div className="mb-1 font-semibold text-[hsl(var(--card-foreground))]">{point.label}</div>
+      {!point.active && <div className="text-[hsl(var(--card-muted-foreground))]">Без операцій</div>}
       {rows.map(([label, value, color]) => (
         <div key={label} className="flex items-center justify-between gap-4">
           <span className="text-[hsl(var(--card-muted-foreground))]">{label}</span>
-          <span style={{ color }}>{formatMoney(value, currency, hidden)}</span>
+          <span className="tabular-nums" style={{ color }}>{formatMoney(value.toFixed(2), currency, hidden)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-export function NetPnlChart({ data, hidden = false, currency = "USDT" }: { data: PnlTimelinePoint[]; hidden?: boolean; currency?: string }) {
-  const sortedData = useMemo<PnlTooltipPoint[]>(
-    () => [...data]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((point) => ({ ...point, dayNet: point.profit - point.loss })),
-    [data]
+function PnlChip({ label, value, className }: { label: string; value: string; className: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+      <div className="text-[10px] font-medium uppercase text-[hsl(var(--card-muted-foreground))] sm:text-[11px] sm:tracking-wide">{label}</div>
+      <div className={`mt-0.5 break-words text-sm font-bold tabular-nums sm:text-base ${className}`}>{value}</div>
+    </div>
   );
-  const latest = sortedData[sortedData.length - 1];
-  const totals = useMemo(
-    () => sortedData.reduce(
-      (result, point) => ({ profit: result.profit + point.profit, loss: result.loss + point.loss }),
-      { profit: 0, loss: 0 }
-    ),
-    [sortedData]
-  );
+}
 
-  if (!latest) {
+// Where zero sits inside a box spanning [low, high], measured from the top; feeds the green/red split.
+function zeroOffset(low: number, high: number) {
+  if (high <= 0) return 0;
+  if (low >= 0) return 1;
+  return high / (high - low);
+}
+
+export function NetPnlChart({
+  data,
+  hidden = false,
+  currency = "USDT",
+  from,
+  to
+}: {
+  data: PnlTimelinePoint[];
+  hidden?: boolean;
+  currency?: string;
+  /** First and last day of the period (YYYY-MM-DD) so quiet days still take their place on the axis. */
+  from?: string;
+  to?: string;
+}) {
+  const gradientId = useId().replace(/:/g, "");
+  const days = useMemo<PnlDay[]>(() => {
+    const byDate = new Map(data.map((point) => [point.date, point]));
+    let running = 0;
+    return calendarDays(data.map((point) => point.date), from, to).map((date) => {
+      const point = byDate.get(date);
+      const profit = point?.profit ?? 0;
+      const loss = point?.loss ?? 0;
+      running += profit - loss;
+      return { date, label: point?.label ?? dayLabel(date), profit, loss, dayNet: profit - loss, net: running, active: Boolean(point) };
+    });
+  }, [data, from, to]);
+
+  if (!data.length || !days.length) {
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає PnL</div>;
   }
 
-  const showDots = sortedData.length <= 100;
-  const netColor = latest.net >= 0 ? "#16a34a" : "#e04d65";
-  const includeZero = ([min, max]: [number, number]): [number, number] => [Math.min(0, min), Math.max(0, max)];
+  const totalProfit = days.reduce((sum, day) => sum + day.profit, 0);
+  const totalLoss = days.reduce((sum, day) => sum + day.loss, 0);
+  const latestNet = days[days.length - 1].net;
+  const dailyScale = niceScale(days.map((day) => day.dayNet));
+  const netScale = niceScale(days.map((day) => day.net));
+  // Label every n-th day so the dates are spread evenly and never collide on a phone.
+  const labelInterval = Math.ceil(days.length / 7) - 1;
+  const tickFormatter = (value: number) => (hidden ? "••" : shortAxisValue(value));
+
+  const netValues = days.map((day) => day.net);
+  const netLow = Math.min(...netValues);
+  const netHigh = Math.max(...netValues);
+  const fillSplit = zeroOffset(Math.min(0, netLow), Math.max(0, netHigh));
+  const strokeSplit = zeroOffset(netLow, netHigh);
+  // A flat line has a zero-height box, and a gradient on it would not paint at all.
+  const netStroke = netLow === netHigh ? (netLow >= 0 ? PROFIT_COLOR : LOSS_COLOR) : `url(#${gradientId}-stroke)`;
+
+  const xAxis = (
+    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={PNL_AXIS_TICK} interval={labelInterval} tickMargin={6} />
+  );
 
   return (
     <div>
-      {/* Period summary chips */}
-      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
-        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Плюси</div>
-          <div className="mt-0.5 break-words text-sm font-bold text-success sm:text-base">{formatMoney(totals.profit, currency, hidden)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Мінуси</div>
-          <div className="mt-0.5 break-words text-sm font-bold text-danger sm:text-base">{formatMoney(-totals.loss, currency, hidden)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Чистий PnL</div>
-          <div className={`mt-0.5 break-words text-sm font-bold sm:text-base ${latest.net >= 0 ? "text-success" : "text-danger"}`}>
-            {formatMoney(latest.net, currency, hidden)}
-          </div>
-        </div>
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+        <PnlChip label="Плюси" value={formatMoney(totalProfit.toFixed(2), currency, hidden)} className="text-success" />
+        <PnlChip label="Мінуси" value={formatMoney((-totalLoss).toFixed(2), currency, hidden)} className="text-danger" />
+        <PnlChip label="Чистий PnL" value={formatMoney(latestNet.toFixed(2), currency, hidden)} className={latestNet >= 0 ? "text-success" : "text-danger"} />
       </div>
 
-      {/* 1. Per-day results: green bars up, red bars down from the zero line */}
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <div className="text-sm font-medium">Результат кожного дня</div>
         <div className="flex gap-3 text-xs text-[hsl(var(--card-muted-foreground))]">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" />прибуток</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" />збиток</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" />плюс</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" />мінус</span>
         </div>
       </div>
-      <div className="h-52 w-full">
+      <div className="h-48 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={sortedData} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis
-              yAxisId="daily"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-              tickFormatter={(value) => axisValue(Number(value), hidden)}
-              domain={includeZero}
-              width={58}
-            />
-            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
-            <ReferenceLine yAxisId="daily" y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
-            <Bar yAxisId="daily" dataKey="dayNet" name="Разом за день" maxBarSize={26} radius={[3, 3, 3, 3]} isAnimationActive={false}>
-              {sortedData.map((point) => (
-                <Cell key={point.date} fill={point.dayNet >= 0 ? "#16a34a" : "#e04d65"} />
+          <ComposedChart data={days} margin={PNL_MARGIN} barCategoryGap="24%">
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+            {xAxis}
+            <YAxis tickLine={false} axisLine={false} tick={PNL_AXIS_TICK} tickFormatter={tickFormatter} domain={dailyScale.domain} ticks={dailyScale.ticks} interval={0} width={PNL_AXIS_WIDTH} />
+            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }} />
+            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
+            <Bar dataKey="dayNet" maxBarSize={28} radius={[4, 4, 4, 4]} isAnimationActive={false}>
+              {days.map((day) => (
+                <Cell key={day.date} fill={day.dayNet >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
               ))}
             </Bar>
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* 2. Running total: a single clean line, colored by the final result */}
-      <div className="mb-1.5 mt-6 flex items-baseline justify-between gap-3">
+      <div className="mb-2 mt-6 flex items-center justify-between gap-3">
         <div className="text-sm font-medium">Накопичений результат</div>
-        <div className="text-xs text-[hsl(var(--card-muted-foreground))]">як змінювався PnL з початку періоду</div>
+        <div className="text-xs text-[hsl(var(--card-muted-foreground))]">з початку періоду</div>
       </div>
-      <div className="h-52 w-full">
+      <div className="h-48 w-full">
         <ResponsiveContainer>
-          <LineChart data={sortedData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }}
-              tickFormatter={(value) => axisValue(Number(value), hidden)}
-              domain={includeZero}
-              width={58}
+          <ComposedChart data={days} margin={PNL_MARGIN}>
+            <defs>
+              <linearGradient id={`${gradientId}-fill`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset={0} stopColor={PROFIT_COLOR} stopOpacity={0.22} />
+                <stop offset={fillSplit} stopColor={PROFIT_COLOR} stopOpacity={0.06} />
+                <stop offset={fillSplit} stopColor={LOSS_COLOR} stopOpacity={0.06} />
+                <stop offset={1} stopColor={LOSS_COLOR} stopOpacity={0.22} />
+              </linearGradient>
+              <linearGradient id={`${gradientId}-stroke`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset={strokeSplit} stopColor={PROFIT_COLOR} />
+                <stop offset={strokeSplit} stopColor={LOSS_COLOR} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+            {xAxis}
+            <YAxis tickLine={false} axisLine={false} tick={PNL_AXIS_TICK} tickFormatter={tickFormatter} domain={netScale.domain} ticks={netScale.ticks} interval={0} width={PNL_AXIS_WIDTH} />
+            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }} />
+            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
+            {/* Invisible bars give this chart the same day slots as the one above, so the points sit under the bars. */}
+            <Bar dataKey="net" fill="transparent" isAnimationActive={false} />
+            <Area
+              type="linear"
+              dataKey="net"
+              baseValue={0}
+              stroke={netStroke}
+              strokeWidth={2.5}
+              fill={`url(#${gradientId}-fill)`}
+              isAnimationActive={false}
+              dot={(props: { cx?: number; cy?: number; index?: number; payload?: PnlDay }) =>
+                props.payload?.active && props.cx != null && props.cy != null
+                  ? <circle key={`dot-${props.index}`} cx={props.cx} cy={props.cy} r={3.5} fill={props.payload.net >= 0 ? PROFIT_COLOR : LOSS_COLOR} stroke="hsl(var(--card))" strokeWidth={1.5} />
+                  : <g key={`dot-${props.index}`} />
+              }
+              activeDot={(props: { cx?: number; cy?: number; payload?: PnlDay }) => (
+                <circle cx={props.cx} cy={props.cy} r={5} fill={(props.payload?.net ?? 0) >= 0 ? PROFIT_COLOR : LOSS_COLOR} stroke="hsl(var(--card))" strokeWidth={2} />
+              )}
             />
-            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ stroke: "hsl(var(--border))" }} />
-            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.35)" strokeWidth={1.5} />
-            <Line type="monotone" dataKey="net" name="Накопичено" stroke={netColor} strokeWidth={3} isAnimationActive={false} dot={showDots ? { r: 3.5, fill: netColor, strokeWidth: 0 } : false} activeDot={{ r: 6 }} />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>
   );
 }
 
+const LOSS_COLORS = ["#e04d65", "#e8795f", "#d99b42", "#b7845b", "#8b5cf6", "#5d8aa8", "#4d9a78", "#6d7f98"];
+
 export function LossBreakdownChart({ data, hidden = false }: { data: LossBreakdownItem[]; hidden?: boolean }) {
-  const chartData = useMemo(
-    () => data.map((item, index) => ({ name: item.name, value: Number(item.value), color: LOSS_COLORS[index % LOSS_COLORS.length] })).filter((item) => item.value > 0).slice(0, 8),
-    [data]
-  );
-  const total = chartData.reduce((sum, item) => sum + item.value, 0);
-
-  if (!chartData.length || total <= 0) {
-    return <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає мінусів</div>;
-  }
-
-  return (
-    <div>
-      <div className="mb-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        Загалом мінусів: <span className="font-semibold text-[hsl(var(--card-foreground))]">{formatMoney(total, "USDT", hidden)}</span>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
-        <div className="h-72 min-w-0">
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie data={chartData} dataKey="value" nameKey="name" innerRadius="54%" outerRadius="82%" paddingAngle={3} stroke="hsl(var(--card))" strokeWidth={4}>
-                {chartData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name]} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="grid gap-2">
-          {chartData.map((item) => (
-            <div key={item.name} className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="truncate">{item.name}</span>
-              </span>
-              <span className="shrink-0 font-semibold">{hidden ? "****" : `${Math.round((item.value / total) * 100)}%`}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  const items = useMemo(() => data.map((item) => ({ name: item.name, value: Number(item.value) })), [data]);
+  return <DonutBreakdown items={items} colors={LOSS_COLORS} currency="USDT" hidden={hidden} totalLabel="Мінусів" emptyLabel="Поки немає мінусів" />;
 }
 
 function ChartTotal({ color, label, value }: { color: string; label: string; value: string }) {

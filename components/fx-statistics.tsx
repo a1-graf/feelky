@@ -78,7 +78,7 @@ export function FxStatistics({ data, brokers, hidden = false }: { data: FxData; 
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">PnL по днях</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Стовпчик — результат дня, синя лінія — накопичено</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Зверху результат кожного дня, знизу — як він накопичувався</div>
         <NetPnlChart data={data.timeline} hidden={hidden} currency={currency} />
       </Card>
 

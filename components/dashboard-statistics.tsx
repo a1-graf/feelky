@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 
 type DashboardStatsData = {
-  period: { month: string; label: string; rangeLabel: string; isCurrentMonth: boolean };
+  period: { month: string; label: string; rangeLabel: string; isCurrentMonth: boolean; from?: string; to?: string };
   rate: string;
   settings: { hideAmounts: boolean; monthlyExpenseLimit?: { toString(): string } | string | null } | null;
   expenseCategories: { name: string; value: string }[];
@@ -58,6 +58,15 @@ function expenseLimitColor(expense: string, limit?: { toString(): string } | str
   return ratio <= 1 ? mixColor(green, gray, ratio) : mixColor(gray, red, Math.min(1, ratio - 1));
 }
 
+function ExpenseHeading({ title, currency }: { title: string; currency: string }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <span className="text-sm font-semibold">{title}</span>
+      <span className="rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--card-muted-foreground))]">{currency}</span>
+    </div>
+  );
+}
+
 export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
   const hidden = Boolean(data.settings?.hideAmounts);
   const rate = Number(data.rate);
@@ -94,24 +103,24 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Чистий PnL</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Скільки зароблено чи втрачено кожного дня і як це накопичувалось · {data.period.rangeLabel}</div>
-        <NetPnlChart data={data.pnlTimeline} hidden={hidden} />
-        <div className="my-5 border-t border-border" />
+        <NetPnlChart data={data.pnlTimeline} hidden={hidden} from={data.period.from} to={data.period.to} />
+        <div className="my-6 border-t border-border" />
         <div className="mb-1 font-semibold">Де найбільші мінуси</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Топ просадок по витратах, робочих напрямках і мінусових фліпах</div>
+        <div className="mb-4 text-sm text-[hsl(var(--card-muted-foreground))]">Витрати, робочі напрямки і мінусові фліпи за період</div>
         <LossBreakdownChart data={data.lossBreakdown} hidden={hidden} />
       </Card>
 
       <Card className="mt-5">
         <div className="mb-1 font-semibold">Куди йдуть витрати</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Особисті витрати в UAH та робочі витрати за напрямками · {data.period.rangeLabel}</div>
+        <div className="mb-4 text-sm text-[hsl(var(--card-muted-foreground))]">Особисті витрати в UAH та робочі витрати за напрямками · {data.period.rangeLabel}</div>
         <div className={hasWorkExpenses ? "grid gap-6 xl:grid-cols-2" : ""}>
-          <div className="min-w-0">
-            {hasWorkExpenses && <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">Особисті · UAH</div>}
+          <div className={hasWorkExpenses ? "min-w-0 rounded-xl border border-border p-4" : "min-w-0"}>
+            {hasWorkExpenses && <ExpenseHeading title="Особисті" currency="UAH" />}
             <ExpensePieChart data={data.expenseCategories} hidden={hidden} emptyLabel="Поки немає витрат" />
           </div>
           {hasWorkExpenses && (
-            <div className="min-w-0">
-              <div className="mb-2 text-sm font-semibold text-[hsl(var(--card-muted-foreground))]">Робочі · USDT</div>
+            <div className="min-w-0 rounded-xl border border-border p-4">
+              <ExpenseHeading title="Робочі" currency="USDT" />
               <ExpensePieChart data={data.workExpenseSourcesUsdt} hidden={hidden} emptyLabel="" currency="USDT" />
             </div>
           )}

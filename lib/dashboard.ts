@@ -32,11 +32,15 @@ function resolveDashboardPeriod(input: DashboardPeriod = {}) {
   const to = isCurrentMonth ? now : new Date(nextMonthStart.getTime() - 1);
   const range = { gte: from, lte: to };
   const formatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const lastDay = String(new Date(year, monthIndex + 1, 0).getDate()).padStart(2, "0");
 
   return {
     month: normalizedMonth,
     from,
     to,
+    // Day keys in the same form as the timeline dates, so a chart can lay out the whole month.
+    fromKey: `${normalizedMonth}-01`,
+    toKey: isCurrentMonth ? now.toISOString().slice(0, 10) : `${normalizedMonth}-${lastDay}`,
     isCurrentMonth,
     label: new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(from),
     rangeLabel: `${formatter.format(from)} - ${formatter.format(to)}`,
@@ -298,8 +302,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const netPnlUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
   const lossBreakdown = Array.from(lossBreakdownMap.entries())
     .map(([name, value]) => ({ name, value: value.toString() }))
-    .sort((a, b) => Number(b.value) - Number(a.value))
-    .slice(0, 10);
+    .sort((a, b) => Number(b.value) - Number(a.value));
   let runningProfit = new Decimal(0);
   let runningLoss = new Decimal(0);
   let runningNet = new Decimal(0);
@@ -391,7 +394,9 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       month: period.month,
       label: period.label,
       rangeLabel: period.rangeLabel,
-      isCurrentMonth: period.isCurrentMonth
+      isCurrentMonth: period.isCurrentMonth,
+      from: period.fromKey,
+      to: period.toKey
     },
     settings,
     rate: rate.toString(),
