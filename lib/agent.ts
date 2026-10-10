@@ -7,9 +7,9 @@ import { steamWallets } from "@/lib/steam-wallets";
 import { isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
 /**
- * Access for an external AI agent (OpenClaw). Everything here is read-only and computed by the
- * same code the site uses; the agent's only writes are FX trades and Steam wallet balances,
- * each in its own route.
+ * Access for an external AI agent (OpenClaw). The reads here are computed by the same code the
+ * site uses. Writes live in their own routes: FX trades, Steam balances and, for everything
+ * else, /api/agent/operations.
  */
 
 export type AgentAuth =
@@ -47,6 +47,8 @@ export async function agentTransactions(userId: string, query: TransactionQuery)
     count: rows.length,
     limit: query.limit,
     transactions: rows.map((row) => ({
+      // Lets the agent delete or restore this exact operation.
+      id: row.id,
       date: kyivStamp(row.transactionDate),
       type: row.type,
       typeLabel: TYPE_LABELS[row.type],

@@ -541,6 +541,18 @@ export class LedgerService {
     return archived;
   }
 
+  /** Gone for good: the balance effect is reversed first (as an archive would), then the row is deleted. */
+  async deleteTransactionPermanently(userId: string, transactionId: string) {
+    return this.db.$transaction(async (tx) => {
+      const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
+      if (!transaction) throw new Error("Операцію не знайдено");
+      if (!transaction.archivedAt) await this.archiveTransactionWithin(tx, userId, transaction.id);
+      await tx.transaction.delete({ where: { id: transaction.id } });
+      await this.audit(tx, userId, "Transaction", transaction.id, "DELETE", transaction, undefined);
+      return transaction;
+    });
+  }
+
   async restoreTransaction(userId: string, transactionId: string) {
     return this.db.$transaction(async (tx) => {
       const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
