@@ -45,6 +45,7 @@ import {
   formatBalances,
   formatSteamSummary,
   loadFlipSetups,
+  loadFrozenFromAccounts,
   loadReferenceData,
   pickExpenseAccount,
   pickIncomeAccount,
@@ -55,13 +56,15 @@ import {
   submitExpectedMoney,
   submitExpense,
   submitFlip,
+  submitFreeze,
   submitIncome,
   submitManualAdjustment,
   submitP2P,
   submitSavings,
   submitSteamBalance,
   submitSteamInvestment,
-  submitTransfer
+  submitTransfer,
+  submitUnfreeze
 } from "@/lib/telegram/operations";
 import type { OperationResult, ReferenceData } from "@/lib/telegram/operations";
 import {
@@ -389,6 +392,14 @@ async function handleOptionCallback(ctx: Ctx, rawIndex: string): Promise<string>
     await advance(ctx, action, draft);
     return "";
   }
+  if (step === "frozen") {
+    const entry = (await loadFrozenFromAccounts(ctx.userId)).find((item) => item.id === id);
+    if (!entry) return "Цей запис уже розморожено.";
+    draft.expectedMoneyId = entry.id;
+    delete draft.options;
+    await advance(ctx, action, draft);
+    return "";
+  }
   if (step === "steam") {
     // Like accounts: the index only points into the stored list, ownership is checked again.
     const wallet = await findSteamAccount(ctx.userId, id);
@@ -438,7 +449,9 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
 }
 
 function toFlowAction(value: string): FlowAction | null {
-  const actions: FlowAction[] = ["expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual", "steamin", "steambal"];
+  const actions: FlowAction[] = [
+    "expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual", "steamin", "steambal", "freeze", "unfreeze"
+  ];
   return actions.includes(value as FlowAction) ? (value as FlowAction) : null;
 }
 
@@ -496,6 +509,7 @@ async function sendSteamSummary(ctx: Ctx): Promise<void> {
 function firstStep(action: FlowAction): FlowStep {
   if (action === "manual") return "account";
   if (action === "steambal") return "steam";
+  if (action === "unfreeze") return "frozen";
   if (action === "p2p" || action === "cash" || action === "expected") return "input";
   return "amount";
 }
@@ -514,7 +528,7 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
     await promptAccount(ctx, action, draft);
     return;
   }
-  if (action === "steambal") {
+  if (action === "steambal" || action === "unfreeze") {
     await advance(ctx, action, draft);
     return;
   }
@@ -544,7 +558,7 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
 /** Currency assumed when the user types a bare number: work is paid out of USDT, the rest is UAH. */
 function defaultCurrency(action: FlowAction): TelegramCurrency {
   if (action === "savings") return "UAH";
-  if (action === "work" || action === "steamin") return "USDT";
+  if (action === "work" || action === "steamin" || action === "freeze") return "USDT";
   return "UAH";
 }
 
@@ -556,7 +570,8 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
     savings: "<b>Відкладення</b>\nСкільки відкласти в UAH? Напр. <code>1000</code>",
     transfer: "<b>Переказ</b>\nСума? <code>500</code> — це гривні",
     flip: "<b>Фліп</b>\nPnL у USDT? Напр. <code>35.5</code> або <code>-12</code>",
-    steamin: "<b>Завоз у Steam</b>\nСкільки реальних грошей вкинув? <code>600</code> — це USDT"
+    steamin: "<b>Завоз у Steam</b>\nСкільки реальних грошей вкинув? <code>600</code> — це USDT",
+    freeze: "<b>Заморозити</b>\nСкільки? <code>300</code> — це USDT, або <code>5000 грн</code>"
   };
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "amount", draft });
@@ -565,13 +580,13 @@ async function promptAmount(ctx: Ctx, action: FlowAction, draft: Draft): Promise
 
 /** ExpectedMoney and manual balance corrections are always "now", so they get no date button. */
 function supportsDate(action: FlowAction): boolean {
-  return action !== "expected" && action !== "manual" && action !== "steambal";
+  return action !== "expected" && action !== "manual" && action !== "steambal" && action !== "unfreeze";
 }
 
 function stepExtraRows(ctx: Ctx, action: FlowAction, draft: Draft): InlineKeyboardButton[][] {
   const row: InlineKeyboardButton[] = [];
   const account = findAccountById(ctx.data.accounts, draft.accountId);
-  if (account) row.push(changeAccountButton(account.name, action === "transfer" || action === "steamin" ? "Звідки" : "Рахунок"));
+  if (account) row.push(changeAccountButton(account.name, action === "transfer" || action === "steamin" || action === "freeze" ? "Звідки" : "Рахунок"));
   if (supportsDate(action)) row.push(changeDateButton(dateLabel(draft.date || kyivToday())));
   return row.length ? [row] : [];
 }
@@ -587,7 +602,9 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
       ? ctx.data.accounts
       : action === "savings"
         ? savingsSourceAccounts(ctx.data.accounts)
-        : accountsForCurrency(ctx.data.accounts, currency);
+        : action === "freeze"
+          ? accountsForCurrency(ctx.data.accounts, currency).filter((account) => !account.isReserved)
+          : accountsForCurrency(ctx.data.accounts, currency);
   if (!accounts.length) {
     await endFlow(ctx, `Немає активного рахунку ${escapeHtml(currency)}.`);
     return;
@@ -603,7 +620,9 @@ async function promptAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promis
           ? "Звідки переказати?"
           : action === "steamin"
             ? "Звідки вкинув?"
-            : "Рахунок?";
+            : action === "freeze"
+              ? "З якого рахунку заморозити?"
+              : "Рахунок?";
   await reply(ctx, title, optionKeyboard(accounts.map((account) => optionLabel(accountLabel(account))), 1));
 }
 
@@ -680,19 +699,37 @@ async function renderStep(ctx: Ctx, action: FlowAction, step: FlowStep, draft: D
   if (step === "input") return promptFirstStep(ctx, action, draft);
   if (step === "steam") return promptSteamAccount(ctx, action, draft);
   if (step === "received") return promptReceived(ctx, draft);
+  if (step === "frozen") return promptFrozen(ctx, draft);
   return advance(ctx, action, draft);
 }
 
 async function promptNote(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
   delete draft.options;
   await saveFlow(ctx.telegramUserId, { action, step: "note", draft });
-  await reply(ctx, "Примітка? Надішли текст або натисни кнопку.", {
+  // For a freeze the text is the entry's name on the "Заморожені бабки" page.
+  const isFreeze = action === "freeze";
+  await reply(ctx, isFreeze ? "Що це за заморозка? Напр. <code>холд біржі</code>" : "Примітка? Надішли текст або натисни кнопку.", {
     inline_keyboard: [
-      [{ text: "Без примітки", callback_data: CALLBACK.skipNote }],
+      [{ text: isFreeze ? "Без назви" : "Без примітки", callback_data: CALLBACK.skipNote }],
       ...stepExtraRows(ctx, action, draft),
       [cancelButton()]
     ]
   });
+}
+
+async function promptFrozen(ctx: Ctx, draft: Draft): Promise<void> {
+  const entries = await loadFrozenFromAccounts(ctx.userId);
+  if (!entries.length) {
+    await endFlow(ctx, "Немає грошей, заморожених з рахунків. Заморозити можна кнопкою «Заморозити».");
+    return;
+  }
+  draft.options = entries.map((entry) => entry.id);
+  await saveFlow(ctx.telegramUserId, { action: "unfreeze", step: "frozen", draft });
+  await reply(
+    ctx,
+    "<b>Розморозити</b>\nЩо повертаємо? Гроші підуть на рахунок, з якого їх заморожували.",
+    optionKeyboard(entries.map((entry) => optionLabel(entry.title, formatAmount(entry.amount.toString(), entry.currency))), 1)
+  );
 }
 
 async function promptSteamAccount(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void> {
@@ -774,6 +811,10 @@ async function advance(ctx: Ctx, action: FlowAction, draft: Draft): Promise<void
   if (action === "manual") {
     if (!draft.accountId) return promptAccount(ctx, action, draft);
     return promptNewBalance(ctx, draft);
+  }
+  if (action === "unfreeze") {
+    if (!draft.expectedMoneyId) return promptFrozen(ctx, draft);
+    return complete(ctx, action, draft);
   }
   if (action === "steambal") {
     if (!(await autoPickSteamAccount(ctx, draft))) return promptSteamAccount(ctx, action, draft);
@@ -874,6 +915,16 @@ async function complete(ctx: Ctx, action: FlowAction, draft: Draft): Promise<voi
   if (action === "steambal") {
     if (!draft.steamAccountId) return promptSteamAccount(ctx, action, draft);
     await finish(ctx, await submitSteamBalance(ctx.userId, { resaleAccountId: draft.steamAccountId, balance: amount }));
+    return;
+  }
+  if (action === "freeze") {
+    if (!accountId) return promptAccount(ctx, action, draft);
+    await finish(ctx, await submitFreeze(ctx.userId, { amount, accountId, title: note, date }, ctx.data));
+    return;
+  }
+  if (action === "unfreeze") {
+    if (!draft.expectedMoneyId) return promptFrozen(ctx, draft);
+    await finish(ctx, await submitUnfreeze(ctx.userId, { expectedMoneyId: draft.expectedMoneyId }));
     return;
   }
   if (action === "savings") {

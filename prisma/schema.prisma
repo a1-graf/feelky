@@ -150,6 +150,7 @@ model Account {
   steamArbitrageRoundDestinations    SteamArbitrageRound[]    @relation("SteamArbitrageRoundDestinationAccount")
   steamArbitrageResidualDestinations SteamArbitrageResidual[] @relation("SteamArbitrageResidualDestinationAccount")
   fxTrades                           FxTrade[]
+  frozenExpectedMoney                ExpectedMoney[]          @relation("ExpectedMoneySourceAccount")
 
   @@index([userId, type])
   @@index([userId, currency])
@@ -249,17 +250,20 @@ model FrozenFund {
 }
 
 model ExpectedMoney {
-  id           String              @id @default(cuid())
-  userId       String
-  title        String              @default("Заморожені бабки")
-  amount       Decimal             @db.Decimal(18, 6)
-  currency     Currency
-  status       ExpectedMoneyStatus @default(EXPECTED)
-  note         String?
-  expectedDate DateTime?
-  createdAt    DateTime            @default(now())
-  resolvedAt   DateTime?
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String              @id @default(cuid())
+  userId          String
+  title           String              @default("Заморожені бабки")
+  amount          Decimal             @db.Decimal(18, 6)
+  currency        Currency
+  status          ExpectedMoneyStatus @default(EXPECTED)
+  note            String?
+  expectedDate    DateTime?
+  createdAt       DateTime            @default(now())
+  resolvedAt      DateTime?
+  /// Set when the money was frozen out of one of the user's own accounts; unfreezing returns it there.
+  sourceAccountId String?
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceAccount   Account?            @relation("ExpectedMoneySourceAccount", fields: [sourceAccountId], references: [id])
 
   @@index([userId, status])
 }

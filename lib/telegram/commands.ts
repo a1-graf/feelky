@@ -11,6 +11,8 @@ export const BOT_COMMANDS: BotCommand[] = [
   { command: "savings", description: "Відкладення" },
   { command: "transfer", description: "Переказ між рахунками" },
   { command: "expected", description: "Очікувані/заморожені гроші" },
+  { command: "freeze", description: "Заморозити вільні гроші" },
+  { command: "unfreeze", description: "Розморозити назад на рахунок" },
   { command: "flip", description: "Фліп" },
   { command: "steam", description: "Steam: баланс і завоз" },
   { command: "balance", description: "Поточні баланси" },

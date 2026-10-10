@@ -13,6 +13,8 @@ type ExpectedMoneyItem = {
   currency: "UAH" | "USDT" | "USD";
   status: string;
   note: string | null;
+  /** Frozen out of this account: unfreezing puts the whole amount back there, not counted as income. */
+  sourceAccountName: string | null;
 };
 
 const activeStatuses = new Set(["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS"]);
@@ -24,21 +26,22 @@ export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
   async function release(formData: FormData) {
     setMessage("");
     const actualAmount = String(formData.get("actualAmount") || "").trim();
+    const toSource = formData.get("toSource") === "1";
     const response = await fetch("/api/expected", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "releaseToMainWallet",
-        expectedMoneyId: formData.get("expectedMoneyId"),
-        actualAmount: actualAmount || undefined
-      })
+      body: JSON.stringify(
+        toSource
+          ? { action: "unfreeze", expectedMoneyId: formData.get("expectedMoneyId") }
+          : { action: "releaseToMainWallet", expectedMoneyId: formData.get("expectedMoneyId"), actualAmount: actualAmount || undefined }
+      )
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       setMessage(data.error || "Не вдалося розморозити");
       return;
     }
-    setMessage("Розморожено в мейн гаманець");
+    setMessage(toSource ? "Розморожено назад на рахунок" : "Розморожено в мейн гаманець");
     router.refresh();
   }
 
@@ -56,11 +59,22 @@ export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
             <div className="flex flex-wrap justify-between gap-3">
               <div>
                 <div className="font-medium">{item.title}</div>
-                <div className="text-sm text-[hsl(var(--card-muted-foreground))]">{item.status}{item.note ? ` · ${item.note}` : ""}</div>
+                <div className="text-sm text-[hsl(var(--card-muted-foreground))]">
+                  {item.status}
+                  {item.sourceAccountName ? ` · з рахунку ${item.sourceAccountName}` : ""}
+                  {item.note ? ` · ${item.note}` : ""}
+                </div>
               </div>
               <div className="font-semibold">{formatMoney(item.amount, item.currency)}</div>
             </div>
-            {active && (
+            {active && item.sourceAccountName && (
+              <form action={release} className="mt-3 flex justify-end">
+                <input type="hidden" name="expectedMoneyId" value={item.id} />
+                <input type="hidden" name="toSource" value="1" />
+                <Button className="min-h-10">Розморозити на {item.sourceAccountName}</Button>
+              </form>
+            )}
+            {active && !item.sourceAccountName && (
               <form action={release} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
                 <input type="hidden" name="expectedMoneyId" value={item.id} />
                 <label>

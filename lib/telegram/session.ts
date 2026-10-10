@@ -19,7 +19,11 @@ export type FlowAction =
   /** A завоз into Steam: real USDT in, Steam dollars out. */
   | "steamin"
   /** A Steam wallet balance typed by hand. */
-  | "steambal";
+  | "steambal"
+  /** Free money off an account into "Заморожені бабки". */
+  | "freeze"
+  /** A frozen entry back onto its account. */
+  | "unfreeze";
 
 export type FlowStep =
   | "amount"
@@ -33,7 +37,8 @@ export type FlowStep =
   | "input"
   | "balance"
   | "steam"
-  | "received";
+  | "received"
+  | "frozen";
 
 export type Draft = {
   amount?: string;
@@ -47,6 +52,8 @@ export type Draft = {
   steamAccountId?: string;
   /** What arrived on Steam for a завоз, in dollars. */
   received?: string;
+  /** Frozen entry picked to unfreeze. */
+  expectedMoneyId?: string;
   /** Flip setup picked from the buttons. */
   setup?: string;
   /** Backdating: `YYYY-MM-DD` in the Kyiv calendar, empty means today. */

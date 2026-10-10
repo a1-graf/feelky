@@ -2,7 +2,7 @@ import { AccountType, ExpectedMoneyStatus } from "@prisma/client";
 import type { Account, Category, IncomeSource, Settings, TelegramSession } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { createFlipWithLedger, undoFlipWithLedger } from "@/lib/flips";
-import { ledger } from "@/lib/ledger";
+import { ACTIVE_EXPECTED_STATUSES, ledger } from "@/lib/ledger";
 import { D } from "@/lib/money";
 import { steamResale } from "@/lib/steam";
 import { recordSteamBalance, steamWallets, TELEGRAM_SNAPSHOT_NOTE, undoSteamInvestment } from "@/lib/steam-wallets";
@@ -484,6 +484,53 @@ export async function submitSteamBalance(userId: string, input: { resaleAccountI
       ["Було", formatAmount(result.previousBalance, "USD")],
       ["Стало", `${formatAmount(result.currentBalance, "USD")}${change.isZero() ? "" : ` (${change.gt(0) ? "+" : "-"}${formatAmount(change.abs(), "USD")})`}`]
     ])
+  };
+}
+
+/** Entries frozen out of the user's own accounts and not back yet: what "Розморозити" offers. */
+export async function loadFrozenFromAccounts(userId: string) {
+  return prisma.expectedMoney.findMany({
+    where: { userId, sourceAccountId: { not: null }, status: { in: ACTIVE_EXPECTED_STATUSES } },
+    orderBy: { createdAt: "asc" },
+    include: { sourceAccount: { select: { name: true } } }
+  });
+}
+
+export async function submitFreeze(
+  userId: string,
+  input: { amount: string; accountId: string; title: string | null; date?: Date },
+  data: ReferenceData
+): Promise<OperationResult> {
+  const { expected, transaction } = await ledger.freezeToExpected(userId, {
+    accountId: input.accountId,
+    amount: input.amount,
+    title: input.title,
+    transactionDate: input.date ?? kyivNow()
+  });
+  const account = await prisma.account.findFirst({ where: { id: input.accountId, userId }, select: { name: true, currentBalance: true, currency: true } });
+  return {
+    text: confirmation("Заморожено", [
+      ["Сума", formatAmount(expected.amount.toString(), expected.currency)],
+      ["Звідки", account?.name ?? findAccountById(data.accounts, input.accountId)?.name],
+      ["Що", expected.title],
+      ["Вільно на рахунку", account ? formatAmount(account.currentBalance.toString(), account.currency) : null],
+      ["Дата", formatKyivDateTime(transaction.transactionDate)]
+    ]),
+    undo: { kind: "tx", id: transaction.id }
+  };
+}
+
+export async function submitUnfreeze(userId: string, input: { expectedMoneyId: string }): Promise<OperationResult> {
+  const { expected, transaction, destination } = await ledger.unfreezeExpected(userId, { expectedMoneyId: input.expectedMoneyId });
+  const account = await prisma.account.findFirst({ where: { id: destination.id, userId }, select: { currentBalance: true, currency: true } });
+  return {
+    text: confirmation("Розморожено", [
+      ["Сума", formatAmount(expected.amount.toString(), expected.currency)],
+      ["Куди", destination.name],
+      ["Що", expected.title],
+      ["Тепер на рахунку", account ? formatAmount(account.currentBalance.toString(), account.currency) : null]
+    ]),
+    undo: { kind: "tx", id: transaction.id }
   };
 }
 

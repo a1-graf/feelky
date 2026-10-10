@@ -198,6 +198,8 @@ the page did not load, or the wallet is not in dollars.
 - Convert currencies only with `rate.uahPerUsdt`, and say that you converted.
 - Work expenses are business costs, not personal spending - keep them apart.
 - `MANUAL_ADJUSTMENT` is a balance correction, not income or spending.
+- `FUNDS_FROZEN` / `FUNDS_RELEASED` move the user's own money between an account and
+  «Заморожені бабки» (`expectedMoney`) and back - neither income nor spending.
 - Reserved accounts are not spendable money. Transfers between the user's own accounts
   (card ↔ jar) are neither income nor spending.
 - Steam dollars are not real money: the bank counts the real USDT that went in

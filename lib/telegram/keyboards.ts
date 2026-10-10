@@ -26,6 +26,8 @@ export const MENU_ITEMS: Array<{ text: string; data: string }> = [
   { text: "P2P-вивід", data: "m:p2p" },
   { text: "Готівка", data: "m:cash" },
   { text: "Очікувані", data: "m:expected" },
+  { text: "Заморозити", data: "m:freeze" },
+  { text: "Розморозити", data: "m:unfreeze" },
   { text: "Фліп", data: "m:flip" },
   { text: "Steam", data: "m:steam" },
   { text: "Баланс рахунку", data: "m:manual" },

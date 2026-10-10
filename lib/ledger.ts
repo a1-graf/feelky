@@ -9,6 +9,23 @@ import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 type Tx = Prisma.TransactionClient;
 type CurrencyCode = "UAH" | "USDT" | "USD";
 
+export const FROZEN_DEFAULT_TITLE = "Заморожені бабки";
+export const ACTIVE_EXPECTED_STATUSES: ExpectedMoneyStatus[] = [
+  ExpectedMoneyStatus.EXPECTED,
+  ExpectedMoneyStatus.NEED_TO_COLLECT,
+  ExpectedMoneyStatus.IN_PROGRESS
+];
+
+/** A freeze or unfreeze that moved money between an account and "Заморожені бабки". */
+export function frozenMoveOf(transaction: { type: TransactionType; metadata?: Prisma.JsonValue }): { expectedMoneyId: string } | null {
+  if (transaction.type !== TransactionType.FUNDS_FROZEN && transaction.type !== TransactionType.FUNDS_RELEASED) return null;
+  const metadata = transaction.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const record = metadata as Record<string, unknown>;
+  if (record.movesBalance !== true || typeof record.expectedMoneyId !== "string") return null;
+  return { expectedMoneyId: record.expectedMoneyId };
+}
+
 export class LedgerService {
   constructor(private readonly db = prisma) {}
 
@@ -360,6 +377,85 @@ export class LedgerService {
     });
   }
 
+  /**
+   * Moves free money into "Заморожені бабки": it leaves the account and becomes a frozen entry
+   * that remembers where it came from. The full bank does not change, only available money,
+   * and neither this nor the way back is income or spending.
+   */
+  async freezeToExpected(userId: string, input: {
+    accountId: string;
+    amount: Decimal.Value;
+    title?: string | null;
+    note?: string | null;
+    transactionDate?: Date;
+  }) {
+    return this.db.$transaction(async (tx) => {
+      const account = await this.requireAccount(tx, userId, input.accountId);
+      if (account.isReserved) throw new Error("Відкладені гроші не заморожуються: спершу переклади їх на звичайний рахунок");
+      const amount = roundCurrency(input.amount, account.currency as CurrencyCode);
+      if (amount.lte(0)) throw new Error("Сума має бути більшою за нуль");
+      if (D(account.currentBalance).lt(amount)) throw new Error(`Недостатньо коштів на ${account.name}`);
+      const expected = await tx.expectedMoney.create({
+        data: {
+          userId,
+          title: input.title?.trim() || FROZEN_DEFAULT_TITLE,
+          amount: amount.toString(),
+          currency: account.currency,
+          status: ExpectedMoneyStatus.EXPECTED,
+          note: input.note,
+          sourceAccountId: account.id
+        }
+      });
+      await this.adjustAccount(tx, userId, account.id, amount.negated(), false);
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.FUNDS_FROZEN,
+          amount: amount.toString(),
+          currency: account.currency,
+          sourceAccountId: account.id,
+          note: input.note || expected.title,
+          transactionDate: input.transactionDate || new Date(),
+          metadata: { expectedMoneyId: expected.id, movesBalance: true }
+        }
+      });
+      await this.audit(tx, userId, "ExpectedMoney", expected.id, "FREEZE", null, expected);
+      return { expected, transaction };
+    });
+  }
+
+  /** The way back: the whole frozen amount returns to the account it came from (or another one in that currency). */
+  async unfreezeExpected(userId: string, input: { expectedMoneyId: string; destinationAccountId?: string | null; transactionDate?: Date }) {
+    return this.db.$transaction(async (tx) => {
+      const expected = await tx.expectedMoney.findFirst({ where: { id: input.expectedMoneyId, userId } });
+      if (!expected) throw new Error("Заморожений запис не знайдено");
+      if (!expected.sourceAccountId) throw new Error("Цей запис не заморожувався з рахунку");
+      const destination = await this.requireAccount(tx, userId, input.destinationAccountId || expected.sourceAccountId);
+      if (destination.currency !== expected.currency) throw new Error(`Розморозити можна тільки на рахунок у ${expected.currency}`);
+      // Claiming the status first makes a double tap a no-op instead of a double credit.
+      const claimed = await tx.expectedMoney.updateMany({
+        where: { id: expected.id, status: { in: ACTIVE_EXPECTED_STATUSES } },
+        data: { status: ExpectedMoneyStatus.RECEIVED, resolvedAt: new Date() }
+      });
+      if (claimed.count === 0) throw new Error("Ці гроші вже розморожено");
+      await this.adjustAccount(tx, userId, destination.id, D(expected.amount), false);
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.FUNDS_RELEASED,
+          amount: expected.amount.toString(),
+          currency: expected.currency,
+          destinationAccountId: destination.id,
+          note: expected.title,
+          transactionDate: input.transactionDate || new Date(),
+          metadata: { expectedMoneyId: expected.id, movesBalance: true }
+        }
+      });
+      await this.audit(tx, userId, "ExpectedMoney", expected.id, "UNFREEZE", expected, { ...expected, status: ExpectedMoneyStatus.RECEIVED });
+      return { expected, transaction, destination };
+    });
+  }
+
   async freezeFunds(userId: string, input: {
     accountId: string;
     amount: Decimal.Value;
@@ -435,6 +531,7 @@ export class LedgerService {
     const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
     if (!transaction) throw new Error("Transaction not found");
     if (transaction.archivedAt) return transaction;
+    await this.unwindFrozenEntry(tx, userId, transaction);
     await this.applyTransactionEffect(tx, transaction, "reverse");
     const archived = await tx.transaction.update({
       where: { id: transaction.id },
@@ -449,6 +546,7 @@ export class LedgerService {
       const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
       if (!transaction) throw new Error("Transaction not found");
       if (!transaction.archivedAt) return transaction;
+      if (frozenMoveOf(transaction)) throw new Error("Заморозку не відновити — заморозь або розморозь заново");
       await this.applyTransactionEffect(tx, transaction, "apply");
       const restored = await tx.transaction.update({
         where: { id: transaction.id },
@@ -544,9 +642,16 @@ export class LedgerService {
     convertedAmount: Prisma.Decimal | null;
     sourceAccountId: string | null;
     destinationAccountId: string | null;
+    metadata?: Prisma.JsonValue;
   }, accountId: string) {
     const amount = D(transaction.amount);
     const converted = D(transaction.convertedAmount || 0);
+    // Freezing into "Заморожені бабки" really moves money; the old per-account freeze marker does not.
+    if (frozenMoveOf(transaction)) {
+      if (transaction.type === TransactionType.FUNDS_FROZEN && accountId === transaction.sourceAccountId) return amount.negated();
+      if (transaction.type === TransactionType.FUNDS_RELEASED && accountId === transaction.destinationAccountId) return amount;
+      return new Decimal(0);
+    }
     if (accountId === transaction.sourceAccountId) {
       const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
       if (debitTypes.includes(transaction.type)) {
@@ -564,6 +669,25 @@ export class LedgerService {
       }
     }
     return new Decimal(0);
+  }
+
+  /**
+   * Archiving one leg of a freeze has to keep the frozen entry in step: undoing a freeze
+   * removes the entry, undoing an unfreeze makes it frozen again.
+   */
+  private async unwindFrozenEntry(tx: Tx, userId: string, transaction: { type: TransactionType; metadata: Prisma.JsonValue }) {
+    const move = frozenMoveOf(transaction);
+    if (!move) return;
+    const expected = await tx.expectedMoney.findFirst({ where: { id: move.expectedMoneyId, userId } });
+    if (!expected) return;
+    if (transaction.type === TransactionType.FUNDS_FROZEN) {
+      if (!ACTIVE_EXPECTED_STATUSES.includes(expected.status)) throw new Error("Ці гроші вже розморожено — спершу скасуй розморозку");
+      await tx.expectedMoney.delete({ where: { id: expected.id } });
+      await this.audit(tx, userId, "ExpectedMoney", expected.id, "FREEZE_UNDO", expected, null);
+      return;
+    }
+    await tx.expectedMoney.update({ where: { id: expected.id }, data: { status: ExpectedMoneyStatus.EXPECTED, resolvedAt: null } });
+    await this.audit(tx, userId, "ExpectedMoney", expected.id, "UNFREEZE_UNDO", expected, { ...expected, status: ExpectedMoneyStatus.EXPECTED });
   }
 
   private async audit(tx: Tx, userId: string, entityType: string, entityId: string, action: string, oldData: unknown, newData: unknown) {

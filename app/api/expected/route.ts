@@ -21,6 +21,12 @@ const receiveExpectedMoneySchema = z.object({
   note: z.string().optional().nullable()
 });
 
+const unfreezeSchema = z.object({
+  action: z.literal("unfreeze"),
+  expectedMoneyId: z.string().min(1),
+  destinationAccountId: z.string().min(1).optional()
+});
+
 const releaseToMainWalletSchema = z.object({
   action: z.literal("releaseToMainWallet"),
   expectedMoneyId: z.string().min(1),
@@ -45,10 +51,20 @@ export async function POST(request: Request) {
       const input = receiveExpectedMoneySchema.parse(body);
       return NextResponse.json(await ledger.receiveExpectedMoney(userId, input));
     }
+    if (body.action === "unfreeze") {
+      const input = unfreezeSchema.parse(body);
+      const { transaction } = await ledger.unfreezeExpected(userId, input);
+      return NextResponse.json(transaction);
+    }
     if (body.action === "releaseToMainWallet") {
       const input = releaseToMainWalletSchema.parse(body);
       const expected = await prisma.expectedMoney.findFirst({ where: { id: input.expectedMoneyId, userId } });
       if (!expected) return NextResponse.json({ error: "Frozen money record not found" }, { status: 404 });
+      // Money frozen out of an own account goes back as it left - never as income.
+      if (expected.sourceAccountId) {
+        const { transaction } = await ledger.unfreezeExpected(userId, { expectedMoneyId: expected.id });
+        return NextResponse.json(transaction);
+      }
       const mainWallet = await prisma.account.findFirst({ where: { userId, name: MAIN_WALLET_NAME, currency: "USDT", isActive: true } });
       if (!mainWallet) return NextResponse.json({ error: "Мейн гаманець не знайдено" }, { status: 400 });
       const actualAmount = input.actualAmount ?? (expected.currency === "USDT" ? Number(expected.amount) : undefined);
