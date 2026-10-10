@@ -1,4 +1,4 @@
-import { BackToStatistics } from "@/components/back-to-statistics";
+import { BackToOverview } from "@/components/back-to-overview";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { ReferenceManager } from "@/components/forms/reference-manager";
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   ]);
   return (
     <>
-      <BackToStatistics />
+      <BackToOverview />
       <PageTitle title="Налаштування" subtitle="Профіль, довідники, курс, тема, приховування сум і backup" />
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <SettingsForm settings={settings ? {

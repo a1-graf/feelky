@@ -1,5 +1,5 @@
 import { TransactionType } from "@prisma/client";
-import { BackToStatistics } from "@/components/back-to-statistics";
+import { BackToOverview } from "@/components/back-to-overview";
 import { MetricGrid } from "@/components/metric-grid";
 import { PageTitle } from "@/components/page-title";
 import { TransactionList } from "@/components/transaction-list";
@@ -18,7 +18,7 @@ export default async function WithdrawalsPage() {
   const receivedUah = sumDecimals(transactions.filter((item) => item.convertedCurrency === "UAH").map((item) => item.convertedAmount || 0));
   return (
     <>
-      <BackToStatistics />
+      <BackToOverview />
       <PageTitle title="Виводи" subtitle="P2P та готівкові виводи виконуються атомарно через LedgerService" />
       <MetricGrid items={[{ label: "Витрачено USDT", value: formatMoney(spent, "USDT") }, { label: "Отримано UAH", value: formatMoney(receivedUah, "UAH") }, { label: "Операцій", value: String(transactions.length) }]} />
       <div className="mt-5">

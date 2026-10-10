@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { BalanceGrowthChart } from "@/components/balance-growth-chart";
+import { ArrowRight } from "lucide-react";
+import { DashboardStatistics } from "@/components/dashboard-statistics";
 import { MetricGrid } from "@/components/metric-grid";
-import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { getDashboard } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/money";
@@ -20,9 +19,16 @@ const financeLinks = [
   { href: "/steam", label: "Steam" }
 ];
 
-export default async function OverviewPage() {
+const monthLabels = [
+  "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+  "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"
+];
+
+/** The one main page: the bank right now on top, then everything about the chosen month. */
+export default async function OverviewPage({ searchParams }: { searchParams?: Promise<{ month?: string }> }) {
   const userId = await requireUserId();
-  const data = await getDashboard(userId);
+  const params = await searchParams;
+  const data = await getDashboard(userId, { month: params?.month });
   const hidden = Boolean(data.settings?.hideAmounts);
   const rate = Number(data.rate);
   const asUah = (value: string) => formatMoney(Number(value) * rate, "UAH", hidden);
@@ -32,6 +38,7 @@ export default async function OverviewPage() {
   const limitRatio = limit > 0 ? Math.min(1, monthExpense / limit) : 0;
   const overLimit = limit > 0 && monthExpense > limit;
   const netPnl = Number(data.totals.netPnlUsdt);
+  const currentYear = new Date().getFullYear();
 
   return (
     <>
@@ -69,6 +76,31 @@ export default async function OverviewPage() {
           </div>
         </div>
       </div>
+
+      <Card className="mt-4 p-4">
+        <form action="/overview" className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <label>
+            Місяць
+            <select name="month" defaultValue={data.period.month}>
+              {monthLabels.map((label, index) => {
+                const month = `${currentYear}-${String(index + 1).padStart(2, "0")}`;
+                return <option key={month} value={month}>{label} {currentYear} р.</option>;
+              })}
+            </select>
+          </label>
+          <button className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">
+            Показати
+          </button>
+          <Link href="/overview" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-muted px-4 py-2 text-sm font-semibold text-[hsl(var(--card-foreground))]">
+            Теперішній місяць
+          </Link>
+        </form>
+        <div className="mt-3 text-sm text-[hsl(var(--card-muted-foreground))]">
+          Банк зверху — на зараз, усе нижче — за період{" "}
+          <span className="font-semibold text-[hsl(var(--card-foreground))]">{data.period.rangeLabel}</span>
+        </div>
+      </Card>
+
       <div className="mt-4">
         <MetricGrid
           items={[
@@ -79,6 +111,7 @@ export default async function OverviewPage() {
             { label: `Витрати · ${data.period.label}`, value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), tone: overLimit ? "danger" : "ok", subValue: limit > 0 ? `ліміт ${formatMoney(limit, "UAH", hidden)}` : "без ліміту" },
             { label: "Steam PnL", value: formatMoney(data.steam.profit, "USDT", hidden), tone: Number(data.steam.profit) >= 0 ? "ok" : "danger" }
           ]}
+          desktopColumns={3}
         />
       </div>
 
@@ -99,33 +132,21 @@ export default async function OverviewPage() {
         </Card>
       )}
 
-      <Card className="mt-4 p-4 sm:p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="font-semibold">Динаміка банку</div>
-          <Link href="/statistics" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Вся статистика <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <BalanceGrowthChart data={data.balanceTimeline} rate={data.rate} hidden={hidden} />
-      </Card>
+      <DashboardStatistics data={data} />
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Nine sections in three even rows, on a phone too. */}
+      <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
         {financeLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
-            className="group flex items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3.5 text-sm font-semibold shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-soft"
+            className="group flex items-center justify-center rounded-2xl border border-border/70 bg-card px-2 py-3 text-[13px] font-semibold shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-soft sm:justify-between sm:px-4 sm:py-3.5 sm:text-sm"
           >
             {link.label}
-            <ArrowRight className="h-4 w-4 text-[hsl(var(--card-muted-foreground))] transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+            <ArrowRight className="hidden h-4 w-4 text-[hsl(var(--card-muted-foreground))] transition-transform group-hover:translate-x-0.5 group-hover:text-primary sm:block" />
           </Link>
         ))}
       </div>
-
-      <Card className="mt-4 p-4 sm:p-5">
-        <div className="mb-2 text-sm font-semibold">Останні операції</div>
-        <TransactionList items={data.recentTransactions} compact />
-      </Card>
     </>
   );
 }

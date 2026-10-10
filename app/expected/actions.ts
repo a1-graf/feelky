@@ -17,5 +17,4 @@ export async function freezeFromAccountAction(formData: FormData) {
   await ledger.freezeToExpected(userId, { accountId, amount, title: text(formData, "title") });
   revalidatePath("/expected");
   revalidatePath("/overview");
-  revalidatePath("/statistics");
 }

@@ -1,5 +1,5 @@
 import { freezeFromAccountAction } from "@/app/expected/actions";
-import { BackToStatistics } from "@/components/back-to-statistics";
+import { BackToOverview } from "@/components/back-to-overview";
 import { ExpectedMoneyList } from "@/components/expected-money-list";
 import { MetricGrid } from "@/components/metric-grid";
 import { PageTitle } from "@/components/page-title";
@@ -17,7 +17,7 @@ export default async function ExpectedPage() {
   const active = items.filter((item) => ["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS"].includes(item.status));
   return (
     <>
-      <BackToStatistics />
+      <BackToOverview />
       <PageTitle title="Заморожені бабки" subtitle="Назва допомагає тримати в голові, де лежать гроші і що треба забрати" />
       <MetricGrid items={[{ label: "Заморожено UAH", value: formatMoney(sumDecimals(active.filter((i) => i.currency === "UAH").map((i) => i.amount)), "UAH") }, { label: "Заморожено USDT", value: formatMoney(sumDecimals(active.filter((i) => i.currency === "USDT").map((i) => i.amount)), "USDT") }, { label: "Записів", value: String(items.length) }]} />
       <Card className="mt-5">

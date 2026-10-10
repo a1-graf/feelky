@@ -43,7 +43,7 @@ export async function createSteamResaleInvestmentAction(formData: FormData) {
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function updateSteamResaleInvestmentReceivedAction(formData: FormData) {
@@ -55,14 +55,14 @@ export async function updateSteamResaleInvestmentReceivedAction(formData: FormDa
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function undoLastSteamResaleAction() {
   const userId = await requireUserId();
   await steamResale.undoLastResaleAction(userId);
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function addSteamResaleInvestmentAmountAction(formData: FormData) {
@@ -74,7 +74,7 @@ export async function addSteamResaleInvestmentAmountAction(formData: FormData) {
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function createSteamSnapshotAction(formData: FormData) {
@@ -99,7 +99,7 @@ export async function createSteamResaleWithdrawalAction(formData: FormData) {
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function createSteamSchemeAction(formData: FormData) {
@@ -119,7 +119,7 @@ export async function createSteamRoundAction(formData: FormData) {
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }
 
 export async function completeSteamRoundAction(formData: FormData) {
@@ -133,5 +133,5 @@ export async function completeSteamRoundAction(formData: FormData) {
     note: text(formData, "note")
   });
   revalidatePath("/steam");
-  revalidatePath("/statistics");
+  revalidatePath("/overview");
 }

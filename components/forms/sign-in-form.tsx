@@ -26,9 +26,9 @@ export function SignInForm() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Реєстрація не вдалася");
       }
-      const result = await signIn("credentials", { email, password, redirect: false, callbackUrl: "/statistics" });
+      const result = await signIn("credentials", { email, password, redirect: false, callbackUrl: "/overview" });
       if (result?.error) throw new Error("Невірний email або пароль");
-      window.location.href = "/statistics";
+      window.location.href = "/overview";
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Помилка");
     } finally {
@@ -52,7 +52,7 @@ export function SignInForm() {
         <label>Пароль<input name="password" type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={8} /></label>
         {message && <div className="rounded-lg bg-muted p-3 text-sm">{message}</div>}
         <Button disabled={loading}>{loading ? "Зачекайте..." : mode === "register" ? "Створити і увійти" : "Увійти"}</Button>
-        <Button type="button" variant="secondary" className="text-white hover:text-white" onClick={() => signIn("google", { callbackUrl: "/statistics" })}>
+        <Button type="button" variant="secondary" className="text-white hover:text-white" onClick={() => signIn("google", { callbackUrl: "/overview" })}>
           Увійти через Google
         </Button>
       </form>

@@ -1,4 +1,4 @@
-import { BackToStatistics } from "@/components/back-to-statistics";
+import { BackToOverview } from "@/components/back-to-overview";
 import { PageTitle } from "@/components/page-title";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
@@ -37,7 +37,7 @@ export default async function SavingsPage() {
 
   return (
     <>
-      <BackToStatistics />
+      <BackToOverview />
       <PageTitle title="Відкладення" subtitle="Окремі накопичення в UAH, які входять у повний банк" />
       <Card className="mb-4 p-5 sm:p-6">
         <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Накопичено</div>

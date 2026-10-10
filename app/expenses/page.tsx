@@ -1,5 +1,5 @@
 import { TransactionType } from "@prisma/client";
-import { BackToStatistics } from "@/components/back-to-statistics";
+import { BackToOverview } from "@/components/back-to-overview";
 import { MetricGrid } from "@/components/metric-grid";
 import { PageTitle } from "@/components/page-title";
 import { TransactionList } from "@/components/transaction-list";
@@ -30,7 +30,7 @@ export default async function ExpensesPage() {
   }
   return (
     <>
-      <BackToStatistics />
+      <BackToOverview />
       <PageTitle title="Витрати" subtitle="UAH та USDT витрати з контролем негативного балансу" />
       <MetricGrid items={[{ label: "Загалом UAH", value: formatMoney(totalUah, "UAH"), tone: "danger" }, { label: "Загалом USDT", value: formatMoney(totalUsdt, "USDT"), tone: "danger" }, { label: "Операцій", value: String(transactions.length) }, ...Array.from(byCategory).slice(0, 2).map(([label, value]) => ({ label, value }))]} />
       <div className="mt-5">
