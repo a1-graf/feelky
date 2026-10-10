@@ -30,4 +30,19 @@ describe("agent operations input", () => {
     expect(agentOperationSchema.safeParse({ type: "create_account", name: "X", accountType: "PIGGY", currency: "UAH" }).success).toBe(false);
     expect(agentOperationSchema.safeParse({ type: "drop_everything" }).success).toBe(false);
   });
+
+  it("knows the Steam record and frozen-entry operations", () => {
+    expect(agentOperationSchema.parse({ type: "steam_round_delete", roundId: "r1" })).toMatchObject({ roundId: "r1" });
+    expect(agentOperationSchema.parse({ type: "steam_round_delete", roundId: "r1", refund: false })).toMatchObject({ refund: false });
+    expect(agentOperationSchema.parse({ type: "steam_withdrawal", steamAccount: "1пп", spent: "100", received: "70" })).toMatchObject({ spent: "100" });
+    expect(agentOperationSchema.parse({ type: "expected_update", entry: "мекс індус", status: "LOST" })).toMatchObject({ status: "LOST" });
+    expect(agentOperationSchema.safeParse({ type: "expected_update", entry: "мекс індус", status: "GONE" }).success).toBe(false);
+    expect(agentOperationSchema.safeParse({ type: "steam_round_delete" }).success).toBe(false);
+  });
+
+  it("takes a raw row change as given", () => {
+    const parsed = agentOperationSchema.parse({ type: "raw_update", table: "SteamArbitrageRound", id: "r1", data: { note: "дубль", investedAmount: "50" } });
+    expect(parsed).toMatchObject({ table: "SteamArbitrageRound", data: { note: "дубль", investedAmount: "50" } });
+    expect(agentOperationSchema.safeParse({ type: "raw_update", table: "Flip", id: "f1" }).success).toBe(false);
+  });
 });

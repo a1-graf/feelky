@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { authorizeAgent } from "@/lib/agent";
-import { agentOperationSchema, isAgentInputError, runAgentOperation } from "@/lib/agent-operations";
+import { agentOperationSchema, agentRefusal, runAgentOperation } from "@/lib/agent-operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,9 +25,8 @@ export async function POST(request: Request) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid operation", issues: error.flatten().fieldErrors }, { status: 422 });
     }
-    if (isAgentInputError(error)) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Refused" }, { status: 409 });
-    }
+    const refusal = agentRefusal(error);
+    if (refusal) return NextResponse.json({ error: refusal.message }, { status: refusal.status });
     console.error("[agent] operation failed", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }

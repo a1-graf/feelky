@@ -147,6 +147,11 @@ brought in - «завезено»), `receivedSteam` (what arrived on Steam for i
 plus withdrawn, minus what arrived), `updatedAt`, `updatedBy` and a 7-day `history`.
 `totals` adds all accounts up.
 
+The same answer lists every Steam record with its `id`, for the operations below:
+`investments` (each «завоз»), `withdrawals`, `rounds` (arbitrage rounds - «круги», active
+and completed) and `schemes`. The Steam turnover in the bank is the real money of active
+завози plus the invested money of active rounds.
+
 ### Updating the balances
 
 Three times a day - 09:00, 15:00 and 21:00 Kyiv time - update **every** account listed by
@@ -234,9 +239,43 @@ it the operation is now. Without `account` the same default as the bot is used.
 | `update_category` | `category`, `name` (new), `isActive` |
 | `update_source` | `source`, `name` (new), `isActive` |
 | `update_settings` | `monthlyExpenseLimit` (UAH), `rateMode` (`AUTO`, `P2P_AVERAGE`, `MANUAL`), `manualRate`, `hideAmounts` |
+| `steam_round_create` | `scheme`, `amount` (USDT), `site`, `from`, `date` - opens a «круг» |
+| `steam_round_complete` | `roundId`, `received` (USDT), `remaining`, `to`, `note`, `date` |
+| `steam_round_delete` | `roundId`, `refund` - by default the invested money goes back to its account; `false` only removes the record (the balance was already fixed) |
+| `steam_scheme_create` | `name` |
+| `steam_investment_delete` | `investmentId`, `refund` - removes a «завоз»; `false` leaves the real money where it is |
+| `steam_investment_topup` | `investmentId`, `amount` (USDT), `from` |
+| `steam_investment_received` | `investmentId`, `received` (`"887.77"` or `"+32%"`) |
+| `steam_withdrawal` | `steamAccount`, `spent` (Steam $), `received` (real USDT), `to`, `note`, `date` |
+| `steam_withdrawal_delete` | `withdrawalId` |
+| `expected_receive` | `entry` (title or id), `amount`, `to`, `source`, `date` - the money arrived |
+| `expected_update` | `entry`, `title`, `amount`, `status` (`EXPECTED`, `NEED_TO_COLLECT`, `IN_PROGRESS`, `RECEIVED`, `LOST`, `SCAMMED`), `note` |
+| `expected_delete` | `entry` |
+| `raw_create` | `table`, `data` |
+| `raw_update` | `table`, `id`, `data` |
+| `raw_delete` | `table`, `id` |
 
 A retried request is recorded again - if a request failed on the network, check
 `/api/agent/transactions` before sending it once more.
+
+### Any table directly
+
+For anything no operation above covers, every table of the user's data can be read and
+changed row by row:
+
+```bash
+curl -s -H "Authorization: Bearer $(cat ~/.openclaw/feelky-token)" \
+  "https://feelky.vercel.app/api/agent/data?table=SteamArbitrageRound&limit=50"
+```
+
+Without `table` the answer lists the tables. `id=<id>` returns one row. Change rows with
+`raw_create`, `raw_update` and `raw_delete`: `data` holds the row's own field names as
+returned by the read; `id` and `userId` cannot be changed.
+
+A raw change writes exactly what you send and **moves no balance**: deleting a row does
+not give money back, editing an amount does not change the account. So use an operation
+whenever one exists, and after a raw change correct the affected balance with
+`set_balance` if it needs it. `AuditLog` (the history of changes) can be read, not written.
 
 ## Rules
 

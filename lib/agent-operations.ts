@@ -1,14 +1,15 @@
-import { AccountType, Prisma, RateMode } from "@prisma/client";
+import { AccountType, ExpectedMoneyStatus, Prisma, RateMode } from "@prisma/client";
 import type { Account, TelegramSession } from "@prisma/client";
 import { z } from "zod";
+import { RawAccessError, rawCreate, rawDelete, rawUpdate } from "@/lib/agent-raw";
 import { prisma } from "@/lib/db";
 import { undoFlipWithLedger } from "@/lib/flips";
 import { decimalString } from "@/lib/fx-input";
 import { deleteFxTradeWithLedger } from "@/lib/fx";
-import { ledger } from "@/lib/ledger";
-import { steamResale } from "@/lib/steam";
+import { ACTIVE_EXPECTED_STATUSES, ledger } from "@/lib/ledger";
+import { steamArbitrage, steamResale } from "@/lib/steam";
 import { resolveReceivedAmount } from "@/lib/steam-wallet-math";
-import { findSteamAccount } from "@/lib/steam-wallets";
+import { deleteSteamRound, deleteSteamWithdrawal, findSteamAccount, undoSteamInvestment } from "@/lib/steam-wallets";
 import { isValidDateKey, kyivToday, resolveTransactionDate } from "@/lib/telegram/dates";
 import {
   loadFrozenFromAccounts,
@@ -41,6 +42,7 @@ import { decodeUndoRef, encodeUndoRef, performUndo, undoMessage } from "@/lib/te
 const positive = decimalString.refine((value) => !value.startsWith("-") && Number(value) > 0, "Має бути більше за нуль");
 const signed = decimalString;
 const name = z.string().trim().min(1).max(80);
+const recordId = z.string().trim().min(1).max(40);
 const note = z.string().trim().max(200).optional().nullable();
 const currency = z.string().transform((value) => value.trim().toUpperCase()).pipe(z.enum(["UAH", "USDT", "USD"]));
 const date = z
@@ -87,7 +89,25 @@ export const agentOperationSchema = z.discriminatedUnion("type", [
     rateMode: z.nativeEnum(RateMode).optional(),
     manualRate: positive.optional().nullable(),
     hideAmounts: z.boolean().optional()
-  })
+  }),
+  // Steam: arbitrage rounds, завози and withdrawals, by the ids from GET /api/agent/steam.
+  z.object({ type: z.literal("steam_round_create"), scheme: name, site: note, amount: positive, from: name.optional(), date }),
+  z.object({ type: z.literal("steam_round_complete"), roundId: recordId, received: positive, remaining: decimalString.optional(), to: name.optional(), note, date }),
+  z.object({ type: z.literal("steam_round_delete"), roundId: recordId, refund: z.boolean().optional() }),
+  z.object({ type: z.literal("steam_scheme_create"), name }),
+  z.object({ type: z.literal("steam_investment_delete"), investmentId: recordId, refund: z.boolean().optional() }),
+  z.object({ type: z.literal("steam_investment_topup"), investmentId: recordId, amount: positive, from: name.optional() }),
+  z.object({ type: z.literal("steam_investment_received"), investmentId: recordId, received: z.string().trim().min(1).max(20) }),
+  z.object({ type: z.literal("steam_withdrawal"), steamAccount: name, spent: positive, received: positive, to: name.optional(), note, date }),
+  z.object({ type: z.literal("steam_withdrawal_delete"), withdrawalId: recordId }),
+  // "Заморожені бабки": any entry, by title or id.
+  z.object({ type: z.literal("expected_receive"), entry: name, amount: positive.optional(), to: name.optional(), source: name.optional(), date }),
+  z.object({ type: z.literal("expected_update"), entry: name, title: name.optional(), amount: positive.optional(), status: z.nativeEnum(ExpectedMoneyStatus).optional(), note }),
+  z.object({ type: z.literal("expected_delete"), entry: name }),
+  // Any row of any table, exactly as given - no balance is moved (see lib/agent-raw.ts).
+  z.object({ type: z.literal("raw_create"), table: name, data: z.record(z.unknown()) }),
+  z.object({ type: z.literal("raw_update"), table: name, id: recordId, data: z.record(z.unknown()) }),
+  z.object({ type: z.literal("raw_delete"), table: name, id: recordId })
 ]);
 
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
@@ -319,14 +339,179 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
         `Налаштування: ліміт ${settings.monthlyExpenseLimit?.toString() ?? "—"} UAH, курс ${settings.rateMode}${settings.manualUahUsdtRate ? ` (${settings.manualUahUsdtRate.toString()})` : ""}, суми ${settings.hideAmounts ? "приховані" : "видно"}.`
       );
     }
+    case "steam_round_create": {
+      const schemes = await prisma.steamArbitrageScheme.findMany({ where: { userId, archivedAt: null, isActive: true } });
+      const scheme = byName(schemes, input.scheme, "Схему");
+      const from = input.from ? account(data, input.from) : defaultAccount(pickExpenseAccount(data, await sessionFor(userId), "USDT"), "USDT");
+      const round = await steamArbitrage.createRound(userId, {
+        schemeId: scheme.id,
+        siteName: input.site ?? null,
+        sourceAccountId: from.id,
+        investedAmount: input.amount,
+        startedAt: transactionDate ?? new Date()
+      });
+      return { receipt: `Круг «${scheme.name}» на ${round.investedAmount.toString()} USDT відкрито, гроші взято з «${from.name}». id: ${round.id}`, undo: null };
+    }
+    case "steam_round_complete": {
+      const to = input.to ? account(data, input.to) : defaultAccount(pickIncomeAccount(data, await sessionFor(userId), "USDT"), "USDT");
+      const round = await steamArbitrage.completeRound(userId, {
+        roundId: input.roundId,
+        destinationAccountId: to.id,
+        finalAmountReceived: input.received,
+        remainingAmount: input.remaining ?? "0",
+        completedAt: transactionDate ?? new Date(),
+        note: input.note ?? null
+      });
+      return done(`Круг завершено: вкладено ${round.investedAmount.toString()} USDT, отримано ${round.finalAmountReceived?.toString() ?? "0"} USDT на «${to.name}».`);
+    }
+    case "steam_round_delete": {
+      const round = await deleteSteamRound(userId, input.roundId, { refund: input.refund });
+      return done(
+        input.refund === false
+          ? `Круг «${round.scheme.name}» на ${round.investedAmount.toString()} USDT видалено, баланси не чіпав.`
+          : `Круг «${round.scheme.name}» видалено, ${round.investedAmount.toString()} USDT повернуто на рахунок.`
+      );
+    }
+    case "steam_scheme_create": {
+      const scheme = await steamArbitrage.createScheme(userId, { name: input.name });
+      return done(`Схему «${scheme.name}» додано.`);
+    }
+    case "steam_investment_delete": {
+      const outcome = await undoSteamInvestment(userId, input.investmentId, { refund: input.refund });
+      if (outcome === "missing") throw new AgentOperationError("Завоз не знайдено");
+      if (outcome === "already") throw new AgentOperationError("Цей завоз уже видалено");
+      return done(input.refund === false ? "Завоз видалено, реальні гроші не повертав." : "Завоз видалено, реальні гроші повернуто на рахунок, зі Steam знято те, що зайшло.");
+    }
+    case "steam_investment_topup": {
+      const from = input.from ? account(data, input.from) : defaultAccount(pickExpenseAccount(data, await sessionFor(userId), "USDT"), "USDT");
+      const investment = await steamResale.addInvestmentAmount(userId, { investmentId: input.investmentId, sourceAccountId: from.id, extraExternalAmount: input.amount });
+      return done(`Завоз доповнено на ${input.amount} USDT з «${from.name}», разом ${investment.externalAmount.toString()} USDT.`);
+    }
+    case "steam_investment_received": {
+      const current = await prisma.steamResaleInvestment.findFirst({ where: { id: input.investmentId, userId, archivedAt: null } });
+      if (!current) throw new AgentOperationError("Завоз не знайдено");
+      const received = resolveReceivedAmount(input.received, current.externalAmount.toString());
+      if (received === null) throw new AgentOperationError("received: сума в $ або бонус, напр. +32%");
+      const investment = await steamResale.updateInvestmentReceived(userId, { investmentId: current.id, receivedSteamAmount: received });
+      return done(`У завозі тепер зайшло ${investment.receivedSteamAmount.toString()} USD з ${investment.externalAmount.toString()} USDT.`);
+    }
+    case "steam_withdrawal": {
+      const wallet = await findSteamAccount(userId, input.steamAccount);
+      if (!wallet) throw new AgentOperationError(`Steam-акаунт «${input.steamAccount}» не знайдено`);
+      const to = input.to ? account(data, input.to) : defaultAccount(pickIncomeAccount(data, await sessionFor(userId), "USDT"), "USDT");
+      const withdrawal = await steamResale.createWithdrawal(userId, {
+        resaleAccountId: wallet.id,
+        destinationAccountId: to.id,
+        softwareAmountSpent: input.spent,
+        amountReceived: input.received,
+        withdrawalDate: transactionDate ?? new Date(),
+        note: input.note ?? null
+      });
+      return done(`Вивід зі Steam «${wallet.name}»: списано ${withdrawal.softwareAmountSpent.toString()} USD, отримано ${withdrawal.amountReceived.toString()} USDT на «${to.name}». id: ${withdrawal.id}`);
+    }
+    case "steam_withdrawal_delete": {
+      const withdrawal = await deleteSteamWithdrawal(userId, input.withdrawalId);
+      return done(`Вивід видалено: ${withdrawal.amountReceived.toString()} USDT знято з рахунку, ${withdrawal.softwareAmountSpent.toString()} USD повернуто на Steam.`);
+    }
+    case "expected_receive": {
+      const entry = await expectedEntry(userId, input.entry, true);
+      // Money frozen out of an own account goes back as it left, never as income.
+      if (entry.sourceAccountId) return result(await submitUnfreeze(userId, { expectedMoneyId: entry.id }));
+      const code = entry.currency as TelegramCurrency;
+      const to = input.to ? account(data, input.to) : defaultAccount(pickIncomeAccount(data, await sessionFor(userId), code), code);
+      const sourceName = input.source ?? RETURNED_FROZEN_SOURCE;
+      const source = await prisma.incomeSource.upsert({
+        where: { userId_name: { userId, name: sourceName } },
+        update: { isActive: true },
+        create: { userId, name: sourceName }
+      });
+      const transaction = await ledger.receiveExpectedMoney(userId, {
+        expectedMoneyId: entry.id,
+        actualAmount: input.amount ?? entry.amount.toString(),
+        destinationAccountId: to.id,
+        incomeSourceId: source.id,
+        transactionDate
+      });
+      return { receipt: `«${entry.title}» отримано: ${transaction.amount.toString()} ${transaction.currency} на «${to.name}».`, undo: `tx:${transaction.id}` };
+    }
+    case "expected_update": {
+      const entry = await expectedEntry(userId, input.entry, false);
+      const closed = input.status ? !ACTIVE_EXPECTED_STATUSES.includes(input.status) : null;
+      const updated = await prisma.expectedMoney.update({
+        where: { id: entry.id },
+        data: {
+          title: input.title,
+          amount: input.amount,
+          status: input.status,
+          note: input.note === undefined ? undefined : input.note,
+          resolvedAt: closed === null ? undefined : closed ? new Date() : null
+        }
+      });
+      return done(`«${updated.title}»: ${updated.amount.toString()} ${updated.currency}, статус ${updated.status}.`);
+    }
+    case "expected_delete": {
+      const entry = await expectedEntry(userId, input.entry, false);
+      if (entry.sourceAccountId && ACTIVE_EXPECTED_STATUSES.includes(entry.status)) {
+        // Still frozen out of an account: undo the freeze so the money is not lost with the entry.
+        const freeze = await prisma.transaction.findFirst({
+          where: { userId, type: "FUNDS_FROZEN", archivedAt: null, metadata: { path: ["expectedMoneyId"], equals: entry.id } }
+        });
+        if (freeze) {
+          await ledger.archiveTransaction(userId, freeze.id);
+          return done(`«${entry.title}» видалено, ${entry.amount.toString()} ${entry.currency} повернуто на рахунок.`);
+        }
+      }
+      await prisma.expectedMoney.delete({ where: { id: entry.id } });
+      return done(`«${entry.title}» видалено.`);
+    }
+    case "raw_create": {
+      const row = await rawCreate(userId, { table: input.table, data: input.data });
+      return { receipt: `Запис у ${input.table} створено. id: ${String(row.id ?? "")}`, undo: null };
+    }
+    case "raw_update":
+      await rawUpdate(userId, { table: input.table, id: input.id, data: input.data });
+      return done(`Запис ${input.id} у ${input.table} змінено. Баланси не перераховувались.`);
+    case "raw_delete":
+      await rawDelete(userId, { table: input.table, id: input.id });
+      return done(`Запис ${input.id} з ${input.table} видалено. Баланси не перераховувались.`);
   }
 }
 
-/** Refusals that are the agent's to fix (unknown name, not enough money, a duplicate) rather than a server fault. */
-export function isAgentInputError(error: unknown): boolean {
-  if (error instanceof AgentOperationError) return true;
-  if (error instanceof Prisma.PrismaClientKnownRequestError) return ["P2002", "P2025"].includes(error.code);
-  if (!(error instanceof Error)) return false;
-  // Ledger refusals are short Ukrainian sentences: not enough money, already undone, ...
-  return /[а-яіїєґ]/i.test(error.message) && error.message.length <= 200;
+const RETURNED_FROZEN_SOURCE = "Повернення заморожених";
+
+async function expectedEntry(userId: string, value: string, activeOnly: boolean) {
+  const entries = await prisma.expectedMoney.findMany({
+    where: { userId, ...(activeOnly ? { status: { in: ACTIVE_EXPECTED_STATUSES } } : {}) },
+    orderBy: { createdAt: "asc" }
+  });
+  const target = value.trim().toLowerCase();
+  const matches = entries.filter((entry) => entry.id === value || entry.title.toLowerCase() === target);
+  if (!matches.length) throw new AgentOperationError(`Запис «${value}» не знайдено. Є: ${entries.map((entry) => entry.title).join(", ") || "нічого"}`);
+  if (matches.length > 1) throw new AgentOperationError(`Записів «${value}» кілька — передай id: ${matches.map((entry) => entry.id).join(", ")}`);
+  return matches[0];
+}
+
+/**
+ * Turns a failure into what the agent should hear. Anything it can fix itself (unknown name,
+ * not enough money, a duplicate, a field the table does not have) gets a status and a
+ * message; a real server fault returns null and stays a 500.
+ */
+export function agentRefusal(error: unknown): { status: number; message: string } | null {
+  if (error instanceof RawAccessError) return { status: error.status, message: error.message };
+  if (error instanceof AgentOperationError) return { status: 409, message: error.message };
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    // The last lines say which field is wrong; the rest is the query echoed back.
+    return { status: 422, message: error.message.trim().split("\n").filter(Boolean).slice(-2).join(" ").slice(0, 400) };
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") return { status: 409, message: "Такий запис уже є (унікальне поле повторюється)" };
+    if (error.code === "P2003") return { status: 409, message: "На цей запис посилаються інші — спершу прибери їх" };
+    if (error.code === "P2025") return { status: 404, message: "Запис не знайдено" };
+    return null;
+  }
+  if (!(error instanceof Error)) return null;
+  const message = error.message.trim();
+  // Ledger and Steam refusals are one short sentence; driver noise is not.
+  if (!message || message.length > 200 || /prisma|ECONN|fetch failed|timeout/i.test(message)) return null;
+  return { status: 409, message };
 }

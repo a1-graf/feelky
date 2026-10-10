@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { ledger } from "@/lib/ledger";
 import { D, roundCurrency } from "@/lib/money";
 import { balanceAfterSnapshot, summarizeWallet, sumSummaries } from "@/lib/steam-wallet-math";
 import type { WalletSummary } from "@/lib/steam-wallet-math";
@@ -153,7 +154,12 @@ export type SteamUndoOutcome = "undone" | "already" | "missing";
  * what was credited on Steam comes off the wallet. The claim on `archivedAt` makes a double
  * press a no-op.
  */
-export async function undoSteamInvestment(userId: string, investmentId: string): Promise<SteamUndoOutcome> {
+export async function undoSteamInvestment(
+  userId: string,
+  investmentId: string,
+  // `refund: false` only removes the record: for when the real money was already put back by hand.
+  options: { refund?: boolean } = {}
+): Promise<SteamUndoOutcome> {
   return prisma.$transaction(async (tx) => {
     const investment = await tx.steamResaleInvestment.findFirst({ where: { id: investmentId, userId } });
     if (!investment) return "missing";
@@ -163,7 +169,7 @@ export async function undoSteamInvestment(userId: string, investmentId: string):
     });
     if (claimed.count === 0) return "already";
 
-    const source = await tx.account.findFirst({ where: { id: investment.sourceAccountId, userId } });
+    const source = options.refund === false ? null : await tx.account.findFirst({ where: { id: investment.sourceAccountId, userId } });
     if (source) {
       await tx.account.update({
         where: { id: source.id },
@@ -178,6 +184,75 @@ export async function undoSteamInvestment(userId: string, investmentId: string):
     await audit(tx, userId, "SteamResaleInvestment", investment.id, "CREATE_UNDO", investment, { ...investment, archivedAt: new Date() });
     return "undone";
   });
+}
+
+/**
+ * Removes an arbitrage round. An active one gives its invested money back to the account it
+ * left; a completed one also takes back what the completion paid in. `refund: false` only
+ * removes the record, for when the balance was already corrected by hand.
+ */
+export async function deleteSteamRound(userId: string, roundId: string, options: { refund?: boolean } = {}) {
+  return prisma.$transaction(async (tx) => {
+    const round = await tx.steamArbitrageRound.findFirst({ where: { id: roundId, userId }, include: { scheme: { select: { name: true } } } });
+    if (!round) throw new Error("Круг не знайдено");
+    if (options.refund !== false) {
+      // The completion income first, so the money it brought in does not stay counted.
+      if (round.transactionId) await ledger.archiveTransactionWithin(tx, userId, round.transactionId);
+      const source = await tx.account.findFirst({ where: { id: round.sourceAccountId, userId } });
+      if (source) {
+        await tx.account.update({
+          where: { id: source.id },
+          data: { currentBalance: D(source.currentBalance).plus(round.investedAmount).toString() }
+        });
+      }
+    }
+    await tx.steamArbitrageRound.delete({ where: { id: round.id } });
+    await audit(tx, userId, "SteamArbitrageRound", round.id, "DELETE", round, undefined);
+    return round;
+  });
+}
+
+/** Removes a withdrawal: its income leaves the account again and the Steam money goes back on the wallet. */
+export async function deleteSteamWithdrawal(userId: string, withdrawalId: string) {
+  return prisma.$transaction(async (tx) => {
+    const withdrawal = await tx.steamResaleWithdrawal.findFirst({ where: { id: withdrawalId, userId } });
+    if (!withdrawal) throw new Error("Вивід зі Steam не знайдено");
+    if (withdrawal.archivedAt) throw new Error("Цей вивід уже видалено");
+    if (withdrawal.transactionId) await ledger.archiveTransactionWithin(tx, userId, withdrawal.transactionId);
+    const wallet = await tx.steamResaleAccount.findFirst({ where: { id: withdrawal.resaleAccountId, userId } });
+    if (wallet) {
+      await tx.steamResaleAccount.update({
+        where: { id: wallet.id },
+        data: { currentSoftwareBalance: D(wallet.currentSoftwareBalance).plus(withdrawal.softwareAmountSpent).toString() }
+      });
+    }
+    const archived = await tx.steamResaleWithdrawal.update({ where: { id: withdrawal.id }, data: { archivedAt: new Date() } });
+    await audit(tx, userId, "SteamResaleWithdrawal", withdrawal.id, "DELETE", withdrawal, archived);
+    return withdrawal;
+  });
+}
+
+/** Everything in the Steam module with its id, so a record can be pointed at and changed. */
+export async function steamRecords(userId: string) {
+  const [investments, withdrawals, rounds, schemes] = await Promise.all([
+    prisma.steamResaleInvestment.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: { startedAt: "desc" },
+      include: { resaleAccount: { select: { name: true } }, sourceAccount: { select: { name: true } } }
+    }),
+    prisma.steamResaleWithdrawal.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: { withdrawalDate: "desc" },
+      include: { resaleAccount: { select: { name: true } }, destinationAccount: { select: { name: true } } }
+    }),
+    prisma.steamArbitrageRound.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: { startedAt: "desc" },
+      include: { scheme: { select: { name: true } }, sourceAccount: { select: { name: true } }, destinationAccount: { select: { name: true } } }
+    }),
+    prisma.steamArbitrageScheme.findMany({ where: { userId, archivedAt: null }, orderBy: { createdAt: "asc" } })
+  ]);
+  return { investments, withdrawals, rounds, schemes };
 }
 
 async function audit(tx: Prisma.TransactionClient, userId: string, entityType: string, entityId: string, action: string, oldData: unknown, newData: unknown) {
