@@ -91,6 +91,7 @@ export async function agentSummary(userId: string, month?: string | null) {
       cashUsd: data.totals.cashUsd,
       savingsUah: data.totals.savingsUah,
       brokerUsdt: data.totals.brokerUsdt,
+      polyLockedUsdt: data.totals.polyLockedUsdt,
       cryptoUsdt: data.totals.cryptoTotal,
       frozenTotalUsdt: data.totals.frozenTotalUsdt,
       netPnlUsdt: data.totals.netPnlUsdt,

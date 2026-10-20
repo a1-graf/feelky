@@ -45,8 +45,8 @@ export function inferMarketKind(slug: string, title = ""): PolyMarketKindKey {
   const text = `${slug} ${title}`.toLowerCase();
   const asset = /\b(btc|bitcoin)\b|btc-|bitcoin/.test(text) ? "BTC" : /\b(eth|ethereum)\b|eth-|ethereum/.test(text) ? "ETH" : null;
   if (!asset) return "OTHER";
-  if (/(^|[^0-9])5m([^a-z0-9]|$)|5-?min/.test(text)) return asset === "BTC" ? "BTC_5M" : "ETH_5M";
-  if (/(^|[^0-9])15m([^a-z0-9]|$)|15-?min/.test(text)) return asset === "BTC" ? "BTC_15M" : "ETH_15M";
+  if (/(^|[^0-9])5m([^a-z0-9]|$)|(?<![0-9])5-?min/.test(text)) return asset === "BTC" ? "BTC_5M" : "ETH_5M";
+  if (/(^|[^0-9])15m([^a-z0-9]|$)|(?<![0-9])15-?min/.test(text)) return asset === "BTC" ? "BTC_15M" : "ETH_15M";
   return "OTHER";
 }
 
