@@ -3,7 +3,7 @@ import type { Currency } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { calculateReceivedUsdt, calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
-import { OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
+import { isPolyLedgerTransaction, OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
 import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
 type Tx = Prisma.TransactionClient;
@@ -573,6 +573,8 @@ export class LedgerService {
     const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
     if (!transaction) throw new Error("Transaction not found");
     if (transaction.archivedAt) return transaction;
+    // A Polymarket row belongs to a trade, a lock or a pool move; removing only the row would double count or lose money.
+    if (isPolyLedgerTransaction(transaction)) throw new Error("Це операція Polymarket — зміни угоду або блокування, а не сам рядок");
     await this.unwindFrozenEntry(tx, userId, transaction);
     await this.applyTransactionEffect(tx, transaction, "reverse");
     const archived = await tx.transaction.update({
@@ -600,6 +602,7 @@ export class LedgerService {
       const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
       if (!transaction) throw new Error("Transaction not found");
       if (!transaction.archivedAt) return transaction;
+      if (isPolyLedgerTransaction(transaction)) throw new Error("Операцію Polymarket не відновити — створи угоду заново");
       if (frozenMoveOf(transaction)) throw new Error("Заморозку не відновити — заморозь або розморозь заново");
       await this.applyTransactionEffect(tx, transaction, "apply");
       const restored = await tx.transaction.update({

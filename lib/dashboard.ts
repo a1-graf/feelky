@@ -77,7 +77,7 @@ export async function resolveUahUsdtRate(userId: string) {
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolveDashboardPeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, periodTransactions] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, periodTransactions, polyLocks] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -113,7 +113,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     steamAnalytics.dashboard(userId, { from: period.from, to: period.to }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null, transactionDate: period.range }
-    })
+    }),
+    prisma.polyLock.findMany({ where: { userId } })
   ]);
 
   const { rate, source } = rateData;
@@ -172,8 +173,11 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   }, new Decimal(0));
   const frozenTotalUsdt = frozenCrypto.plus(potentialExpected);
   const steamFrozenCapital = D(steam.totals.frozenCapital);
-  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt);
-  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt);
+  // Principal locked in Polymarket AI agents left the pool but is still the user's money, like Steam turnover.
+  const polyLockedUsdt = polyLocks.filter((lock) => lock.status === "LOCKED").reduce((sum, lock) => sum.plus(lock.amountUsd), new Decimal(0));
+  const polyLocksById = new Map(polyLocks.map((lock) => [lock.id, lock]));
+  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt);
+  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt);
 
   const monthIncome = periodTransactions
     .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
@@ -330,6 +334,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
         net: runningNet.toNumber()
       };
     });
+  const polySource = (metadata: unknown) => {
+    const source = metadataObject(metadata)?.source;
+    return source === "POLY_LOCK" || source === "POLY_RELEASE" ? source : null;
+  };
   const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
   for (const transaction of balanceTransactions) {
     const amount = asUsdt(transaction.amount, transaction.currency);
@@ -341,6 +349,12 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: goesToSavings ? new Decimal(0) : amount });
     } else if (transaction.type === TransactionType.EXPENSE) {
       balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount.negated(), availableDelta: comesFromSavings ? new Decimal(0) : amount.negated() });
+    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT && polySource(transaction.metadata) === "POLY_LOCK") {
+      // Pool -> locked principal: the full bank and available turnover do not change.
+    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT && polySource(transaction.metadata) === "POLY_RELEASE") {
+      const lock = polyLocksById.get(String(metadataObject(transaction.metadata)?.polyLockId ?? ""));
+      const result = lock?.resultPnlUsd == null ? amount : D(lock.resultPnlUsd);
+      balanceEvents.push({ date: transaction.transactionDate, fullDelta: result, availableDelta: result });
     } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
       balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
     } else if (transaction.type === TransactionType.TRANSFER && comesFromSavings !== goesToSavings) {
@@ -430,6 +444,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       cashUsd: cashUsd.toString(),
       savingsUah: savingsUah.toString(),
       brokerUsdt: brokerUsdt.toString(),
+      polyLockedUsdt: polyLockedUsdt.toString(),
       availableBankUsdt: availableBankUsdt.toString(),
       potentialBankUsdt: potentialBankUsdt.toString(),
       monthIncomeUsdt: monthIncome.toString(),
