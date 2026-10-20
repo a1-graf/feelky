@@ -14,6 +14,7 @@ import {
   PiggyBank,
   Settings,
   Snowflake,
+  Target,
   TrendingUp,
   Wallet
 } from "lucide-react";
@@ -30,6 +31,7 @@ export type NavIcon =
   | "savings"
   | "flips"
   | "fx"
+  | "poly"
   | "steam"
   | "archive"
   | "settings";
@@ -64,6 +66,7 @@ const icons: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
   savings: PiggyBank,
   flips: TrendingUp,
   fx: CandlestickChart,
+  poly: Target,
   steam: SteamIcon,
   archive: Archive,
   settings: Settings
