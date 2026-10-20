@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const auth = await authorizeAgent(request);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   try {
-    const { trades, hidden, ...overview } = await getPolyOverview(auth.userId);
+    const overview = await getPolyOverview(auth.userId);
     const strip = <T extends { timeline: unknown[] }>({ timeline, ...rest }: T) => ({ ...rest, days: timeline.length });
     return NextResponse.json(
       {

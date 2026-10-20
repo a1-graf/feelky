@@ -13,7 +13,6 @@ export const POLY_PNL_SOURCE = "POLY_PNL";
 export const POLY_LOCK_SOURCE = "POLY_LOCK";
 export const POLY_RELEASE_SOURCE = "POLY_RELEASE";
 export const POLY_FLOW_SOURCE = "POLY_FLOW";
-const POLY_SOURCES = [POLY_PNL_SOURCE, POLY_LOCK_SOURCE, POLY_RELEASE_SOURCE, POLY_FLOW_SOURCE];
 
 export type PolyTradeInput = {
   externalId: string;
