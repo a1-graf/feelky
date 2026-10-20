@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { undoFlipWithLedger } from "@/lib/flips";
 import { decimalString } from "@/lib/fx-input";
 import { deleteFxTradeWithLedger } from "@/lib/fx";
+import { deletePolyTrade, lockPolyFunds, movePolyFunds, POLY_FLOW_SOURCE, POLY_LOCK_SOURCE, POLY_RELEASE_SOURCE, releasePolyLock } from "@/lib/poly";
 import { ACTIVE_EXPECTED_STATUSES, ledger } from "@/lib/ledger";
 import { steamArbitrage, steamResale } from "@/lib/steam";
 import { resolveReceivedAmount } from "@/lib/steam-wallet-math";
@@ -42,6 +43,7 @@ import { decodeUndoRef, encodeUndoRef, performUndo, undoMessage } from "@/lib/te
 
 const positive = decimalString.refine((value) => !value.startsWith("-") && Number(value) > 0, "Має бути більше за нуль");
 const signed = decimalString;
+const nonNegative = decimalString.refine((value) => !value.startsWith("-"), "Не може бути від'ємним");
 const name = z.string().trim().min(1).max(80);
 const recordId = z.string().trim().min(1).max(40);
 const note = z.string().trim().max(200).optional().nullable();
@@ -92,6 +94,11 @@ export const agentOperationSchema = z.discriminatedUnion("type", [
     manualRate: positive.optional().nullable(),
     hideAmounts: z.boolean().optional()
   }),
+  // Polymarket pool: money in and out, and the 30-day lock of an AI agent (trades go through /api/agent/poly/trades).
+  z.object({ type: z.literal("poly_deposit"), amount: positive, from: name, note, date }),
+  z.object({ type: z.literal("poly_withdraw"), amount: positive, to: name, note, date }),
+  z.object({ type: z.literal("poly_lock"), amount: positive, agent: name, days: z.coerce.number().int().min(1).max(365).optional(), note, date }),
+  z.object({ type: z.literal("poly_release"), lock: recordId.optional(), agent: name.optional(), returned: nonNegative, note, date }),
   // Steam: arbitrage rounds, завози and withdrawals, by the ids from GET /api/agent/steam.
   z.object({ type: z.literal("steam_round_create"), scheme: name, site: note, amount: positive, from: name.optional(), date }),
   z.object({ type: z.literal("steam_round_complete"), roundId: recordId, received: positive, remaining: decimalString.optional(), to: name.optional(), note, date }),
@@ -180,9 +187,17 @@ async function deleteTransaction(userId: string, transactionId: string, permanen
   // A flip or an FX trade owns its ledger row: removing only the row would leave it in the statistics.
   if (typeof metadata.flipId === "string") await undoFlipWithLedger(userId, metadata.flipId);
   else if (typeof metadata.fxTradeId === "string") await deleteFxTradeWithLedger(userId, { id: metadata.fxTradeId, externalId: null });
+  else if (typeof metadata.polyTradeId === "string") await deletePolyTrade(userId, { id: metadata.polyTradeId, externalId: null });
+  else if (metadata.source === POLY_FLOW_SOURCE || metadata.source === POLY_LOCK_SOURCE || metadata.source === POLY_RELEASE_SOURCE) {
+    throw new AgentOperationError("Це рух пулу Polymarket — зміни його через poly_deposit / poly_withdraw / poly_lock / poly_release, а не видаленням рядка.");
+  }
   else if (!permanent) await ledger.archiveTransaction(userId, transaction.id);
   if (permanent) await ledger.deleteTransactionPermanently(userId, transaction.id);
   return done(permanent ? "Операцію видалено назавжди, баланс повернуто." : "Операцію перенесено в архів, баланс повернуто.");
+}
+
+function polyRefusal(error: unknown): never {
+  throw error instanceof Error && !(error instanceof AgentOperationError) ? new AgentOperationError(error.message) : error;
 }
 
 export async function runAgentOperation(userId: string, input: AgentOperation): Promise<AgentOperationResult> {
@@ -255,6 +270,22 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
     }
     case "flip":
       return result(await submitFlip(userId, { pnl: input.pnl, setup: input.setup, date: transactionDate }));
+    case "poly_deposit": {
+      await movePolyFunds(userId, { direction: "deposit", amount: input.amount, accountName: input.from, date: transactionDate, note: input.note ?? null }).catch(polyRefusal);
+      return done(`Пул Polymarket поповнено на ${input.amount} USDT з «${input.from}».`);
+    }
+    case "poly_withdraw": {
+      await movePolyFunds(userId, { direction: "withdraw", amount: input.amount, accountName: input.to, date: transactionDate, note: input.note ?? null }).catch(polyRefusal);
+      return done(`З пулу Polymarket виведено ${input.amount} USDT на «${input.to}».`);
+    }
+    case "poly_lock": {
+      const lock = await lockPolyFunds(userId, { amount: input.amount, agentName: input.agent, lockDays: input.days ?? 30, lockedAt: transactionDate ?? null, note: input.note ?? null }).catch(polyRefusal);
+      return done(`Заблоковано ${input.amount} USDT в агенті «${input.agent}» до ${lock.unlockAt.toISOString().slice(0, 10)} (lockId ${lock.id}).`);
+    }
+    case "poly_release": {
+      const { lock, resultPnl } = await releasePolyLock(userId, { lockId: input.lock ?? null, agentName: input.agent ?? null, returnedUsd: input.returned, releasedAt: transactionDate ?? null, note: input.note ?? null }).catch(polyRefusal);
+      return done(`Блокування «${lock.agentName}» знято: повернулось ${input.returned} USDT, результат агента ${resultPnl.toString()} USDT.`);
+    }
     case "set_balance":
       return result(await submitManualAdjustment(userId, { accountId: account(data, input.account).id, newBalance: input.balance }, data));
     case "steam_investment": {
