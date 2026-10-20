@@ -6,7 +6,7 @@ import { apiError } from "@/lib/api-error";
 export async function GET() {
   try {
     const userId = await requireApiUserId();
-    const [user, accounts, categories, incomeSources, transactions, frozenFunds, expectedMoney, settings] = await Promise.all([
+    const [user, accounts, categories, incomeSources, transactions, frozenFunds, expectedMoney, settings, polyTrades, polyLocks] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, createdAt: true } }),
       prisma.account.findMany({ where: { userId } }),
       prisma.category.findMany({ where: { userId } }),
@@ -14,9 +14,11 @@ export async function GET() {
       prisma.transaction.findMany({ where: { userId } }),
       prisma.frozenFund.findMany({ where: { userId } }),
       prisma.expectedMoney.findMany({ where: { userId } }),
-      prisma.settings.findUnique({ where: { userId } })
+      prisma.settings.findUnique({ where: { userId } }),
+      prisma.polyTrade.findMany({ where: { userId } }),
+      prisma.polyLock.findMany({ where: { userId } })
     ]);
-    return NextResponse.json({ exportedAt: new Date().toISOString(), user, accounts, categories, incomeSources, transactions, frozenFunds, expectedMoney, settings });
+    return NextResponse.json({ exportedAt: new Date().toISOString(), user, accounts, categories, incomeSources, transactions, frozenFunds, expectedMoney, settings, polyTrades, polyLocks });
   } catch (error) {
     return apiError(error, "Backup error");
   }

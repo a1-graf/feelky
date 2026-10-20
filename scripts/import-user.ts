@@ -9,7 +9,9 @@ const backupSchema = z.object({
   incomeSources: z.array(z.object({ userId: z.string() })),
   transactions: z.array(z.object({ userId: z.string() })),
   frozenFunds: z.array(z.object({ userId: z.string() })),
-  expectedMoney: z.array(z.object({ userId: z.string() }))
+  expectedMoney: z.array(z.object({ userId: z.string() })),
+  polyTrades: z.array(z.object({ userId: z.string() })).default([]),
+  polyLocks: z.array(z.object({ userId: z.string() })).default([])
 });
 
 const file = process.argv[2];
@@ -24,7 +26,9 @@ const allUserIds = [
   ...parsed.incomeSources,
   ...parsed.transactions,
   ...parsed.frozenFunds,
-  ...parsed.expectedMoney
+  ...parsed.expectedMoney,
+  ...parsed.polyTrades,
+  ...parsed.polyLocks
 ].map((item) => item.userId);
 const uniqueUserIds = new Set(allUserIds);
 if (uniqueUserIds.size > 1) {
