@@ -167,6 +167,19 @@ export function parseP2PEntry(text: string): P2PEntry | null {
   };
 }
 
+export type P2PDepositEntry = {
+  spentUah: string;
+  rateUahPerUsdt: string;
+  note: string | null;
+};
+
+/** `5000 41.6 Binance` -> paid UAH, UAH/USDT rate, note. Same shape as a P2P withdrawal. */
+export function parseP2PDepositEntry(text: string): P2PDepositEntry | null {
+  const entry = parseP2PEntry(text);
+  if (!entry) return null;
+  return { spentUah: entry.receivedUah, rateUahPerUsdt: entry.rateUahPerUsdt, note: entry.note };
+}
+
 export type CashEntry = {
   receivedAmount: string;
   receivedCurrency: "UAH" | "USD";

@@ -25,6 +25,7 @@ import {
   submitIncome,
   submitManualAdjustment,
   submitP2P,
+  submitP2PDeposit,
   submitSavings,
   submitSteamInvestment,
   submitTransfer,
@@ -59,6 +60,7 @@ export const agentOperationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("transfer"), amount: positive, from: name, to: name, note, date }),
   z.object({ type: z.literal("savings"), amount: positive, from: name.optional(), note, date }),
   z.object({ type: z.literal("p2p"), receivedUah: positive, rate: positive, note, date }),
+  z.object({ type: z.literal("p2p_deposit"), spentUah: positive, rate: positive, note, date }),
   z.object({ type: z.literal("cash"), receivedAmount: positive, currency: z.enum(["UAH", "USD"]).optional(), rate: positive, place: note, date }),
   z.object({ type: z.literal("expected"), amount: positive, currency: currency.optional(), title: note }),
   z.object({ type: z.literal("freeze"), amount: positive, currency: currency.optional(), account: name.optional(), title: note, date }),
@@ -226,6 +228,8 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
     }
     case "p2p":
       return result(await submitP2P(userId, { receivedUah: input.receivedUah, rateUahPerUsdt: input.rate, note: input.note ?? null, date: transactionDate }, data));
+    case "p2p_deposit":
+      return result(await submitP2PDeposit(userId, { spentUah: input.spentUah, rateUahPerUsdt: input.rate, note: input.note ?? null, date: transactionDate }, data));
     case "cash":
       return result(await submitCash(userId, {
         receivedAmount: input.receivedAmount,

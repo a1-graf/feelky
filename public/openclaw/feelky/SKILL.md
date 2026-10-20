@@ -60,12 +60,14 @@ curl -s -H "Authorization: Bearer $(cat ~/.openclaw/feelky-token)" \
 
 - `from`, `to` - `YYYY-MM-DD`, Kyiv calendar days, inclusive. Default: the last 30 days.
 - `limit` - default 50, max 200.
-- `type` - optional: `EXPENSE`, `INCOME`, `P2P_WITHDRAWAL`, `CASH_WITHDRAWAL`,
+- `type` - optional: `EXPENSE`, `INCOME`, `P2P_WITHDRAWAL`, `P2P_DEPOSIT`, `CASH_WITHDRAWAL`,
   `TRANSFER`, `MANUAL_ADJUSTMENT`.
 
 Each item has `id` (for `delete` / `restore`), `date` (Kyiv time), `typeLabel`, `amount`, `currency`, `fromAccount`,
 `toAccount`, `category`, `incomeSource`, `isWorkExpense`, `note`. For P2P and cash
-withdrawals `amount` is the USDT spent and `receivedAmount` is what arrived.
+withdrawals `amount` is the USDT spent and `receivedAmount` is what arrived. For a P2P
+deposit («завод») it is the other way round: `amount` is the UAH paid from the card and
+`receivedAmount` the USDT that landed on the exchange.
 
 ## FX trades
 
@@ -221,7 +223,8 @@ it the operation is now. Without `account` the same default as the bot is used.
 | `income` | `amount`, `source`, `currency` (UAH by default), `account`, `note`, `date` |
 | `transfer` | `amount`, `from`, `to` (same currency), `note`, `date` - between own accounts, not income or spending |
 | `savings` | `amount`, `from` (UAH account), `note`, `date` - into «Відкладення» |
-| `p2p` | `receivedUah`, `rate` (UAH per USDT), `note`, `date` |
+| `p2p` | `receivedUah`, `rate` (UAH per USDT), `note`, `date` - USDT sold, UAH onto the card |
+| `p2p_deposit` | `spentUah`, `rate` (UAH per USDT), `note`, `date` - a «завод»: UAH off the card, USDT bought onto the exchange |
 | `cash` | `receivedAmount`, `currency` (`UAH`/`USD`), `rate`, `place`, `date` |
 | `expected` | `amount`, `currency` (USDT by default), `title` - money expected from outside |
 | `freeze` | `amount`, `currency`, `account`, `title`, `date` - own money off an account into «Заморожені бабки» |

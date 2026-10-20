@@ -31,6 +31,7 @@ const today = () => {
 
 const actionOptions = [
   { value: "withdrawal", label: "Вивід" },
+  { value: "p2pDeposit", label: "P2P-завод" },
   { value: "income", label: "Дохід" },
   { value: "expense", label: "Витрата" },
   { value: "workExpense", label: "Робоча витрата" },
@@ -261,6 +262,13 @@ export function QuickAdd() {
                       <input type="hidden" name="destinationAccountId" value={cashTarget("UAH")} />
                     </>
                   )}
+                </>
+              )}
+              {action === "p2pDeposit" && (
+                <>
+                  <label>Віддано UAH<input name="spentUah" inputMode="decimal" required /></label>
+                  <label>Курс UAH/USDT<input name="rateUahPerUsdt" inputMode="decimal" required /></label>
+                  <DateField />
                 </>
               )}
               {action === "income" && (

@@ -2,7 +2,7 @@ import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, Prisma, Transaction
 import type { Currency } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
-import { calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
+import { calculateReceivedUsdt, calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
 import { OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
 import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
@@ -237,6 +237,48 @@ export class LedgerService {
             receivedAmount: receivedUah.toString(),
             receivedCurrency: "UAH",
             spentUsdt: spentUsdt.toString(),
+            rate: D(input.rateUahPerUsdt).toString()
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * The way back of a P2P withdrawal: UAH leaves the P2P card and the bought USDT lands on
+   * the P2P wallet. Same pair of accounts, opposite direction.
+   */
+  async createP2PDeposit(userId: string, input: {
+    spentUah: Decimal.Value;
+    rateUahPerUsdt: Decimal.Value;
+    transactionDate: Date;
+    note?: string | null;
+  }) {
+    return this.db.$transaction(async (tx) => {
+      const settings = await this.getSettings(tx, userId);
+      const sourceAccountId = settings.p2pDestinationAccountId || await this.findFirstAccount(tx, userId, AccountType.BANK_CARD, "UAH");
+      const destinationAccountId = settings.p2pSourceAccountId || await this.findNamedAccount(tx, userId, MAIN_WALLET_NAME, "USDT");
+      const spentUah = roundCurrency(input.spentUah, "UAH");
+      const receivedUsdt = calculateReceivedUsdt(spentUah, input.rateUahPerUsdt);
+      await this.adjustAccount(tx, userId, sourceAccountId, spentUah.negated(), false);
+      await this.adjustAccount(tx, userId, destinationAccountId, receivedUsdt, false);
+      return tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.P2P_DEPOSIT,
+          amount: spentUah.toString(),
+          currency: "UAH",
+          convertedAmount: receivedUsdt.toString(),
+          convertedCurrency: "USDT",
+          exchangeRate: D(input.rateUahPerUsdt).toString(),
+          sourceAccountId,
+          destinationAccountId,
+          note: input.note,
+          transactionDate: input.transactionDate,
+          metadata: {
+            spentAmount: spentUah.toString(),
+            spentCurrency: "UAH",
+            receivedUsdt: receivedUsdt.toString(),
             rate: D(input.rateUahPerUsdt).toString()
           }
         }
@@ -665,14 +707,14 @@ export class LedgerService {
       return new Decimal(0);
     }
     if (accountId === transaction.sourceAccountId) {
-      const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
+      const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
       if (debitTypes.includes(transaction.type)) {
         return amount.negated();
       }
     }
     if (accountId === transaction.destinationAccountId) {
       const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER];
-      const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.CASH_WITHDRAWAL];
+      const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL];
       if (directCreditTypes.includes(transaction.type)) {
         return amount;
       }

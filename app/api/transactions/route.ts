@@ -7,6 +7,7 @@ import {
   expenseSchema,
   incomeSchema,
   manualAdjustmentSchema,
+  p2pDepositSchema,
   p2pWithdrawalSchema,
   savingsDepositSchema,
   transactionFiltersSchema,
@@ -81,6 +82,10 @@ export async function POST(request: Request) {
     if (action === "p2p") {
       const input = p2pWithdrawalSchema.parse(body);
       return NextResponse.json(await ledger.createP2PWithdrawal(userId, input), { status: 201 });
+    }
+    if (action === "p2pDeposit") {
+      const input = p2pDepositSchema.parse(body);
+      return NextResponse.json(await ledger.createP2PDeposit(userId, input), { status: 201 });
     }
     if (action === "cash") {
       const input = cashWithdrawalSchema.parse(body);

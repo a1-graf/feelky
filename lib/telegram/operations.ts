@@ -271,6 +271,33 @@ export async function submitP2P(
   };
 }
 
+export async function submitP2PDeposit(
+  userId: string,
+  input: { spentUah: string; rateUahPerUsdt: string; note: string | null; date?: Date },
+  data: ReferenceData
+): Promise<OperationResult> {
+  const transaction = await ledger.createP2PDeposit(userId, {
+    spentUah: input.spentUah,
+    rateUahPerUsdt: input.rateUahPerUsdt,
+    transactionDate: input.date ?? kyivNow(),
+    note: input.note
+  });
+  const source = findAccountById(data.accounts, transaction.sourceAccountId);
+  const destination = findAccountById(data.accounts, transaction.destinationAccountId);
+  return {
+    text: confirmation("P2P-завод", [
+      ["Віддано", formatAmount(transaction.amount.toString(), "UAH")],
+      ["Курс", D(input.rateUahPerUsdt).toString()],
+      ["Зайшло", formatAmount(transaction.convertedAmount?.toString() ?? "0", "USDT")],
+      ["Звідки", source?.name],
+      ["Куди", destination?.name],
+      ["Примітка", noteText(input.note)],
+      ["Дата", formatKyivDateTime(transaction.transactionDate)]
+    ]),
+    undo: { kind: "tx", id: transaction.id }
+  };
+}
+
 export async function submitCash(
   userId: string,
   input: { receivedAmount: string; receivedCurrency: "UAH" | "USD"; rate: string; place: string | null; date?: Date },

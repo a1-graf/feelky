@@ -7,6 +7,7 @@ export const BOT_COMMANDS: BotCommand[] = [
   { command: "income", description: "Дохід" },
   { command: "work", description: "Робоча витрата" },
   { command: "p2p", description: "P2P-вивід" },
+  { command: "deposit", description: "P2P-завод назад на біржу" },
   { command: "cash", description: "Вивід у готівку" },
   { command: "savings", description: "Відкладення" },
   { command: "transfer", description: "Переказ між рахунками" },

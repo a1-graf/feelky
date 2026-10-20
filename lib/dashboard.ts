@@ -182,6 +182,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     .filter((t) => t.type === TransactionType.EXPENSE && t.currency === "UAH")
     .reduce((sum, t) => sum.plus(t.amount), new Decimal(0));
   const p2pCount = periodTransactions.filter((t) => t.type === TransactionType.P2P_WITHDRAWAL).length;
+  const p2pDepositCount = periodTransactions.filter((t) => t.type === TransactionType.P2P_DEPOSIT).length;
   const cashWithdrawalCount = periodTransactions.filter((t) => t.type === TransactionType.CASH_WITHDRAWAL).length;
   const flipStatistics = summarizeFlips(flips);
   const expenseCategoryMap = new Map<string, Decimal>();
@@ -437,6 +438,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       totalLossUsdt: totalLossUsdt.toString(),
       netPnlUsdt: netPnlUsdt.toString(),
       p2pCount,
+      p2pDepositCount,
       cashWithdrawalCount
     }
   };

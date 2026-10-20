@@ -24,6 +24,7 @@ const labels: Record<string, string> = {
   INCOME: "Дохід",
   EXPENSE: "Витрата",
   P2P_WITHDRAWAL: "P2P-вивід",
+  P2P_DEPOSIT: "P2P-завод",
   CASH_WITHDRAWAL: "Готівковий вивід",
   MANUAL_ADJUSTMENT: "Зміна балансу",
   EXPECTED_MONEY_RECEIVED: "Отримано очікувані",

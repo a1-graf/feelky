@@ -31,6 +31,7 @@ import {
   parseCashEntry,
   parseExpectedEntry,
   parseFlipEntry,
+  parseP2PDepositEntry,
   parseP2PEntry,
   parseQuickEntry
 } from "@/lib/telegram/parse";
@@ -60,6 +61,7 @@ import {
   submitIncome,
   submitManualAdjustment,
   submitP2P,
+  submitP2PDeposit,
   submitSavings,
   submitSteamBalance,
   submitSteamInvestment,
@@ -450,7 +452,7 @@ async function handleMenuAction(ctx: Ctx, action: string): Promise<void> {
 
 function toFlowAction(value: string): FlowAction | null {
   const actions: FlowAction[] = [
-    "expense", "income", "work", "savings", "transfer", "p2p", "cash", "expected", "flip", "manual", "steamin", "steambal", "freeze", "unfreeze"
+    "expense", "income", "work", "savings", "transfer", "p2p", "deposit", "cash", "expected", "flip", "manual", "steamin", "steambal", "freeze", "unfreeze"
   ];
   return actions.includes(value as FlowAction) ? (value as FlowAction) : null;
 }
@@ -510,7 +512,7 @@ function firstStep(action: FlowAction): FlowStep {
   if (action === "manual") return "account";
   if (action === "steambal") return "steam";
   if (action === "unfreeze") return "frozen";
-  if (action === "p2p" || action === "cash" || action === "expected") return "input";
+  if (action === "p2p" || action === "deposit" || action === "cash" || action === "expected") return "input";
   return "amount";
 }
 
@@ -534,6 +536,10 @@ async function promptFirstStep(ctx: Ctx, action: FlowAction, draft: Draft): Prom
   }
   if (action === "p2p") {
     await reply(ctx, ["<b>P2P-вивід</b>", "Формат: <code>5000 41.25 Binance</code>", "отримано UAH · курс UAH/USDT · примітка"].join("\n"), stepKeyboard(ctx, action, draft));
+    return;
+  }
+  if (action === "deposit") {
+    await reply(ctx, ["<b>P2P-завод</b>", "Формат: <code>5000 41.6 Binance</code>", "віддано UAH · курс UAH/USDT · примітка"].join("\n"), stepKeyboard(ctx, action, draft));
     return;
   }
   if (action === "cash") {
@@ -1108,6 +1114,15 @@ async function handleSingleInput(ctx: Ctx, action: FlowAction, text: string, dra
     await finish(ctx, await submitP2P(ctx.userId, { ...parsed, date }, ctx.data));
     return;
   }
+  if (action === "deposit") {
+    const parsed = parseP2PDepositEntry(text);
+    if (!parsed || D(parsed.spentUah).lte(0) || D(parsed.rateUahPerUsdt).lte(0)) {
+      await reply(ctx, "Формат: <code>5000 41.6 Binance</code>", cancelKeyboard());
+      return;
+    }
+    await finish(ctx, await submitP2PDeposit(ctx.userId, { ...parsed, date }, ctx.data));
+    return;
+  }
   if (action === "cash") {
     const parsed = parseCashEntry(text);
     if (!parsed || D(parsed.receivedAmount).lte(0) || D(parsed.rate).lte(0)) {
@@ -1219,7 +1234,8 @@ function helpText(): string {
     "Кома і крапка працюють однаково, пробіли в сумі теж.",
     "",
     "<b>Однорядкові формати</b>",
-    `P2P: <code>5000 41.25 Binance</code>`,
+    `P2P-вивід: <code>5000 41.25 Binance</code>`,
+    `P2P-завод: <code>5000 41.6 Binance</code>`,
     `Готівка: <code>10000 UAH 41.2 Cashalot</code>`,
     `Очікувані: <code>250 USDT холд біржі</code>`,
     `Фліп: <code>${escapeHtml("+35.5 Buff → TM")}</code>`,

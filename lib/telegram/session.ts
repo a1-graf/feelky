@@ -11,6 +11,8 @@ export type FlowAction =
   | "work"
   | "savings"
   | "p2p"
+  /** The way back of a P2P withdrawal: UAH off the card bought into USDT on the exchange. */
+  | "deposit"
   | "cash"
   | "expected"
   | "flip"

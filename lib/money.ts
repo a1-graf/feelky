@@ -30,6 +30,13 @@ export function calculateSpentUsdt(receivedAmount: MoneyInput, rate: MoneyInput)
   return roundCurrency(D(receivedAmount).div(rate), "USDT");
 }
 
+/** UAH paid on a P2P deposit -> USDT that arrived on the exchange. */
+export function calculateReceivedUsdt(spentAmount: MoneyInput, rate: MoneyInput) {
+  assertPositive(spentAmount, "spentAmount");
+  assertPositive(rate, "rate");
+  return roundCurrency(D(spentAmount).div(rate), "USDT");
+}
+
 export function sumDecimals(values: MoneyInput[]) {
   return values.reduce<Decimal>((total, value) => total.plus(value), new Decimal(0));
 }

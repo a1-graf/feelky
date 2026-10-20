@@ -14,6 +14,7 @@ export const TYPE_LABELS: Record<TransactionType, string> = {
   INCOME: "Дохід",
   EXPENSE: "Витрата",
   P2P_WITHDRAWAL: "P2P-вивід",
+  P2P_DEPOSIT: "P2P-завод",
   CASH_WITHDRAWAL: "Вивід у готівку",
   TRANSFER: "Переказ",
   MANUAL_ADJUSTMENT: "Коригування балансу",

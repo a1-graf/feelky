@@ -95,6 +95,7 @@ export async function agentSummary(userId: string, month?: string | null) {
       frozenTotalUsdt: data.totals.frozenTotalUsdt,
       netPnlUsdt: data.totals.netPnlUsdt,
       p2pWithdrawals: data.totals.p2pCount,
+      p2pDeposits: data.totals.p2pDepositCount,
       cashWithdrawals: data.totals.cashWithdrawalCount
     },
     expensesByCategoryUah: data.expenseCategories,

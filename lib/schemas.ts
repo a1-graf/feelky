@@ -73,6 +73,13 @@ export const p2pWithdrawalSchema = z.object({
   note: z.string().optional().nullable()
 });
 
+export const p2pDepositSchema = z.object({
+  spentUah: decimalInput(z.coerce.number().positive()),
+  rateUahPerUsdt: decimalInput(z.coerce.number().positive()),
+  transactionDate: dateString.default(() => new Date()),
+  note: z.string().optional().nullable()
+});
+
 export const cashWithdrawalSchema = z.object({
   receivedAmount: decimalInput(z.coerce.number().positive()),
   receivedCurrency: z.enum(["UAH", "USD"]),

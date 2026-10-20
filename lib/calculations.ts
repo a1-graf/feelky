@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { calculateSpentUsdt, D, roundCurrency } from "@/lib/money";
+import { calculateReceivedUsdt, calculateSpentUsdt, D, roundCurrency } from "@/lib/money";
 
 export type AccountSnapshot = {
   id: string;
@@ -19,6 +19,14 @@ export function p2pCalculation(receivedUah: Decimal.Value, rateUahPerUsdt: Decim
   return {
     receivedUah: roundCurrency(receivedUah, "UAH"),
     spentUsdt: calculateSpentUsdt(receivedUah, rateUahPerUsdt),
+    rate: D(rateUahPerUsdt)
+  };
+}
+
+export function p2pDepositCalculation(spentUah: Decimal.Value, rateUahPerUsdt: Decimal.Value) {
+  return {
+    spentUah: roundCurrency(spentUah, "UAH"),
+    receivedUsdt: calculateReceivedUsdt(spentUah, rateUahPerUsdt),
     rate: D(rateUahPerUsdt)
   };
 }

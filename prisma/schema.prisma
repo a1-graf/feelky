@@ -35,6 +35,8 @@ enum TransactionType {
   INCOME
   EXPENSE
   P2P_WITHDRAWAL
+  /// UAH from a card bought into USDT on the exchange - the way back of a P2P withdrawal.
+  P2P_DEPOSIT
   CASH_WITHDRAWAL
   TRANSFER
   MANUAL_ADJUSTMENT
