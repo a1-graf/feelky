@@ -18,6 +18,12 @@ export const POLYVSN_MAIN_WALLET_NOTE = "джерело: головний (main)
 
 type RawTrade = (typeof rawTrades)[number];
 
+/** Public Polymarket profiles the Polyvsn trades were matched to (market, side, price, size, time; bot trade by tx hash). */
+const POLYMARKET_ACCOUNT_WALLETS: Record<string, string> = {
+  "@11121f": "0xe861e58952bf74430b3cdbe6cce3e857631ce3d5",
+  "@55011": "0x8f037db9cc0b5babd15297cb2e32b8b56340dfd7"
+};
+
 export type PolyvsnFlow =
   | { kind: "deposit" | "withdraw"; importId: string; amount: string; date: Date; note: string }
   | { kind: "lock"; importId: string; amount: string; date: Date; note: string; agentName: string; lockDays: number }
@@ -67,14 +73,15 @@ function tradeFromRaw(row: RawTrade): PolyTradeInput {
   const parts = [
     `Polyvsn · ${row.sourceDetail}`,
     `вихід ${row.exit} (${row.closeType})`,
-    row.wallet ? row.wallet : "гаманець невідомий (API не дає)",
+    row.wallet ? row.wallet : "гаманець Polyvsn невідомий (API не дає)",
+    `акаунт Polymarket ${row.account} (${POLYMARKET_ACCOUNT_WALLETS[row.account]})`,
     isOpenStamp ? "час відкриття точний" : "час відкриття невідомий (початок вікна ринку / час закриття)"
   ];
   return {
     externalId: `polyvsn:${row.id}`,
     section: row.section as "MANUAL" | "COPYTRADE",
     agentName: null,
-    walletRef: row.wallet,
+    walletRef: row.account,
     marketSlug: slug,
     title: row.title,
     marketKind: inferMarketKind(slug, row.title),

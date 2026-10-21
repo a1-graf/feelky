@@ -13,6 +13,13 @@ describe("Polyvsn import plan", () => {
     expect(buildPolyvsnPlan().trades.map((trade) => trade.externalId)).toEqual(plan.trades.map((trade) => trade.externalId));
   });
 
+  it("tags every trade with its Polymarket account (8 on @11121f, 18 on @55011)", () => {
+    const count = (ref: string) => plan.trades.filter((trade) => trade.walletRef === ref).length;
+    expect(count("@11121f")).toBe(8);
+    expect(count("@55011")).toBe(18);
+    expect(plan.trades.find((trade) => trade.marketSlug === "btc-updown-5m-1792511700")?.walletRef).toBe("@11121f");
+  });
+
   it("passes the trade input schema and splits the sections", () => {
     for (const trade of plan.trades) {
       const parsed = polyTradeInputSchema.safeParse({ ...trade, pnl: trade.pnl });
