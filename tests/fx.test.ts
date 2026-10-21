@@ -150,6 +150,7 @@ describe("FX R multiples and periods", () => {
   it("sums R over every trade, so it agrees with the money result", () => {
     const october = stats.byMonth[0];
     expect(october.sumR).toBe("7.71");
+    expect(stats.monthSumR).toBe("7.71");
     expect(october.avgR).toBe("1.93");
     expect(october.ownRCount).toBe(3);
     expect(october.sumOwnR).toBe("1.95");
