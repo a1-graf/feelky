@@ -111,32 +111,34 @@ function Breakdown({ title, rows, currency, hidden }: { title: string; rows: Row
 
 export function FxStatistics({ data, brokers, flows, hidden = false }: { data: FxData; brokers: Broker[]; flows: Flows; hidden?: boolean }) {
   const currency = brokers[0]?.currency || "USD";
-  const profit = (pnl: string, r: string) => `${formatMoney(pnl, currency, hidden)} · ${formatR(r, hidden)}`;
 
   return (
     <>
       <Card className="mt-0 md:mt-4">
-        <div className="mb-3 grid grid-cols-2 gap-4">
-          <div className="min-w-0">
-            <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Total profit</div>
-            <div className={`mt-1 text-xl font-semibold sm:text-2xl ${tone(data.totalPnl)}`}>{profit(data.totalPnl, data.allTime.sumR)}</div>
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Profit за місяць</div>
-            <div className={`mt-1 text-xl font-semibold sm:text-2xl ${tone(data.monthPnl)}`}>{profit(data.monthPnl, data.monthSumR)}</div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="col-span-2">
-            <Metric
-              label="Баланс (FX брокер)"
-              value={
-                brokers.length
-                  ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ")
-                  : "Рахунок брокера ще не створено"
-              }
-            />
+          <Metric
+            label="Баланс (FX брокер)"
+            value={
+              brokers.length
+                ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ")
+                : "Рахунок брокера ще не створено"
+            }
+          />
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-3">
+            <div className="min-w-0">
+              <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Total profit</div>
+              <div className={`mt-1 font-semibold ${tone(data.totalPnl)}`}>
+                <div>{formatMoney(data.totalPnl, currency, hidden)}</div>
+                <div className="text-sm">{formatR(data.allTime.sumR, hidden)}</div>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-[hsl(var(--card-muted-foreground))]">За місяць</div>
+              <div className={`mt-1 font-semibold ${tone(data.monthPnl)}`}>
+                <div>{formatMoney(data.monthPnl, currency, hidden)}</div>
+                <div className="text-sm">{formatR(data.monthSumR, hidden)}</div>
+              </div>
+            </div>
           </div>
           <Metric label="Winrate" value={hidden ? "****" : `${data.winRate}%`} />
           <Metric label="Плюсових / мінусових" value={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
