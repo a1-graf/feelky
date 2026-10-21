@@ -124,17 +124,17 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
                 : "Рахунок брокера ще не створено"
             }
           />
-          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-3">
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-2.5 sm:p-3">
             <div className="min-w-0">
               <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Total profit</div>
-              <div className={`mt-1 font-semibold ${tone(data.totalPnl)}`}>
+              <div className={`mt-1 whitespace-nowrap text-[15px] font-semibold tabular-nums sm:text-base ${tone(data.totalPnl)}`}>
                 <div>{formatMoney(data.totalPnl, currency, hidden)}</div>
                 <div className="text-sm">{formatR(data.allTime.sumR, hidden)}</div>
               </div>
             </div>
             <div className="min-w-0">
               <div className="text-xs text-[hsl(var(--card-muted-foreground))]">За місяць</div>
-              <div className={`mt-1 font-semibold ${tone(data.monthPnl)}`}>
+              <div className={`mt-1 whitespace-nowrap text-[15px] font-semibold tabular-nums sm:text-base ${tone(data.monthPnl)}`}>
                 <div>{formatMoney(data.monthPnl, currency, hidden)}</div>
                 <div className="text-sm">{formatR(data.monthSumR, hidden)}</div>
               </div>

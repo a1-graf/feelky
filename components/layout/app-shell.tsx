@@ -71,7 +71,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="pb-32 md:pb-0">
-        <header className="sticky top-0 z-30 -mx-4 mb-2 flex items-center justify-between border-b border-border/60 bg-background/80 px-4 py-3 backdrop-blur-xl md:hidden">
+        <header className="sticky top-0 z-30 mb-2 flex items-center justify-between border-b border-border/60 bg-background/80 px-4 py-3 backdrop-blur-xl md:hidden">
           <div className="flex items-center gap-2">
             <img src="/icons/icon.svg" alt="" className="h-7 w-7 rounded-lg shadow-sm" />
             <span className="text-base font-bold tracking-tight">Feelky</span>
