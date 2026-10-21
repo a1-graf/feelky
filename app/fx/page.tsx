@@ -11,7 +11,9 @@ export default async function FxPage() {
 
   return (
     <>
-      <PageTitle title="FX" subtitle="Форекс-угоди, які заносить агент: PnL, winrate, інструменти й сетапи" />
+      <div className="hidden md:block">
+        <PageTitle title="FX" subtitle="Форекс-угоди, які заносить агент: PnL, winrate, інструменти й сетапи" />
+      </div>
       <FxStatistics data={data} brokers={brokers} hidden={hidden} />
     </>
   );

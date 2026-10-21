@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown } from "lucide-react";
 import { DashboardStatistics } from "@/components/dashboard-statistics";
 import { MetricGrid } from "@/components/metric-grid";
 import { Card } from "@/components/ui/card";
@@ -8,16 +8,16 @@ import { formatMoney } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 
 const financeLinks = [
+  { href: "/fx", label: "FX", priority: true },
+  { href: "/poly", label: "Polymarket", priority: true },
+  { href: "/steam", label: "Steam", priority: true },
   { href: "/income", label: "Доходи" },
   { href: "/expenses", label: "Витрати" },
   { href: "/withdrawals", label: "Виводи" },
   { href: "/crypto", label: "Гаманець" },
   { href: "/expected", label: "Заморожені" },
   { href: "/savings", label: "Відкладення" },
-  { href: "/flips", label: "Фліпи" },
-  { href: "/fx", label: "FX" },
-  { href: "/poly", label: "Polymarket" },
-  { href: "/steam", label: "Steam" }
+  { href: "/flips", label: "Фліпи" }
 ];
 
 const monthLabels = [
@@ -78,7 +78,48 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
         </div>
       </div>
 
-      <Card className="mt-4 p-4">
+      <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
+        {financeLinks.filter((link) => link.priority).map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`flex min-h-12 items-center justify-center rounded-xl border px-2 py-2.5 text-center text-xs font-semibold shadow-card transition-colors active:bg-muted ${
+              link.priority ? "border-primary/25 bg-primary/10 text-primary" : "border-border/70 bg-card"
+            }`}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </div>
+
+      <details className="group mt-3 rounded-2xl border border-border/60 bg-card/80 shadow-card md:hidden">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            Період: {data.period.label}
+          </span>
+          <ChevronDown className="h-4 w-4 text-[hsl(var(--card-muted-foreground))] transition-transform group-open:rotate-180" />
+        </summary>
+        <form action="/overview" className="grid gap-3 border-t border-border/60 p-4">
+          <label>
+            Місяць
+            <select name="month" defaultValue={data.period.month}>
+              {monthLabels.map((label, index) => {
+                const month = `${currentYear}-${String(index + 1).padStart(2, "0")}`;
+                return <option key={month} value={month}>{label} {currentYear} р.</option>;
+              })}
+            </select>
+          </label>
+          <button className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">
+            Показати період
+          </button>
+          {!data.period.isCurrentMonth && (
+            <Link href="/overview" className="text-center text-sm font-medium text-primary">Повернутись до поточного місяця</Link>
+          )}
+        </form>
+      </details>
+
+      <Card className="mt-4 hidden p-4 md:block">
         <form action="/overview" className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
           <label>
             Місяць
@@ -135,8 +176,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
 
       <DashboardStatistics data={data} />
 
-      {/* Nine sections in three even rows, on a phone too. */}
-      <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="mt-4 hidden grid-cols-3 gap-3 md:grid">
         {financeLinks.map((link) => (
           <Link
             key={link.href}

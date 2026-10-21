@@ -48,11 +48,11 @@ export function FxStatistics({ data, brokers, hidden = false }: { data: FxData; 
 
   return (
     <>
-      <Card className="mt-4">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <Card className="mt-0 md:mt-4">
+        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+          <div className="min-w-0">
             <div className="font-semibold">FX</div>
-            <div className="mt-1 text-sm text-[hsl(var(--card-muted-foreground))]">
+            <div className="mt-1 truncate text-sm text-[hsl(var(--card-muted-foreground))]">
               {brokers.length
                 ? brokers.map((broker) => `${broker.name}: ${formatMoney(broker.balance, broker.currency, hidden)}`).join(" · ")
                 : "Рахунок брокера ще не створено"}
@@ -64,16 +64,32 @@ export function FxStatistics({ data, brokers, hidden = false }: { data: FxData; 
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
           <Metric label="PnL місяця" value={formatMoney(data.monthPnl, currency, hidden)} className={tone(data.monthPnl)} />
           <Metric label="Winrate" value={hidden ? "****" : `${data.winRate}%`} />
           <Metric label="Profit factor" value={hidden ? "****" : data.profitFactor ?? "—"} />
           <Metric label="Плюсових / мінусових" value={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
+        </div>
+
+        <div className="mt-3 hidden gap-3 sm:grid sm:grid-cols-4">
           <Metric label="Середній плюс" value={formatMoney(data.avgWin, currency, hidden)} className="text-success" />
           <Metric label="Середній мінус" value={formatMoney(`-${data.avgLoss}`, currency, hidden)} className="text-danger" />
           <Metric label="Комісії" value={formatMoney(data.commission, currency, hidden)} />
           <Metric label="Своп" value={formatMoney(data.swap, currency, hidden)} />
         </div>
+
+        <details className="group mt-3 rounded-xl border border-border/60 sm:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-medium text-[hsl(var(--card-muted-foreground))] [&::-webkit-details-marker]:hidden">
+            Детальні метрики
+            <span className="text-base transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <div className="grid grid-cols-2 gap-2.5 border-t border-border/60 p-2.5">
+            <Metric label="Середній плюс" value={formatMoney(data.avgWin, currency, hidden)} className="text-success" />
+            <Metric label="Середній мінус" value={formatMoney(`-${data.avgLoss}`, currency, hidden)} className="text-danger" />
+            <Metric label="Комісії" value={formatMoney(data.commission, currency, hidden)} />
+            <Metric label="Своп" value={formatMoney(data.swap, currency, hidden)} />
+          </div>
+        </details>
       </Card>
 
       <Card className="mt-4">
