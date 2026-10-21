@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { QuickAdd } from "@/components/forms/quick-add";
 import { DesktopNav, type NavSection } from "@/components/layout/app-nav";
 import { MobileLogout } from "@/components/layout/mobile-logout";
-import { MobileNavBar } from "@/components/layout/mobile-nav-bar";
+import { MobileNavBar, MobileQuickAddButton } from "@/components/layout/mobile-nav-bar";
 import { getCurrentSession } from "@/lib/session";
 
 const navSections: readonly NavSection[] = [
@@ -28,6 +28,7 @@ const navSections: readonly NavSection[] = [
     items: [
       { href: "/flips", label: "Фліпи", icon: "flips" },
       { href: "/fx", label: "FX", icon: "fx" },
+      { href: "/poly", label: "Polymarket", icon: "poly" },
       { href: "/steam", label: "Steam", icon: "steam" }
     ]
   },
@@ -75,7 +76,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <img src="/icons/icon.svg" alt="" className="h-7 w-7 rounded-lg shadow-sm" />
             <span className="text-base font-bold tracking-tight">Feelky</span>
           </div>
-          <MobileLogout />
+          <MobileQuickAddButton />
         </header>
         <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 lg:px-8">{children}</div>
       </main>

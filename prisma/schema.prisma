@@ -31,6 +31,32 @@ enum FxSide {
   SELL
 }
 
+enum PolySection {
+  MANUAL
+  COPYTRADE
+  AI_AGENT
+}
+
+enum PolyMarketKind {
+  BTC_5M
+  BTC_15M
+  ETH_5M
+  ETH_15M
+  OTHER
+}
+
+enum PolyTradeStatus {
+  OPEN
+  WON
+  LOST
+  VOID
+}
+
+enum PolyLockStatus {
+  LOCKED
+  RELEASED
+}
+
 enum TransactionType {
   INCOME
   EXPENSE
@@ -120,6 +146,8 @@ model User {
   flips                     Flip[]
   telegramSessions          TelegramSession[]
   fxTrades                  FxTrade[]
+  polyTrades                PolyTrade[]
+  polyLocks                 PolyLock[]
 }
 
 model Account {
@@ -152,6 +180,7 @@ model Account {
   steamArbitrageRoundDestinations    SteamArbitrageRound[]    @relation("SteamArbitrageRoundDestinationAccount")
   steamArbitrageResidualDestinations SteamArbitrageResidual[] @relation("SteamArbitrageResidualDestinationAccount")
   fxTrades                           FxTrade[]
+  polyLocks                          PolyLock[]
   frozenExpectedMoney                ExpectedMoney[]          @relation("ExpectedMoneySourceAccount")
 
   @@index([userId, type])
@@ -566,4 +595,69 @@ model FxTrade {
   @@unique([userId, externalId])
   @@index([userId, closedAt])
   @@index([userId, instrument])
+}
+
+/// One Polymarket position (a 5-minute BTC call or any other market). Its realised `pnlUsd` is
+/// posted to the Polymarket pool account, except for AI-agent trades: that money sits in a lock.
+model PolyTrade {
+  id          String          @id @default(cuid())
+  userId      String
+  /// Order/position id from Polymarket or the bot; makes a resent trade an update, never a second row.
+  externalId  String
+  section     PolySection
+  /// «AI-агент 1/2/3» for the AI_AGENT section.
+  agentName   String?
+  /// Which wallet or API wallet the trade went through.
+  walletRef   String?
+  marketSlug  String
+  title       String
+  marketKind  PolyMarketKind  @default(OTHER)
+  /// Up / Down / Yes / No.
+  outcome     String
+  entryPrice  Decimal         @db.Decimal(18, 8)
+  sizeUsd     Decimal         @db.Decimal(18, 6)
+  shares      Decimal?        @db.Decimal(18, 8)
+  feesUsd     Decimal         @default(0) @db.Decimal(18, 6)
+  status      PolyTradeStatus @default(OPEN)
+  /// Net result after fees; 0 while the trade is open or void.
+  pnlUsd      Decimal         @default(0) @db.Decimal(18, 6)
+  openedAt    DateTime
+  resolvedAt  DateTime?
+  /// The price the copied signal showed, to measure slippage against `entryPrice`.
+  signalPrice Decimal?        @db.Decimal(18, 8)
+  note        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId, openedAt])
+  @@index([userId, section])
+  @@index([userId, agentName])
+}
+
+/// Money moved out of the Polymarket pool into a section or an AI agent for a fixed period.
+/// Locked money stays in the full bank; releasing returns the principal plus the result to the pool.
+model PolyLock {
+  id                String         @id @default(cuid())
+  userId            String
+  accountId         String
+  section           PolySection
+  agentName         String?
+  amountUsd         Decimal        @db.Decimal(18, 6)
+  lockedAt          DateTime
+  unlockAt          DateTime
+  status            PolyLockStatus @default(LOCKED)
+  releasedAt        DateTime?
+  /// What actually came back into the pool.
+  releasedAmountUsd Decimal?       @db.Decimal(18, 6)
+  resultPnlUsd      Decimal?       @db.Decimal(18, 6)
+  note              String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account           Account        @relation(fields: [accountId], references: [id])
+
+  @@index([userId, status])
+  @@index([userId, agentName])
 }

@@ -58,3 +58,11 @@ export function isFxLedgerTransaction(transaction: {
   const metadata = transaction.metadata;
   return Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).source === "FX_PNL");
 }
+
+export function isPolyLedgerTransaction(transaction: {
+  metadata?: unknown;
+}) {
+  const metadata = transaction.metadata;
+  const source = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? (metadata as Record<string, unknown>).source : null;
+  return typeof source === "string" && source.startsWith("POLY_");
+}

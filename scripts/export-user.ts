@@ -15,7 +15,9 @@ async function main() {
     transactions: await prisma.transaction.findMany({ where: { userId: user.id } }),
     frozenFunds: await prisma.frozenFund.findMany({ where: { userId: user.id } }),
     expectedMoney: await prisma.expectedMoney.findMany({ where: { userId: user.id } }),
-    settings: await prisma.settings.findUnique({ where: { userId: user.id } })
+    settings: await prisma.settings.findUnique({ where: { userId: user.id } }),
+    polyTrades: await prisma.polyTrade.findMany({ where: { userId: user.id } }),
+    polyLocks: await prisma.polyLock.findMany({ where: { userId: user.id } })
   };
   mkdirSync("backups", { recursive: true });
   const path = `backups/user-${user.email}-${Date.now()}.json`;

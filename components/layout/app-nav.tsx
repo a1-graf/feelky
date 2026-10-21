@@ -14,6 +14,7 @@ import {
   PiggyBank,
   Settings,
   Snowflake,
+  Target,
   TrendingUp,
   Wallet
 } from "lucide-react";
@@ -30,6 +31,7 @@ export type NavIcon =
   | "savings"
   | "flips"
   | "fx"
+  | "poly"
   | "steam"
   | "archive"
   | "settings";
@@ -64,6 +66,7 @@ const icons: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
   savings: PiggyBank,
   flips: TrendingUp,
   fx: CandlestickChart,
+  poly: Target,
   steam: SteamIcon,
   archive: Archive,
   settings: Settings
@@ -119,30 +122,13 @@ export function DesktopNav({ sections }: { sections: readonly NavSection[] }) {
   );
 }
 
-export function MobileNav({ items, onAdd }: { items: readonly NavItem[]; onAdd: () => void }) {
+export function MobileNav({ items }: { items: readonly NavItem[] }) {
   const pathname = usePathname();
   const { isActive, onNavigate } = useOptimisticActive(pathname);
-  const slots: (NavItem | "add")[] = [items[0], items[1], "add", items[2], items[3]];
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/90 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl md:hidden">
       <div className="grid grid-cols-5">
-        {slots.map((slot, index) => {
-          if (slot === "add") {
-            return (
-              <div key="add" className="grid place-items-center">
-                <button
-                  type="button"
-                  onClick={onAdd}
-                  aria-label="Додати операцію"
-                  className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-glow ring-4 ring-background transition-transform duration-150 active:scale-95"
-                >
-                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </button>
-              </div>
-            );
-          }
+        {items.map((slot) => {
           const active = isActive(slot.href);
           const Icon = icons[slot.icon];
           return (
