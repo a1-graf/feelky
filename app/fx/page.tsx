@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic";
 
 export default async function FxPage() {
   const userId = await requireUserId();
-  const { data, brokers, hidden } = await getFxStatistics(userId);
+  const { data, brokers, flows, hidden } = await getFxStatistics(userId);
 
   return (
     <>
       <div className="hidden md:block">
-        <PageTitle title="FX" subtitle="Форекс-угоди, які заносить агент: PnL, winrate, інструменти й сетапи" />
+        <PageTitle title="FX" subtitle="Форекс: усі позиції в R і $, місяці, весь час, баланс і депозити" />
       </div>
-      <FxStatistics data={data} brokers={brokers} hidden={hidden} />
+      <FxStatistics data={data} brokers={brokers} flows={flows} hidden={hidden} />
     </>
   );
 }

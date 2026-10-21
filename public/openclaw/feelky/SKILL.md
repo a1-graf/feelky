@@ -85,6 +85,12 @@ curl -s -X POST -H "Authorization: Bearer $(cat ~/.openclaw/feelky-token)" \
 ```
 
 - Required: `instrument`, `side` (`BUY`/`SELL`), `closedAt`, `pnl`.
+- Send `stopLoss` (the **initial** SL price) and `riskAmount` (initial risk in USD:
+  |entry − SL| × lots × USD value of one price unit; GOLD 0.01 lot = 1 USD per 1.00 move)
+  whenever the broker gives them. 1R is a **fixed** amount (5.10 USD = 1% of the 510 USD
+  deposit), not the risk of the trade: `rMultiple = pnl / 5.10`, so the sum of R agrees with
+  the dollars. `riskR = riskAmount / 5.10` is how many R the trade risked (15 USD = 2.94R);
+  `rOfOwnRisk = pnl / riskAmount` is the old, secondary metric.
 - `pnl` is the **net** result after commission and swap, in the broker account currency
   (USD). It is added to the broker balance - a loss is negative, e.g. `"-40.50"`.
 - Always send `externalId` (the broker ticket number). Resending the same one is safe:
@@ -104,7 +110,11 @@ List trades: `GET /api/agent/fx/trades?from=2026-10-01&to=2026-10-31&limit=100`.
 
 FX statistics: `GET /api/agent/fx/summary` - `totalPnl`, `monthPnl`, `winRate`,
 `profitFactor`, `avgWin`, `avgLoss`, `commission`, `swap`, `best`, `worst`,
-`byInstrument`, `bySetup`, `recent`, and `brokers` with their balances.
+`byInstrument`, `bySetup`, `oneRUsd`, `byMonth` (per Kyiv month: `count`, `winRate`, `sumR`, `avgR`, `pnl`,
+`best`, `worst`), `allTime` (same shape), `recent`, `brokers` with their balances and
+`flows` (`deposited`, `withdrawn`, `net`, `items`). Each listed trade also has `stopLoss`,
+`riskAmount`, `rMultiple`, `riskR` and `rOfOwnRisk`. The `/fx` page shows all of it: every position with R and $,
+the month and all-time totals, the balance and the deposits.
 
 After recording, confirm briefly: instrument, side, PnL. Never record the same trade under
 a different `externalId`.
