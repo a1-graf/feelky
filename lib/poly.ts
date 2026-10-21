@@ -264,7 +264,16 @@ async function requireAccountByName(tx: Tx, userId: string, name: string, curren
 /** Money from a Feelky account into the pool (deposit) or back out of it (withdraw): a plain transfer between two USDT accounts. */
 export async function movePolyFunds(
   userId: string,
-  input: { direction: "deposit" | "withdraw"; amount: Decimal.Value; accountName: string; date?: Date; note?: string | null }
+  input: {
+    direction: "deposit" | "withdraw";
+    amount: Decimal.Value;
+    accountName: string;
+    date?: Date;
+    note?: string | null;
+    /** Historical import only: the source account may go below zero because Feelky did not know about the money yet. */
+    allowOverdraft?: boolean;
+    importId?: string;
+  }
 ) {
   return prisma.$transaction(async (tx) => {
     const pool = await ensurePolyPool(userId, tx);
@@ -275,7 +284,7 @@ export async function movePolyFunds(
     const from = input.direction === "deposit" ? other : pool;
     const to = input.direction === "deposit" ? pool : other;
     const fromFresh = await tx.account.findFirstOrThrow({ where: { id: from.id } });
-    if (D(fromFresh.currentBalance).lt(amount)) throw new Error(`Недостатньо коштів на «${from.name}»`);
+    if (!input.allowOverdraft && D(fromFresh.currentBalance).lt(amount)) throw new Error(`Недостатньо коштів на «${from.name}»`);
     await tx.account.update({ where: { id: from.id }, data: { currentBalance: D(fromFresh.currentBalance).minus(amount).toString() } });
     const toFresh = await tx.account.findFirstOrThrow({ where: { id: to.id } });
     await tx.account.update({ where: { id: to.id }, data: { currentBalance: D(toFresh.currentBalance).plus(amount).toString() } });
@@ -289,9 +298,19 @@ export async function movePolyFunds(
         destinationAccountId: to.id,
         note: input.note || (input.direction === "deposit" ? "Поповнення Polymarket" : "Виведення з Polymarket"),
         transactionDate: input.date ?? new Date(),
-        metadata: { isTransfer: true, source: POLY_FLOW_SOURCE, direction: input.direction }
+        metadata: { isTransfer: true, source: POLY_FLOW_SOURCE, direction: input.direction, ...(input.importId ? { importId: input.importId } : {}) }
       }
     });
+  });
+}
+
+/** Pool correction that belongs to no single trade (e.g. settlements whose entry cost is unknown). Stays out of the per-trade PnL reconciliation. */
+export const POLY_UNATTRIBUTED_SOURCE = "POLY_UNATTRIBUTED";
+
+export async function postPolyAdjustment(userId: string, input: { amount: Decimal.Value; note: string; date: Date; importId?: string }) {
+  return prisma.$transaction(async (tx) => {
+    const pool = await ensurePolyPool(userId, tx);
+    await postToPool(tx, userId, pool, D(input.amount), { source: POLY_UNATTRIBUTED_SOURCE, ...(input.importId ? { importId: input.importId } : {}) }, input.note, input.date);
   });
 }
 
