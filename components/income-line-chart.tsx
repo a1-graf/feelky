@@ -198,7 +198,8 @@ export function NetPnlChart({
   hidden = false,
   currency = "USDT",
   from,
-  to
+  to,
+  cumulativeOnly = false
 }: {
   data: PnlTimelinePoint[];
   hidden?: boolean;
@@ -206,6 +207,7 @@ export function NetPnlChart({
   /** First and last day of the period (YYYY-MM-DD) so quiet days still take their place on the axis. */
   from?: string;
   to?: string;
+  cumulativeOnly?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const days = useMemo<PnlDay[]>(() => {
@@ -247,40 +249,46 @@ export function NetPnlChart({
 
   return (
     <div>
-      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
-        <PnlChip label="Плюси" value={formatMoney(totalProfit.toFixed(2), currency, hidden)} className="text-success" />
-        <PnlChip label="Мінуси" value={formatMoney((-totalLoss).toFixed(2), currency, hidden)} className="text-danger" />
-        <PnlChip label="Чистий PnL" value={formatMoney(latestNet.toFixed(2), currency, hidden)} className={latestNet >= 0 ? "text-success" : "text-danger"} />
-      </div>
+      {!cumulativeOnly && (
+        <>
+          <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+            <PnlChip label="Плюси" value={formatMoney(totalProfit.toFixed(2), currency, hidden)} className="text-success" />
+            <PnlChip label="Мінуси" value={formatMoney((-totalLoss).toFixed(2), currency, hidden)} className="text-danger" />
+            <PnlChip label="Чистий PnL" value={formatMoney(latestNet.toFixed(2), currency, hidden)} className={latestNet >= 0 ? "text-success" : "text-danger"} />
+          </div>
 
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium">Результат кожного дня</div>
-        <div className="flex gap-3 text-xs text-[hsl(var(--card-muted-foreground))]">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" />плюс</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" />мінус</span>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">Результат кожного дня</div>
+            <div className="flex gap-3 text-xs text-[hsl(var(--card-muted-foreground))]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-success" />плюс</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-danger" />мінус</span>
+            </div>
+          </div>
+          <div className="h-48 w-full">
+            <ResponsiveContainer>
+              <ComposedChart data={days} margin={PNL_MARGIN} barCategoryGap="24%">
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                {xAxis}
+                <YAxis tickLine={false} axisLine={false} tick={PNL_AXIS_TICK} tickFormatter={tickFormatter} domain={dailyScale.domain} ticks={dailyScale.ticks} interval={0} width={PNL_AXIS_WIDTH} />
+                <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }} />
+                <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
+                <Bar dataKey="dayNet" maxBarSize={28} radius={[4, 4, 4, 4]} isAnimationActive={false}>
+                  {days.map((day) => (
+                    <Cell key={day.date} fill={day.dayNet >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
+                  ))}
+                </Bar>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      {!cumulativeOnly && (
+        <div className="mb-2 mt-6 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium">Накопичений результат</div>
+          <div className="text-xs text-[hsl(var(--card-muted-foreground))]">з початку періоду</div>
         </div>
-      </div>
-      <div className="h-48 w-full">
-        <ResponsiveContainer>
-          <ComposedChart data={days} margin={PNL_MARGIN} barCategoryGap="24%">
-            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-            {xAxis}
-            <YAxis tickLine={false} axisLine={false} tick={PNL_AXIS_TICK} tickFormatter={tickFormatter} domain={dailyScale.domain} ticks={dailyScale.ticks} interval={0} width={PNL_AXIS_WIDTH} />
-            <Tooltip content={<PnlTooltip hidden={hidden} currency={currency} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }} />
-            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
-            <Bar dataKey="dayNet" maxBarSize={28} radius={[4, 4, 4, 4]} isAnimationActive={false}>
-              {days.map((day) => (
-                <Cell key={day.date} fill={day.dayNet >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
-              ))}
-            </Bar>
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="mb-2 mt-6 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium">Накопичений результат</div>
-        <div className="text-xs text-[hsl(var(--card-muted-foreground))]">з початку періоду</div>
-      </div>
+      )}
       <div className="h-48 w-full">
         <ResponsiveContainer>
           <ComposedChart data={days} margin={PNL_MARGIN}>

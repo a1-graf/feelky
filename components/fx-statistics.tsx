@@ -1,4 +1,5 @@
 import { NetPnlChart } from "@/components/income-line-chart";
+import { FxPositions } from "@/components/fx-positions";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
 import type { summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
@@ -32,7 +33,26 @@ function Metric({ label, value, className = "" }: { label: string; value: React.
   );
 }
 
-function PeriodTable({ periods, currency, hidden }: { periods: Period[]; currency: string; hidden: boolean }) {
+function PeriodRow({ period, currency, hidden, total = false }: { period: Period; currency: string; hidden: boolean; total?: boolean }) {
+  return (
+    <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
+      <td className={`${td} ${total ? "border-l-4 border-l-primary" : ""}`}>{formatMonth(period.key)}</td>
+      <td className={`${td} text-right`}>{period.count}</td>
+      <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
+      <td className={`${td} text-right ${tone(period.sumR)}`}>{formatR(period.sumR, hidden)}</td>
+      <td className={`${td} text-right ${tone(period.avgR)}`}>{formatR(period.avgR, hidden)}</td>
+      <td className={`${td} text-right ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
+      <td className={`${td} text-right text-success`}>
+        {period.best ? `${formatMoney(period.best.pnl, currency, hidden)}${period.best.r ? ` · ${formatR(period.best.r, hidden)}` : ""}` : "—"}
+      </td>
+      <td className={`${td} text-right text-danger`}>
+        {period.worst ? `${formatMoney(period.worst.pnl, currency, hidden)}${period.worst.r ? ` · ${formatR(period.worst.r, hidden)}` : ""}` : "—"}
+      </td>
+    </tr>
+  );
+}
+
+function PeriodTable({ months, allTime, currency, hidden }: { months: Period[]; allTime: Period; currency: string; hidden: boolean }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
@@ -49,68 +69,15 @@ function PeriodTable({ periods, currency, hidden }: { periods: Period[]; currenc
           </tr>
         </thead>
         <tbody>
-          {periods.map((period) => {
-            const total = period.key === "all";
-            return (
-              <tr key={period.key} className={`border-t border-border/60 ${total ? "bg-muted font-semibold" : ""}`}>
-                <td className={td}>{formatMonth(period.key)}</td>
-                <td className={`${td} text-right`}>{period.count}</td>
-                <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
-                <td className={`${td} text-right ${tone(period.sumR)}`}>
-                  {formatR(period.sumR, hidden)}
-                </td>
-                <td className={`${td} text-right ${tone(period.avgR)}`}>{formatR(period.avgR, hidden)}</td>
-                <td className={`${td} text-right ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
-                <td className={`${td} text-right text-success`}>
-                  {period.best ? `${formatMoney(period.best.pnl, currency, hidden)}${period.best.r ? ` · ${formatR(period.best.r, hidden)}` : ""}` : "—"}
-                </td>
-                <td className={`${td} text-right text-danger`}>
-                  {period.worst ? `${formatMoney(period.worst.pnl, currency, hidden)}${period.worst.r ? ` · ${formatR(period.worst.r, hidden)}` : ""}` : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PositionsTable({ trades, currency, hidden }: { trades: FxData["trades"]; currency: string; hidden: boolean }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
-        <thead>
-          <tr className="text-left">
-            <th className={th}>Закрито</th>
-            <th className={th}>Інструмент</th>
-            <th className={th}>Сторона</th>
-            <th className={`${th} text-right`}>Лот</th>
-            <th className={`${th} text-right`}>Вхід → вихід</th>
-            <th className={`${th} text-right`}>R</th>
-            <th className={`${th} text-right`}>Ризик, R</th>
-            <th className={`${th} text-right`}>R від свого ризику</th>
-            <th className={`${th} text-right`}>$</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((trade) => (
-            <tr key={trade.id} className="border-t border-border/60" title={trade.note ?? undefined}>
-              <td className={`${td} text-[hsl(var(--card-muted-foreground))]`}>{formatDate(trade.closedAt)}</td>
-              <td className={`${td} font-medium`}>{trade.instrument}</td>
-              <td className={td}>
-                <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium">{trade.side === "BUY" ? "BUY" : "SELL"}</span>
-              </td>
-              <td className={`${td} text-right`}>{trade.lots ?? "—"}</td>
-              <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>
-                {trade.openPrice && trade.closePrice ? `${trade.openPrice} → ${trade.closePrice}` : "—"}
-              </td>
-              <td className={`${td} text-right font-semibold ${trade.r == null ? "" : tone(trade.r)}`}>{formatR(trade.r, hidden)}</td>
-              <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{hidden ? "****" : trade.riskR == null ? "—" : `${trade.riskR}R`}</td>
-              <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{formatR(trade.ownR, hidden)}</td>
-              <td className={`${td} text-right font-semibold ${tone(trade.pnl)}`}>{formatMoney(trade.pnl, currency, hidden)}</td>
-            </tr>
+          {months.map((period) => (
+            <PeriodRow key={period.key} period={period} currency={currency} hidden={hidden} />
           ))}
+        </tbody>
+        <tbody aria-hidden>
+          <tr><td colSpan={8} className="h-3 p-0" /></tr>
+        </tbody>
+        <tbody>
+          <PeriodRow period={allTime} currency={currency} hidden={hidden} total />
         </tbody>
       </table>
     </div>
@@ -144,55 +111,26 @@ function Breakdown({ title, rows, currency, hidden }: { title: string; rows: Row
 
 export function FxStatistics({ data, brokers, flows, hidden = false }: { data: FxData; brokers: Broker[]; flows: Flows; hidden?: boolean }) {
   const currency = brokers[0]?.currency || "USD";
+  const profit = (pnl: string, r: string) => `${formatMoney(pnl, currency, hidden)} · ${formatR(r, hidden)}`;
 
   return (
     <>
       <Card className="mt-0 md:mt-4">
-        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-          <div className="min-w-0">
-            <div className="font-semibold">FX</div>
-            <div className="mt-1 truncate text-sm text-[hsl(var(--card-muted-foreground))]">
-              {brokers.length
-                ? brokers.map((broker) => `${broker.name}: ${formatMoney(broker.balance, broker.currency, hidden)}`).join(" · ")
-                : "Рахунок брокера ще не створено"}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className={`text-xl font-semibold ${tone(data.totalPnl)}`}>{formatMoney(data.totalPnl, currency, hidden)}</div>
-            <div className="text-xs text-[hsl(var(--card-muted-foreground))]">загальний PnL · {data.count} угод</div>
+        <div className="mb-3">
+          <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Баланс (FX брокер)</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {brokers.length
+              ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ")
+              : "Рахунок брокера ще не створено"}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-          <Metric label="PnL місяця" value={formatMoney(data.monthPnl, currency, hidden)} className={tone(data.monthPnl)} />
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <Metric label="Total profit" value={profit(data.totalPnl, data.allTime.sumR)} className={tone(data.totalPnl)} />
+          <Metric label="Profit за місяць" value={profit(data.monthPnl, data.monthSumR)} className={tone(data.monthPnl)} />
           <Metric label="Winrate" value={hidden ? "****" : `${data.winRate}%`} />
-          <Metric label="Profit factor" value={hidden ? "****" : data.profitFactor ?? "—"} />
           <Metric label="Плюсових / мінусових" value={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
         </div>
-
-        <div className="mt-3 hidden gap-3 sm:grid sm:grid-cols-4">
-          <Metric label="Середній плюс" value={formatMoney(data.avgWin, currency, hidden)} className="text-success" />
-          <Metric label="Середній мінус" value={formatMoney(`-${data.avgLoss}`, currency, hidden)} className="text-danger" />
-          <Metric label="Комісії" value={formatMoney(data.commission, currency, hidden)} />
-          <Metric label="Своп" value={formatMoney(data.swap, currency, hidden)} />
-          <Metric label="Сума R (весь час)" value={formatR(data.allTime.sumR, hidden)} className={tone(data.allTime.sumR)} />
-          <Metric label="Внесено" value={formatMoney(flows.deposited, currency, hidden)} />
-          <Metric label="Виведено" value={formatMoney(flows.withdrawn, currency, hidden)} />
-          <Metric label="Чистий внесок" value={formatMoney(flows.net, currency, hidden)} />
-        </div>
-
-        <details className="group mt-3 rounded-xl border border-border/60 sm:hidden">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-medium text-[hsl(var(--card-muted-foreground))] [&::-webkit-details-marker]:hidden">
-            Детальні метрики
-            <span className="text-base transition-transform group-open:rotate-45">+</span>
-          </summary>
-          <div className="grid grid-cols-2 gap-2.5 border-t border-border/60 p-2.5">
-            <Metric label="Середній плюс" value={formatMoney(data.avgWin, currency, hidden)} className="text-success" />
-            <Metric label="Середній мінус" value={formatMoney(`-${data.avgLoss}`, currency, hidden)} className="text-danger" />
-            <Metric label="Комісії" value={formatMoney(data.commission, currency, hidden)} />
-            <Metric label="Своп" value={formatMoney(data.swap, currency, hidden)} />
-          </div>
-        </details>
       </Card>
 
       <Card className="mt-4">
@@ -201,23 +139,13 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
           1R — фіксована сума {data.oneRUsd} {currency} (плановий ризик 1% депозиту). R угоди = $ / 1R, тож сума R узгоджується з доларами.
         </div>
         {data.count ? (
-          <PeriodTable periods={[...data.byMonth, data.allTime]} currency={currency} hidden={hidden} />
+          <PeriodTable months={data.byMonth} allTime={data.allTime} currency={currency} hidden={hidden} />
         ) : (
           <div className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає угод.</div>
         )}
       </Card>
 
-      <Card className="mt-4">
-        <div className="mb-1 font-semibold">Усі позиції</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          Від найновішої. $ — чистий результат після комісії та свопу; час за Києвом. «Ризик, R» — початковий ризик угоди у фіксованих R (ризик у $ / 1R); «R від свого ризику» — $ / ризик цієї угоди (стара метрика).
-        </div>
-        {data.trades.length ? (
-          <PositionsTable trades={data.trades} currency={currency} hidden={hidden} />
-        ) : (
-          <div className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає угод.</div>
-        )}
-      </Card>
+      <FxPositions trades={data.trades} currency={currency} hidden={hidden} />
 
       <Card className="mt-4">
         <div className="mb-2 text-sm font-semibold">Депозити та виведення</div>
@@ -241,9 +169,8 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
       </Card>
 
       <Card className="mt-4">
-        <div className="mb-1 font-semibold">PnL по днях</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Зверху результат кожного дня, знизу — як він накопичувався</div>
-        <NetPnlChart data={data.timeline} hidden={hidden} currency={currency} />
+        <div className="mb-3 font-semibold">PnL по днях (накопичений)</div>
+        <NetPnlChart data={data.timeline} hidden={hidden} currency={currency} cumulativeOnly />
       </Card>
 
       <Card className="mt-4">
@@ -251,35 +178,6 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
           <Breakdown title="По інструментах" rows={data.byInstrument} currency={currency} hidden={hidden} />
           <Breakdown title="По сетапах" rows={data.bySetup} currency={currency} hidden={hidden} />
         </div>
-      </Card>
-
-      <Card className="mt-4">
-        <div className="mb-2 text-sm font-semibold">Останні угоди</div>
-        {data.recent.length ? (
-          <div className="grid gap-2">
-            {data.recent.map((trade) => (
-              <div key={trade.id} className="rounded-lg bg-muted p-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">
-                      {trade.instrument} <span className="text-xs text-[hsl(var(--card-muted-foreground))]">{trade.side === "BUY" ? "купівля" : "продаж"}{trade.lots ? ` · ${trade.lots} лот` : ""}</span>
-                    </div>
-                    <div className="text-xs text-[hsl(var(--card-muted-foreground))]">
-                      {new Date(trade.closedAt).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" })}
-                      {trade.setup ? ` · ${trade.setup}` : ""}
-                    </div>
-                  </div>
-                  <div className={`shrink-0 font-semibold ${tone(trade.pnl)}`}>{formatMoney(trade.pnl, currency, hidden)}</div>
-                </div>
-                {trade.note ? <div className="mt-2 text-xs text-[hsl(var(--card-muted-foreground))]">{trade.note}</div> : null}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-[hsl(var(--card-muted-foreground))]">
-            Поки немає угод. Їх заносить OpenClaw.
-          </div>
-        )}
       </Card>
     </>
   );

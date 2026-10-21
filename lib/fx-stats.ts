@@ -205,6 +205,7 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date(), oneR:
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([key, group]) => periodOf(key, group, oneR));
   const allTime = periodOf("all", trades, oneR);
+  const monthSumR = periodOf("month", trades.filter((trade) => trade.closedAt >= monthStart), oneR).sumR;
 
   const wins = trades.filter((trade) => D(trade.pnl).gt(0));
   const losses = trades.filter((trade) => D(trade.pnl).lt(0));
@@ -216,6 +217,7 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date(), oneR:
     monthPnl: month.pnl.toString(),
     count: total.count,
     monthCount: month.count,
+    monthSumR,
     wins: total.wins,
     losses: total.losses,
     winRate: winRate(total.wins, total.losses),
