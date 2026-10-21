@@ -6,6 +6,7 @@ import { kyivStamp, parseTransactionQuery } from "@/lib/agent-query";
 import { prisma } from "@/lib/db";
 import { createFxTradeWithLedger, deleteFxTradeWithLedger, listFxTrades } from "@/lib/fx";
 import { fxTradeInputSchema } from "@/lib/fx-input";
+import { tradeR } from "@/lib/fx-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export const revalidate = 0;
  */
 
 function serialize(trade: {
-  id: string; externalId: string | null; instrument: string; side: string; lots: unknown; openPrice: unknown; closePrice: unknown;
+  id: string; externalId: string | null; instrument: string; side: string; lots: unknown; openPrice: unknown; closePrice: unknown; stopLoss: unknown; riskAmount: unknown;
   openedAt: Date | null; closedAt: Date; pnl: unknown; commission: unknown; swap: unknown; setup: string | null; note: string | null;
 }) {
   const text = (value: unknown) => (value == null ? null : String(value));
@@ -29,6 +30,9 @@ function serialize(trade: {
     lots: text(trade.lots),
     openPrice: text(trade.openPrice),
     closePrice: text(trade.closePrice),
+    stopLoss: text(trade.stopLoss),
+    riskAmount: text(trade.riskAmount),
+    rMultiple: tradeR(String(trade.pnl), text(trade.riskAmount)),
     openedAt: trade.openedAt ? kyivStamp(trade.openedAt) : null,
     closedAt: kyivStamp(trade.closedAt),
     pnl: text(trade.pnl),
@@ -82,6 +86,8 @@ export async function POST(request: Request) {
       lots: input.lots,
       openPrice: input.openPrice,
       closePrice: input.closePrice,
+      stopLoss: input.stopLoss,
+      riskAmount: input.riskAmount,
       openedAt: input.openedAt ?? null,
       closedAt: input.closedAt,
       pnl: input.pnl,

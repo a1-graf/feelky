@@ -13,10 +13,82 @@ export type FxTradeLike = {
   commission?: Decimal.Value | null;
   swap?: Decimal.Value | null;
   lots?: Decimal.Value | null;
+  openPrice?: Decimal.Value | null;
+  closePrice?: Decimal.Value | null;
+  /** Initial risk in the account currency; without it the trade has a result in money but no R. */
+  riskAmount?: Decimal.Value | null;
   setup?: string | null;
   note?: string | null;
+  openedAt?: Date | null;
   closedAt: Date;
 };
+
+/** R multiple of one trade (net pnl over initial risk), or null when the risk is unknown. */
+export function rOf(trade: Pick<FxTradeLike, "pnl" | "riskAmount">): Decimal | null {
+  if (trade.riskAmount == null) return null;
+  const risk = D(trade.riskAmount);
+  return risk.gt(0) ? D(trade.pnl).div(risk) : null;
+}
+
+export function tradeR(pnl: Decimal.Value, riskAmount: Decimal.Value | null | undefined): string | null {
+  return rOf({ pnl, riskAmount })?.toDecimalPlaces(2).toString() ?? null;
+}
+
+type Extreme = { instrument: string; pnl: string; r: string | null; closedAt: string };
+
+export type FxPeriod = {
+  /** `YYYY-MM` in Kyiv time, or `all`. */
+  key: string;
+  count: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  pnl: string;
+  /** Sum of R over the trades whose risk is known (`rCount` of `count`). */
+  sumR: string;
+  rCount: number;
+  best: Extreme | null;
+  worst: Extreme | null;
+};
+
+function extreme(trade: FxTradeLike): Extreme {
+  return { instrument: trade.instrument, pnl: D(trade.pnl).toString(), r: tradeR(trade.pnl, trade.riskAmount), closedAt: trade.closedAt.toISOString() };
+}
+
+function periodOf(key: string, trades: FxTradeLike[]): FxPeriod {
+  let pnl = new Decimal(0);
+  let sumR = new Decimal(0);
+  let rCount = 0;
+  let wins = 0;
+  let losses = 0;
+  let best: FxTradeLike | null = null;
+  let worst: FxTradeLike | null = null;
+  for (const trade of trades) {
+    const value = D(trade.pnl);
+    pnl = pnl.plus(value);
+    if (value.gt(0)) wins += 1;
+    if (value.lt(0)) losses += 1;
+    const r = rOf(trade);
+    if (r) {
+      sumR = sumR.plus(r);
+      rCount += 1;
+    }
+    if (!best || value.gt(D(best.pnl))) best = trade;
+    if (!worst || value.lt(D(worst.pnl))) worst = trade;
+  }
+  return {
+    key,
+    count: trades.length,
+    wins,
+    losses,
+    winRate: winRate(wins, losses),
+    pnl: pnl.toString(),
+    sumR: sumR.toDecimalPlaces(2).toString(),
+    rCount,
+    best: best ? extreme(best) : null,
+    worst: worst ? extreme(worst) : null
+  };
+}
 
 type Bucket = { pnl: Decimal; count: number; wins: number; losses: number };
 
@@ -101,6 +173,16 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date()) {
       };
     });
 
+  const monthGroups = new Map<string, FxTradeLike[]>();
+  for (const trade of trades) {
+    const key = kyivStamp(trade.closedAt).slice(0, 7);
+    monthGroups.set(key, [...(monthGroups.get(key) ?? []), trade]);
+  }
+  const byMonth = Array.from(monthGroups.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, group]) => periodOf(key, group));
+  const allTime = periodOf("all", trades);
+
   const wins = trades.filter((trade) => D(trade.pnl).gt(0));
   const losses = trades.filter((trade) => D(trade.pnl).lt(0));
   const sortedRecent = [...trades].sort((a, b) => b.closedAt.getTime() - a.closedAt.getTime());
@@ -126,6 +208,23 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date()) {
     byInstrument: rows(byInstrument),
     bySetup: rows(bySetup),
     timeline,
+    byMonth,
+    allTime,
+    trades: sortedRecent.map((trade) => ({
+      id: trade.id,
+      instrument: trade.instrument,
+      side: trade.side,
+      lots: trade.lots == null ? null : D(trade.lots).toString(),
+      openPrice: trade.openPrice == null ? null : D(trade.openPrice).toString(),
+      closePrice: trade.closePrice == null ? null : D(trade.closePrice).toString(),
+      openedAt: trade.openedAt ? trade.openedAt.toISOString() : null,
+      closedAt: trade.closedAt.toISOString(),
+      pnl: D(trade.pnl).toString(),
+      riskAmount: trade.riskAmount == null ? null : D(trade.riskAmount).toString(),
+      r: tradeR(trade.pnl, trade.riskAmount),
+      setup: trade.setup ?? null,
+      note: trade.note ?? null
+    })),
     recent: sortedRecent.slice(0, 12).map((trade) => ({
       id: trade.id,
       instrument: trade.instrument,
@@ -135,6 +234,31 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date()) {
       setup: trade.setup ?? null,
       note: trade.note ?? null,
       closedAt: trade.closedAt.toISOString()
+    }))
+  };
+}
+
+export type FxFlowLike = { id: string; direction: "deposit" | "withdraw"; amount: Decimal.Value; date: Date; note?: string | null };
+
+/** Deposits and withdrawals of the broker account: what went in, what came out, what is still working. */
+export function summarizeFxFlows(flows: FxFlowLike[]) {
+  let deposited = new Decimal(0);
+  let withdrawn = new Decimal(0);
+  for (const flow of flows) {
+    if (flow.direction === "deposit") deposited = deposited.plus(D(flow.amount));
+    else withdrawn = withdrawn.plus(D(flow.amount));
+  }
+  const sorted = [...flows].sort((a, b) => b.date.getTime() - a.date.getTime());
+  return {
+    deposited: deposited.toString(),
+    withdrawn: withdrawn.toString(),
+    net: deposited.minus(withdrawn).toString(),
+    items: sorted.map((flow) => ({
+      id: flow.id,
+      direction: flow.direction,
+      amount: D(flow.amount).toString(),
+      date: flow.date.toISOString(),
+      note: flow.note ?? null
     }))
   };
 }

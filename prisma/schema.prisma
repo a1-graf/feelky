@@ -550,6 +550,10 @@ model FxTrade {
   lots       Decimal?  @db.Decimal(18, 6)
   openPrice  Decimal?  @db.Decimal(18, 8)
   closePrice Decimal?  @db.Decimal(18, 8)
+  /// Initial stop-loss price, kept so the risk of the trade is never lost.
+  stopLoss   Decimal?  @db.Decimal(18, 8)
+  /// Initial risk in the broker account currency: |entry - stopLoss| x lots x value of one price unit. R = pnl / riskAmount.
+  riskAmount Decimal?  @db.Decimal(18, 6)
   openedAt   DateTime?
   closedAt   DateTime
   /// Net result after commission and swap, in the broker account currency.

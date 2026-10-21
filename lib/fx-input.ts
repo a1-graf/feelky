@@ -24,6 +24,8 @@ export const fxTradeInputSchema = z
     lots: optionalPositive,
     openPrice: optionalPositive,
     closePrice: optionalPositive,
+    stopLoss: optionalPositive,
+    riskAmount: optionalPositive,
     openedAt: z.preprocess((value) => (value === "" ? null : value), z.coerce.date().optional().nullable()),
     closedAt: z.coerce.date(),
     pnl: decimalString,
