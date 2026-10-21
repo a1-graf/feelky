@@ -20,7 +20,7 @@ export type FxTradeInput = {
   closePrice?: Decimal.Value | null;
   /** Initial stop-loss price. */
   stopLoss?: Decimal.Value | null;
-  /** Initial risk in the broker currency (|entry - stopLoss| x lots x value per price unit); R = pnl / riskAmount. */
+  /** Initial risk in the broker currency (|entry - stopLoss| x lots x value per price unit); risk in R = riskAmount / 1R (fixed, lib/fx-config). */
   riskAmount?: Decimal.Value | null;
   openedAt?: Date | null;
   closedAt: Date;

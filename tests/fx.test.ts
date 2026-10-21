@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fxTradeInputSchema } from "@/lib/fx-input";
-import { kyivMonthStart, rOf, summarizeFx, summarizeFxFlows, tradeR } from "@/lib/fx-stats";
+import { kyivMonthStart, ownRiskR, rOf, riskInR, summarizeFx, summarizeFxFlows, tradeR } from "@/lib/fx-stats";
 
 const NOW = new Date("2026-10-08T12:00:00.000Z");
 const trade = (id: string, instrument: string, pnl: string, closedAt: string, setup: string | null = null) => ({
@@ -113,13 +113,31 @@ describe("FX R multiples and periods", () => {
     withRisk("4", "20", "10", "2026-09-30T22:30:00Z"),
     withRisk("5", "-10", "5", "2026-09-15T10:00:00Z")
   ];
-  const stats = summarizeFx(trades, new Date("2026-10-21T12:00:00Z"));
+  const stats = summarizeFx(trades, new Date("2026-10-21T12:00:00Z"), "5.10");
 
-  it("divides net pnl by the initial risk and leaves unknown risk empty", () => {
-    expect(tradeR("-4.40", "4.31")).toBe("-1.02");
-    expect(tradeR("14", "2.77")).toBe("5.05");
-    expect(tradeR("10", null)).toBeNull();
-    expect(rOf({ pnl: "10", riskAmount: "0" })).toBeNull();
+  it("measures R on the fixed 1R scale, independent of the trade's own risk", () => {
+    expect(tradeR("52.41", "5.10")).toBe("10.28");
+    expect(tradeR("-4.40", "5.10")).toBe("-0.86");
+    expect(rOf({ pnl: "10" }, "0")).toBeNull();
+    expect(rOf({ pnl: "5.10" }, "5.10")?.toString()).toBe("1");
+  });
+
+  it("shows the trade's own risk in R and keeps the old R of own risk as a secondary metric", () => {
+    expect(riskInR("15", "5.10")).toBe("2.94");
+    expect(riskInR(null, "5.10")).toBeNull();
+    expect(riskInR("0", "5.10")).toBeNull();
+    expect(ownRiskR("-4.40", "4.31")).toBe("-1.02");
+    expect(ownRiskR("10", null)).toBeNull();
+    expect(ownRiskR("10", "0")).toBeNull();
+  });
+
+  it("uses 5.10 by default and FX_ONE_R_USD when it is a positive number", () => {
+    expect(tradeR("5.10")).toBe("1");
+    vi.stubEnv("FX_ONE_R_USD", "10");
+    expect(tradeR("5")).toBe("0.5");
+    vi.stubEnv("FX_ONE_R_USD", "abc");
+    expect(tradeR("5.10")).toBe("1");
+    vi.unstubAllEnvs();
   });
 
   it("groups by Kyiv month, newest first, with a cross-midnight trade landing in October", () => {
@@ -129,22 +147,31 @@ describe("FX R multiples and periods", () => {
     ]);
   });
 
-  it("totals R only over trades with a known risk", () => {
+  it("sums R over every trade, so it agrees with the money result", () => {
     const october = stats.byMonth[0];
-    expect(october.rCount).toBe(3);
-    expect(october.sumR).toBe("1.95");
-    expect(stats.allTime).toMatchObject({ key: "all", count: 5, rCount: 4, sumR: "-0.05", pnl: "29.34" });
+    expect(october.sumR).toBe("7.71");
+    expect(october.avgR).toBe("1.93");
+    expect(october.ownRCount).toBe(3);
+    expect(october.sumOwnR).toBe("1.95");
+    expect(stats.allTime).toMatchObject({ key: "all", count: 5, ownRCount: 4, sumR: "5.75", pnl: "29.34" });
+    expect(stats.oneRUsd).toBe("5.1");
   });
 
   it("reports win rate and the best and worst trade per period and for all time", () => {
     expect(stats.allTime).toMatchObject({ wins: 3, losses: 2, winRate: 60 });
-    expect(stats.allTime.best).toMatchObject({ pnl: "20", r: "2" });
-    expect(stats.allTime.worst).toMatchObject({ pnl: "-10", r: "-2" });
-    expect(stats.byMonth[0].worst).toMatchObject({ pnl: "-4.4", r: "-1.02" });
+    expect(stats.allTime.best).toMatchObject({ pnl: "20", r: "3.92" });
+    expect(stats.allTime.worst).toMatchObject({ pnl: "-10", r: "-1.96" });
+    expect(stats.byMonth[0].worst).toMatchObject({ pnl: "-4.4", r: "-0.86" });
   });
 
-  it("lists every trade, newest first, with its R", () => {
-    expect(stats.trades.map((trade) => [trade.id, trade.r])).toEqual([["3", null], ["2", "0.97"], ["1", "-1.02"], ["4", "2"], ["5", "-2"]]);
+  it("lists every trade, newest first, with R, risk in R and R of own risk", () => {
+    expect(stats.trades.map((trade) => [trade.id, trade.r, trade.riskR, trade.ownR])).toEqual([
+      ["3", "1.96", null, null],
+      ["2", "2.69", "2.79", "0.97"],
+      ["1", "-0.86", "0.85", "-1.02"],
+      ["4", "3.92", "1.96", "2"],
+      ["5", "-1.96", "0.98", "-2"]
+    ]);
   });
 
   it("is consistent: month totals add up to the all-time total", () => {

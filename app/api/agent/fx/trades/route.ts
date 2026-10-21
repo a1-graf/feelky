@@ -6,7 +6,7 @@ import { kyivStamp, parseTransactionQuery } from "@/lib/agent-query";
 import { prisma } from "@/lib/db";
 import { createFxTradeWithLedger, deleteFxTradeWithLedger, listFxTrades } from "@/lib/fx";
 import { fxTradeInputSchema } from "@/lib/fx-input";
-import { tradeR } from "@/lib/fx-stats";
+import { ownRiskR, riskInR, tradeR } from "@/lib/fx-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,9 @@ function serialize(trade: {
     closePrice: text(trade.closePrice),
     stopLoss: text(trade.stopLoss),
     riskAmount: text(trade.riskAmount),
-    rMultiple: tradeR(String(trade.pnl), text(trade.riskAmount)),
+    rMultiple: tradeR(String(trade.pnl)),
+    riskR: riskInR(text(trade.riskAmount)),
+    rOfOwnRisk: ownRiskR(String(trade.pnl), text(trade.riskAmount)),
     openedAt: trade.openedAt ? kyivStamp(trade.openedAt) : null,
     closedAt: kyivStamp(trade.closedAt),
     pnl: text(trade.pnl),

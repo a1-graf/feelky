@@ -35,13 +35,14 @@ function Metric({ label, value, className = "" }: { label: string; value: React.
 function PeriodTable({ periods, currency, hidden }: { periods: Period[]; currency: string; hidden: boolean }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="text-left">
             <th className={th}>Період</th>
             <th className={`${th} text-right`}>Угод</th>
             <th className={`${th} text-right`}>Winrate</th>
             <th className={`${th} text-right`}>Сума R</th>
+            <th className={`${th} text-right`}>Серед. R</th>
             <th className={`${th} text-right`}>Результат</th>
             <th className={`${th} text-right`}>Краща</th>
             <th className={`${th} text-right`}>Гірша</th>
@@ -57,8 +58,8 @@ function PeriodTable({ periods, currency, hidden }: { periods: Period[]; currenc
                 <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
                 <td className={`${td} text-right ${tone(period.sumR)}`}>
                   {formatR(period.sumR, hidden)}
-                  {!hidden && period.rCount < period.count ? <span className="text-xs font-normal text-[hsl(var(--card-muted-foreground))]"> ({period.rCount}/{period.count})</span> : null}
                 </td>
+                <td className={`${td} text-right ${tone(period.avgR)}`}>{formatR(period.avgR, hidden)}</td>
                 <td className={`${td} text-right ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
                 <td className={`${td} text-right text-success`}>
                   {period.best ? `${formatMoney(period.best.pnl, currency, hidden)}${period.best.r ? ` · ${formatR(period.best.r, hidden)}` : ""}` : "—"}
@@ -87,6 +88,8 @@ function PositionsTable({ trades, currency, hidden }: { trades: FxData["trades"]
             <th className={`${th} text-right`}>Лот</th>
             <th className={`${th} text-right`}>Вхід → вихід</th>
             <th className={`${th} text-right`}>R</th>
+            <th className={`${th} text-right`}>Ризик, R</th>
+            <th className={`${th} text-right`}>R від свого ризику</th>
             <th className={`${th} text-right`}>$</th>
           </tr>
         </thead>
@@ -103,6 +106,8 @@ function PositionsTable({ trades, currency, hidden }: { trades: FxData["trades"]
                 {trade.openPrice && trade.closePrice ? `${trade.openPrice} → ${trade.closePrice}` : "—"}
               </td>
               <td className={`${td} text-right font-semibold ${trade.r == null ? "" : tone(trade.r)}`}>{formatR(trade.r, hidden)}</td>
+              <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{hidden ? "****" : trade.riskR == null ? "—" : `${trade.riskR}R`}</td>
+              <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{formatR(trade.ownR, hidden)}</td>
               <td className={`${td} text-right font-semibold ${tone(trade.pnl)}`}>{formatMoney(trade.pnl, currency, hidden)}</td>
             </tr>
           ))}
@@ -177,7 +182,7 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Місяці та весь час</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          R — результат угоди у частках початкового ризику (за стоп-лосом). У дужках: у скількох угодах ризик відомий.
+          1R — фіксована сума {data.oneRUsd} {currency} (плановий ризик 1% депозиту). R угоди = $ / 1R, тож сума R узгоджується з доларами.
         </div>
         {data.count ? (
           <PeriodTable periods={[...data.byMonth, data.allTime]} currency={currency} hidden={hidden} />
@@ -189,7 +194,7 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Усі позиції</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          Від найновішої. $ — чистий результат після комісії та свопу; час за Києвом.
+          Від найновішої. $ — чистий результат після комісії та свопу; час за Києвом. «Ризик, R» — початковий ризик угоди у фіксованих R (ризик у $ / 1R); «R від свого ризику» — $ / ризик цієї угоди (стара метрика).
         </div>
         {data.trades.length ? (
           <PositionsTable trades={data.trades} currency={currency} hidden={hidden} />

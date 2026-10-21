@@ -72,7 +72,7 @@ describe("FX import plan", () => {
 
   it("aggregates October and all time to the same figures (the account has only October trades)", () => {
     expect(summary.stats.byMonth.map((month) => [month.key, month.count])).toEqual([["2026-10", 42]]);
-    expect(summary.stats.allTime).toMatchObject({ count: 42, pnl: "52.41", rCount: 42 });
+    expect(summary.stats.allTime).toMatchObject({ count: 42, pnl: "52.41", sumR: "10.28", ownRCount: 42 });
     expect(summary.stats.allTime.sumR).toBe(summary.stats.byMonth[0].sumR);
   });
 
