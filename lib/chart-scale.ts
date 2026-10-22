@@ -59,3 +59,36 @@ export function shortAxisValue(value: number) {
   if (abs >= 1000) return `${new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 1 }).format(value / 1000)}k`;
   return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: abs < 10 ? 1 : 0 }).format(value);
 }
+
+/** Round ticks around a value range that need not include zero (balances): e.g. 1 180..1 420 -> 1 150, 1 200, ... 1 450. */
+export function niceRange(low: number, high: number, maxSteps = 4): NiceScale {
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return { domain: [0, 1], ticks: [0, 1] };
+  if (high - low < 1e-9) {
+    const pad = Math.max(1, Math.abs(high) * 0.05);
+    return niceRange(low - pad, high + pad, maxSteps);
+  }
+  const magnitude = 10 ** Math.floor(Math.log10((high - low) / maxSteps));
+  for (const multiplier of STEP_MULTIPLIERS) {
+    const step = multiplier * magnitude;
+    const start = Math.floor(low / step) * step;
+    const end = Math.ceil(high / step) * step;
+    const count = Math.round((end - start) / step);
+    if (count > maxSteps) continue;
+    const ticks = Array.from({ length: count + 1 }, (_, index) => Number((start + index * step).toFixed(10)));
+    return { domain: [ticks[0], ticks[ticks.length - 1]], ticks };
+  }
+  return { domain: [low, high], ticks: [low, high] };
+}
+
+/** Evenly spread timestamps from start to end for an X axis. */
+export function timeTicks(start: number, end: number, count = 4): number[] {
+  if (end <= start) return [start];
+  return Array.from({ length: count }, (_, index) => Math.round(start + ((end - start) * index) / (count - 1)));
+}
+
+/** Where zero sits inside a box spanning [low, high], measured from the top; feeds the green/red split of a signed line. */
+export function zeroOffset(low: number, high: number) {
+  if (high <= 0) return 0;
+  if (low >= 0) return 1;
+  return high / (high - low);
+}

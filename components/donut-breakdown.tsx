@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Cell, Pie, PieChart } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
 export type DonutItem = { name: string; value: number };
 
 type Slice = DonutItem & { color: string; share: number; scale: number };
 
 const DONUT_SIZE = 192;
-const COMPACT_SIZE = 128;
 const REST_COLOR = "#9aa1ad";
 
 function amountText(value: number, currency: string, hidden: boolean) {
@@ -59,9 +58,10 @@ export function DonutBreakdown({
   /** Small donut with a plain legend (no bars) for dense layouts. */
   compact?: boolean;
 }) {
-  const size = compact ? COMPACT_SIZE : DONUT_SIZE;
-  const innerRadius = compact ? 44 : 68;
-  const outerRadius = compact ? 62 : 94;
+  const size = DONUT_SIZE;
+  // The compact donut fills whatever height its card gives it, so its radii are percentages.
+  const innerRadius = compact ? "68%" : 68;
+  const outerRadius = compact ? "96%" : 94;
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const { slices, total } = useMemo(() => {
     const positive = items.filter((item) => Number.isFinite(item.value) && item.value > 0).sort((a, b) => b.value - a.value);
@@ -81,31 +81,42 @@ export function DonutBreakdown({
   }
 
   const active = activeIndex === null ? null : slices[activeIndex];
+  const pieChart = (
+    <PieChart {...(compact ? {} : { width: size, height: size })}>
+      <Pie
+        data={slices}
+        dataKey="value"
+        nameKey="name"
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={90}
+        endAngle={-270}
+        paddingAngle={slices.length > 1 ? 2 : 0}
+        cornerRadius={3}
+        stroke="none"
+        isAnimationActive={false}
+        onMouseEnter={(_, index) => setActiveIndex(index)}
+        onMouseLeave={() => setActiveIndex(null)}
+      >
+        {slices.map((slice, index) => (
+          <Cell key={slice.name} fill={slice.color} fillOpacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />
+        ))}
+      </Pie>
+    </PieChart>
+  );
 
   return (
-    <div className={compact ? "flex flex-row items-center gap-4" : "flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8"}>
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <PieChart width={size} height={size}>
-          <Pie
-            data={slices}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={innerRadius}
-            outerRadius={outerRadius}
-            startAngle={90}
-            endAngle={-270}
-            paddingAngle={slices.length > 1 ? 2 : 0}
-            cornerRadius={3}
-            stroke="none"
-            isAnimationActive={false}
-            onMouseEnter={(_, index) => setActiveIndex(index)}
-            onMouseLeave={() => setActiveIndex(null)}
-          >
-            {slices.map((slice, index) => (
-              <Cell key={slice.name} fill={slice.color} fillOpacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />
-            ))}
-          </Pie>
-        </PieChart>
+    <div className={compact ? "flex h-full flex-col items-center gap-4 sm:flex-row sm:items-stretch" : "flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8"}>
+      <div className={`relative shrink-0 ${compact ? "h-48 w-48 sm:h-auto sm:min-h-44 sm:w-2/5 sm:max-w-64" : ""}`} style={compact ? undefined : { width: size, height: size }}>
+        {compact ? (
+          <div className="absolute inset-0">
+            <ResponsiveContainer>
+              {pieChart}
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          pieChart
+        )}
         {!compact && (
           <div className="pointer-events-none absolute inset-[30px] flex flex-col items-center justify-center text-center">
             <div className="max-w-full truncate text-xs text-[hsl(var(--card-muted-foreground))]">{active ? active.name.split(" · ").pop() : totalLabel}</div>
@@ -115,14 +126,14 @@ export function DonutBreakdown({
         )}
       </div>
 
-      <ul className={`w-full min-w-0 flex-1 ${compact ? "space-y-1" : "space-y-2.5"}`} onMouseLeave={() => setActiveIndex(null)}>
+      <ul className={`w-full min-w-0 flex-1 ${compact ? "flex flex-col justify-between gap-1" : "space-y-2.5"}`} onMouseLeave={() => setActiveIndex(null)}>
         {slices.map((slice, index) => (
           <li
             key={slice.name}
-            className={`transition-opacity ${activeIndex === null || activeIndex === index ? "opacity-100" : "opacity-50"}`}
+            className={`transition-opacity ${compact ? "flex flex-1 items-center" : ""} ${activeIndex === null || activeIndex === index ? "opacity-100" : "opacity-50"}`}
             onMouseEnter={() => setActiveIndex(index)}
           >
-            <div className={`flex items-center gap-2 ${compact ? "text-xs" : "text-sm"}`}>
+            <div className="flex w-full items-center gap-2 text-sm">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
               <span className="min-w-0 flex-1 truncate"><SliceName name={slice.name} /></span>
               <span className="shrink-0 font-medium tabular-nums">{amountText(slice.value, currency, hidden)}</span>

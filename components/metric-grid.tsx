@@ -7,6 +7,8 @@ type MetricItem = {
   subValue?: string;
   tone?: "ok" | "warn" | "danger";
   valueStyle?: CSSProperties;
+  /** An emoji shown instead of the tone dot. */
+  icon?: string;
 };
 
 export function MetricGrid({ items, desktopColumns = 4 }: { items: MetricItem[]; desktopColumns?: 3 | 4 }) {
@@ -15,10 +17,14 @@ export function MetricGrid({ items, desktopColumns = 4 }: { items: MetricItem[];
       {items.map((item) => (
         <Card key={item.label} className="min-h-28 p-3.5 transition-shadow duration-150 hover:shadow-soft sm:min-h-32 sm:p-4">
           <div className="flex items-start gap-2">
-            <span
-              aria-hidden="true"
-              className={`mt-1 h-2 w-2 shrink-0 rounded-full ${item.tone === "danger" ? "bg-danger" : item.tone === "warn" ? "bg-warning" : item.tone === "ok" ? "bg-success" : "bg-[hsl(var(--border))]"}`}
-            />
+            {item.icon ? (
+              <span aria-hidden="true" className="text-lg leading-none sm:text-xl">{item.icon}</span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${item.tone === "danger" ? "bg-danger" : item.tone === "warn" ? "bg-warning" : item.tone === "ok" ? "bg-success" : "bg-[hsl(var(--border))]"}`}
+              />
+            )}
             <div className="min-h-8 text-[11px] font-medium leading-tight text-[hsl(var(--card-muted-foreground))] sm:min-h-10 sm:text-[13px]">
               {item.label}
             </div>

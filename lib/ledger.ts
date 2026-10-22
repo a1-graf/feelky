@@ -26,6 +26,42 @@ export function frozenMoveOf(transaction: { type: TransactionType; metadata?: Pr
   return { expectedMoneyId: record.expectedMoneyId };
 }
 
+/** How one transaction changes one account's balance; the single source of truth for balance math and history rebuilds. */
+export function accountEffect(transaction: {
+  type: TransactionType;
+  amount: Prisma.Decimal | Decimal.Value;
+  convertedAmount: Prisma.Decimal | null;
+  sourceAccountId: string | null;
+  destinationAccountId: string | null;
+  metadata?: Prisma.JsonValue;
+}, accountId: string) {
+  const amount = D(transaction.amount);
+  const converted = D(transaction.convertedAmount || 0);
+  // Freezing into "Заморожені бабки" really moves money; the old per-account freeze marker does not.
+  if (frozenMoveOf(transaction)) {
+    if (transaction.type === TransactionType.FUNDS_FROZEN && accountId === transaction.sourceAccountId) return amount.negated();
+    if (transaction.type === TransactionType.FUNDS_RELEASED && accountId === transaction.destinationAccountId) return amount;
+    return new Decimal(0);
+  }
+  if (accountId === transaction.sourceAccountId) {
+    const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
+    if (debitTypes.includes(transaction.type)) {
+      return amount.negated();
+    }
+  }
+  if (accountId === transaction.destinationAccountId) {
+    const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER];
+    const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL];
+    if (directCreditTypes.includes(transaction.type)) {
+      return amount;
+    }
+    if (convertedCreditTypes.includes(transaction.type)) {
+      return converted;
+    }
+  }
+  return new Decimal(0);
+}
+
 export class LedgerService {
   constructor(private readonly db = prisma) {}
 
@@ -693,39 +729,8 @@ export class LedgerService {
     }
   }
 
-  private effectForAccount(transaction: {
-    type: TransactionType;
-    amount: Prisma.Decimal | Decimal.Value;
-    convertedAmount: Prisma.Decimal | null;
-    sourceAccountId: string | null;
-    destinationAccountId: string | null;
-    metadata?: Prisma.JsonValue;
-  }, accountId: string) {
-    const amount = D(transaction.amount);
-    const converted = D(transaction.convertedAmount || 0);
-    // Freezing into "Заморожені бабки" really moves money; the old per-account freeze marker does not.
-    if (frozenMoveOf(transaction)) {
-      if (transaction.type === TransactionType.FUNDS_FROZEN && accountId === transaction.sourceAccountId) return amount.negated();
-      if (transaction.type === TransactionType.FUNDS_RELEASED && accountId === transaction.destinationAccountId) return amount;
-      return new Decimal(0);
-    }
-    if (accountId === transaction.sourceAccountId) {
-      const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
-      if (debitTypes.includes(transaction.type)) {
-        return amount.negated();
-      }
-    }
-    if (accountId === transaction.destinationAccountId) {
-      const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER];
-      const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL];
-      if (directCreditTypes.includes(transaction.type)) {
-        return amount;
-      }
-      if (convertedCreditTypes.includes(transaction.type)) {
-        return converted;
-      }
-    }
-    return new Decimal(0);
+  private effectForAccount(transaction: Parameters<typeof accountEffect>[0], accountId: string) {
+    return accountEffect(transaction, accountId);
   }
 
   /**

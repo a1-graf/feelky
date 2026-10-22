@@ -2,7 +2,9 @@ import Link from "next/link";
 import { DashboardStatistics } from "@/components/dashboard-statistics";
 import { MetricGrid } from "@/components/metric-grid";
 import { PeriodPicker } from "@/components/period-picker";
+import { RangeAreaChart } from "@/components/range-area-chart";
 import { Card } from "@/components/ui/card";
+import { bankSeries } from "@/lib/bank-history";
 import { getDashboard } from "@/lib/dashboard";
 import { formatMoney, formatPlain } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
@@ -30,10 +32,19 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
   const periodPnl = Number(data.totals.periodNetPnlUsdt);
   const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
   const tone = (value: number) => (value >= 0 ? "text-emerald-200" : "text-rose-200");
+  const signedUsdt = (value: string) => `${Number(value) > 0 ? "+" : ""}${formatMoney(Number(value).toFixed(2), "USDT", hidden)}`;
+  const moveTone = (value: string) => (Number(value) > 0 ? "ok" : Number(value) < 0 ? "danger" : undefined);
   const turnover = [
     { label: "Steam", value: data.turnover.steamUsdt },
     { label: "Aurum", value: data.turnover.aurumUsdt },
     { label: "Polymarket", value: data.turnover.polyUsdt }
+  ];
+
+  const accounts = [
+    { icon: "💵", label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), sub: asUah(data.totals.cryptoTotal) },
+    { icon: "💳", label: "Картка", value: formatMoney(data.totals.cardUah, "UAH", hidden), sub: asUsdt(data.totals.cardUah) },
+    { icon: "👛", label: "Готівка", value: formatMoney(data.totals.cashUah, "UAH", hidden), sub: `${formatMoney(data.totals.cashUsd, "USD", hidden)} cash` },
+    { icon: "🏦", label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), sub: asUsdt(data.totals.savingsUah) }
   ];
 
   return (
@@ -83,6 +94,11 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
         </div>
       </div>
 
+      <Card className="mt-3">
+        <div className="mb-2 font-semibold">Загальний банк</div>
+        <RangeAreaChart data={bankSeries(data.bankHistory, "total")} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" color="#2563eb" />
+      </Card>
+
       <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
         {mobileLinks.map((link) => (
           <Link key={link.href} href={link.href} className="flex min-h-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 px-2 py-2.5 text-center text-xs font-semibold text-primary shadow-card active:bg-muted">
@@ -105,12 +121,12 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
       <div className="mt-4">
         <MetricGrid
           items={[
-            { label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), subValue: asUah(data.totals.cryptoTotal) },
-            { label: "Картка", value: formatMoney(data.totals.cardUah, "UAH", hidden), subValue: asUsdt(data.totals.cardUah) },
-            { label: "Готівка", value: formatMoney(data.totals.cashUah, "UAH", hidden), subValue: `${formatMoney(data.totals.cashUsd, "USD", hidden)} cash` },
-            { label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), subValue: asUsdt(data.totals.savingsUah) },
-            { label: `Витрати · ${data.period.label}`, value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), tone: overLimit ? "danger" : "ok", subValue: limit > 0 ? `ліміт ${formatMoney(limit, "UAH", hidden)}` : "без ліміту" },
-            { label: "Steam PnL", value: formatMoney(data.steam.profit, "USDT", hidden), tone: Number(data.steam.profit) >= 0 ? "ok" : "danger" }
+            { icon: "💸", label: `Витрати · ${data.period.label}`, value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), tone: overLimit ? "danger" : undefined, subValue: limit > 0 ? `ліміт ${formatMoney(limit, "UAH", hidden)}` : asUsdt(data.totals.monthExpenseUah) },
+            { icon: "💰", label: "Прибуток", value: signedUsdt(data.totals.periodGrossUsdt), tone: moveTone(data.totals.periodGrossUsdt), subValue: "доходи, Aurum, Poly, фліпи" },
+            { icon: "💎", label: "Чистий прибуток", value: signedUsdt(data.totals.periodNetPnlUsdt), tone: moveTone(data.totals.periodNetPnlUsdt), subValue: "після витрат" },
+            { icon: "🎮", label: "Дохід по Steam", value: signedUsdt(data.totals.periodSteamUsdt), tone: moveTone(data.totals.periodSteamUsdt), subValue: `в обороті ${formatMoney(data.turnover.steamUsdt, "USDT", hidden)}` },
+            { icon: "📈", label: "Дохід по Aurum", value: signedUsdt(data.totals.periodFxUsdt), tone: moveTone(data.totals.periodFxUsdt), subValue: `в обороті ${formatMoney(data.turnover.aurumUsdt, "USDT", hidden)}` },
+            { icon: "🎯", label: "Дохід по Polymarket", value: signedUsdt(data.totals.periodPolyUsdt), tone: moveTone(data.totals.periodPolyUsdt), subValue: `в обороті ${formatMoney(data.turnover.polyUsdt, "USDT", hidden)}` }
           ]}
           desktopColumns={3}
         />
@@ -134,6 +150,19 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
       )}
 
       <DashboardStatistics data={data} />
+
+      <Card className="mt-4">
+        <div className="mb-3 font-semibold">Рахунки</div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          {accounts.map((account) => (
+            <div key={account.label} className="min-w-0">
+              <dt className="text-xs text-[hsl(var(--card-muted-foreground))]">{account.icon} {account.label}</dt>
+              <dd className="mt-0.5 break-words text-base font-bold tabular-nums">{account.value}</dd>
+              <dd className="text-xs tabular-nums text-[hsl(var(--card-muted-foreground))]">{account.sub}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
     </>
   );
 }

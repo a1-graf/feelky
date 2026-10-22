@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarDays, dayLabel, niceScale, shortAxisValue } from "@/lib/chart-scale";
+import { calendarDays, dayLabel, niceRange, niceScale, shortAxisValue, timeTicks, zeroOffset } from "@/lib/chart-scale";
 
 describe("niceScale", () => {
   it("uses round steps that include zero", () => {
@@ -34,5 +34,36 @@ describe("labels", () => {
     expect(dayLabel("2026-10-09")).toBe("09.10");
     expect(shortAxisValue(150)).toBe("150");
     expect(shortAxisValue(-1500)).toBe("-1,5k");
+  });
+});
+
+describe("niceRange", () => {
+  it("rounds a balance range without forcing zero", () => {
+    const scale = niceRange(2563, 4451);
+    expect(scale.domain[0]).toBeLessThanOrEqual(2563);
+    expect(scale.domain[1]).toBeGreaterThanOrEqual(4451);
+    expect(scale.ticks.length).toBeLessThanOrEqual(5);
+    expect(scale.domain[0]).toBeGreaterThan(0);
+  });
+
+  it("pads a flat series so the axis still has a height", () => {
+    const scale = niceRange(100, 100);
+    expect(scale.domain[0]).toBeLessThan(100);
+    expect(scale.domain[1]).toBeGreaterThan(100);
+  });
+});
+
+describe("timeTicks", () => {
+  it("spreads ticks evenly from start to end", () => {
+    expect(timeTicks(0, 300, 4)).toEqual([0, 100, 200, 300]);
+    expect(timeTicks(5, 5)).toEqual([5]);
+  });
+});
+
+describe("zeroOffset", () => {
+  it("places zero inside the value box measured from the top", () => {
+    expect(zeroOffset(-50, 150)).toBe(0.75);
+    expect(zeroOffset(10, 20)).toBe(1);
+    expect(zeroOffset(-20, -10)).toBe(0);
   });
 });

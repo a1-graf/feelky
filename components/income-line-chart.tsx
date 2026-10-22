@@ -3,7 +3,7 @@
 import { useId, useMemo } from "react";
 import { Area, Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DonutBreakdown } from "@/components/donut-breakdown";
-import { calendarDays, dayLabel, niceScale, shortAxisValue } from "@/lib/chart-scale";
+import { calendarDays, dayLabel, niceScale, shortAxisValue, zeroOffset } from "@/lib/chart-scale";
 import { formatMoney } from "@/lib/money";
 
 type IncomeTimelinePoint = {
@@ -32,7 +32,7 @@ type LossBreakdownItem = {
   value: string;
 };
 
-const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6"];
+const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6", "#0ea5e9"];
 function axisValue(value: number, hidden: boolean) {
   if (hidden) return "****";
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -101,9 +101,10 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
     for (const point of data) {
       for (const source of point.sources) totals.set(source.name, (totals.get(source.name) || 0) + source.value);
     }
+    // Biggest by size, not by sign: a losing source matters as much as a winning one.
     const series = Array.from(totals.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, SOURCE_COLORS.length)
       .map(([name, total], index) => ({ name, total, key: `source${index}`, color: SOURCE_COLORS[index] }));
     const running = new Map<string, number>();
     const points = [...data]
@@ -114,27 +115,46 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
         for (const item of series) chartPoint[item.key] = running.get(item.name) || 0;
         return chartPoint;
       });
-    return { series, points };
+    const scale = niceScale(points.flatMap((point) => series.map((item) => Number(point[item.key]))));
+    return { series, points, scale, largest: Math.max(...series.map((item) => Math.abs(item.total)), 0) };
   }, [data]);
 
   if (!prepared.series.length) return null;
   const showDots = prepared.points.length <= 100;
+  const signed = (value: number) => (hidden ? "••••" : `${value > 0 ? "+" : ""}${formatMoney(value.toFixed(2), "USDT")}`);
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        {prepared.series.map((item) => (
-          <ChartTotal key={item.key} color={item.color} label={item.name} value={formatMoney(item.total, "USDT", hidden)} />
-        ))}
-      </div>
-      <div className="h-72 w-full">
+      <ul className="mb-4 space-y-2">
+        {prepared.series.map((item) => {
+          const width = prepared.largest > 0 ? (Math.abs(item.total) / prepared.largest) * 50 : 0;
+          return (
+            <li key={item.key} className="grid grid-cols-[minmax(0,7.5rem)_1fr_auto] items-center gap-2 text-sm sm:grid-cols-[minmax(0,10rem)_1fr_auto]">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="truncate">{item.name}</span>
+              </span>
+              <span className="relative h-2 rounded-full bg-muted">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-[hsl(var(--foreground)/0.3)]" />
+                <span
+                  className="absolute inset-y-0 rounded-full"
+                  style={{ backgroundColor: item.total >= 0 ? PROFIT_COLOR : LOSS_COLOR, width: `${Math.max(width, 1)}%`, ...(item.total >= 0 ? { left: "50%" } : { right: "50%" }) }}
+                />
+              </span>
+              <span className={`text-right font-semibold tabular-nums ${item.total > 0 ? "text-success" : item.total < 0 ? "text-danger" : ""}`}>{signed(item.total)}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="h-64 w-full">
         <ResponsiveContainer>
-          <LineChart data={prepared.points} margin={{ left: 0, right: 8, top: 16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <LineChart data={prepared.points} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => axisValue(Number(value), hidden)} width={54} />
-            <Tooltip formatter={(value, name) => [formatMoney(Number(value), "USDT", hidden), name]} labelFormatter={(label) => `Дата: ${label}`} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "••" : shortAxisValue(Number(value)))} domain={prepared.scale.domain} ticks={prepared.scale.ticks} interval={0} width={48} />
+            <Tooltip formatter={(value, name) => [signed(Number(value)), name]} labelFormatter={(label) => `Дата: ${label}`} />
+            <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
             {prepared.series.map((item) => (
-              <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
+              <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={showDots ? { r: 2.5 } : false} activeDot={{ r: 5 }} />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -184,13 +204,6 @@ function PnlChip({ label, value, className }: { label: string; value: string; cl
       <div className={`mt-0.5 break-words text-sm font-bold tabular-nums sm:text-base ${className}`}>{value}</div>
     </div>
   );
-}
-
-// Where zero sits inside a box spanning [low, high], measured from the top; feeds the green/red split.
-function zeroOffset(low: number, high: number) {
-  if (high <= 0) return 0;
-  if (low >= 0) return 1;
-  return high / (high - low);
 }
 
 export function NetPnlChart({

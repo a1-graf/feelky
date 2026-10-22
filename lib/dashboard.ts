@@ -1,6 +1,7 @@
 ﻿import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, RateMode, TransactionType } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { buildBankHistory } from "@/lib/bank-history";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
@@ -38,7 +39,7 @@ export async function resolveUahUsdtRate(userId: string) {
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, allTransactions, allFlips, rateData, steam, polyLocks] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -60,7 +61,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     prisma.flip.findMany({ where: { userId }, orderBy: { tradeDate: "desc" } }),
     resolveUahUsdtRate(userId),
     steamAnalytics.dashboard(userId, { from: period.from, to: period.to }),
-    prisma.polyLock.findMany({ where: { userId } })
+    prisma.polyLock.findMany({ where: { userId } }),
+    prisma.steamResaleInvestment.findMany({ where: { userId, archivedAt: null } }),
+    prisma.steamArbitrageRound.findMany({ where: { userId, archivedAt: null } }),
+    prisma.steamResaleWithdrawal.findMany({ where: { userId, archivedAt: null, transactionId: null } })
   ]);
 
   const { rate, source } = rateData;
@@ -177,7 +181,6 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const incomeSourceUahMap = new Map<string, Decimal>();
   const incomeSourceUsdtMap = new Map<string, Decimal>();
   const incomeTimelineMap = new Map<string, { label: string; usdt: Decimal; uah: Decimal }>();
-  const incomeSourceTimelineMap = new Map<string, { label: string; sources: Map<string, Decimal> }>();
   for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item))) {
     const label = transaction.incomeSource?.name || "\u0411\u0435\u0437 \u0434\u0436\u0435\u0440\u0435\u043b\u0430";
     const dateKey = transaction.transactionDate.toISOString().slice(0, 10);
@@ -189,9 +192,6 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
         usdt: new Decimal(0),
         uah: new Decimal(0)
       };
-    const sourceTimelinePoint = incomeSourceTimelineMap.get(dateKey) || { label: formattedDate, sources: new Map<string, Decimal>() };
-    const amountInUsdt = transaction.currency === "UAH" ? D(transaction.amount).div(rate) : D(transaction.amount);
-    sourceTimelinePoint.sources.set(label, D(sourceTimelinePoint.sources.get(label) || 0).plus(amountInUsdt));
     if (transaction.currency === "USDT" || transaction.currency === "USD") {
       incomeSourceUsdtMap.set(label, D(incomeSourceUsdtMap.get(label) || 0).plus(transaction.amount));
       timelinePoint.usdt = timelinePoint.usdt.plus(transaction.amount);
@@ -200,7 +200,6 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       timelinePoint.uah = timelinePoint.uah.plus(transaction.amount);
     }
     incomeTimelineMap.set(dateKey, timelinePoint);
-    incomeSourceTimelineMap.set(dateKey, sourceTimelinePoint);
   }
   const incomeSourcesUah = Array.from(incomeSourceUahMap.entries())
     .map(([name, value]) => ({ name, value: value.toString() }))
@@ -216,7 +215,67 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       usdt: value.usdt.toNumber(),
       uah: value.uah.toNumber()
     }));
-  const incomeSourceTimeline = Array.from(incomeSourceTimelineMap.entries())
+  const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
+  const metadataSource = (metadata: unknown) => {
+    const source = metadataObject(metadata)?.source;
+    return typeof source === "string" ? source : null;
+  };
+
+  // Every result event over ALL time; the page period only slices them, the charts have their own presets.
+  // `source` names where it came from, so one list feeds the net result, the tiles and "Що приносить дохід".
+  type ResultKind = "income" | "expense" | "flip" | "fx" | "poly";
+  const resultEvents: { date: Date; net: Decimal; kind: ResultKind; source: string; workExpense?: boolean }[] = [];
+  const addResult = (date: Date, net: Decimal.Value, kind: ResultKind, source: string, workExpense = false) => resultEvents.push({ date, net: D(net), kind, source, workExpense });
+  for (const transaction of allTransactions) {
+    const source = metadataSource(transaction.metadata);
+    if ((transaction.type === TransactionType.INCOME || transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) && !isOpeningBalanceTransaction(transaction) && !isFlipLedgerTransaction(transaction)) {
+      const metadata = metadataObject(transaction.metadata);
+      let amount = asUsdt(transaction.amount, transaction.currency);
+      if (metadata?.steamType === "ARBITRAGE_COMPLETION") {
+        amount = decimalFromMetadata(transaction.metadata, "profit") || amount;
+      } else if (metadata?.steamType === "RESALE_WITHDRAWAL") {
+        const softwareAmountSpent = decimalFromMetadata(transaction.metadata, "softwareAmountSpent");
+        if (softwareAmountSpent) amount = amount.minus(softwareAmountSpent);
+      }
+      addResult(transaction.transactionDate, amount, "income", transaction.incomeSource?.name || "Без джерела");
+    } else if (transaction.type === TransactionType.EXPENSE && !isFlipLedgerTransaction(transaction)) {
+      const work = isWorkExpenseTransaction(transaction);
+      addResult(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated(), "expense", work ? transaction.incomeSource?.name || "Без напрямку" : "", work);
+    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
+      if (source === "FX_PNL") addResult(transaction.transactionDate, transaction.amount, "fx", "Aurum (Forex)");
+      else if (source === "POLY_PNL" || source === "POLY_UNATTRIBUTED") addResult(transaction.transactionDate, transaction.amount, "poly", "Polymarket");
+      else if (source === "POLY_RELEASE") {
+        const result = polyLocksById.get(String(metadataObject(transaction.metadata)?.polyLockId ?? ""))?.resultPnlUsd;
+        if (result != null) addResult(transaction.transactionDate, result, "poly", "Polymarket");
+      }
+    }
+  }
+  for (const flip of allFlips) addResult(flip.tradeDate, flip.pnl, "flip", "Фліпи");
+  resultEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sumResults = (events: typeof resultEvents) => events.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
+  const periodResults = resultEvents.filter((event) => inPeriod(event.date));
+  const netPnlUsdt = sumResults(resultEvents);
+  const periodNetPnlUsdt = sumResults(periodResults);
+  const periodGrossUsdt = sumResults(periodResults.filter((event) => event.kind !== "expense"));
+  const periodFxUsdt = sumResults(periodResults.filter((event) => event.kind === "fx"));
+  const periodPolyUsdt = sumResults(periodResults.filter((event) => event.kind === "poly"));
+  const periodSteamUsdt = sumResults(periodResults.filter((event) => /^steam/i.test(event.source)));
+  let runningNet = new Decimal(0);
+  const pnlTimeline = resultEvents.map((event) => {
+    runningNet = runningNet.plus(event.net);
+    return { t: event.date.getTime(), delta: event.net.toNumber(), total: runningNet.toNumber() };
+  });
+
+  // Where the period's money came from, signed by day: income minus that direction's work costs, flips, Aurum and Polymarket (a day's net, not every trade).
+  const sourceDays = new Map<string, { label: string; sources: Map<string, Decimal> }>();
+  for (const event of periodResults) {
+    if (!event.source) continue;
+    const dateKey = event.date.toISOString().slice(0, 10);
+    const day = sourceDays.get(dateKey) || { label: dateFormatter.format(event.date), sources: new Map<string, Decimal>() };
+    day.sources.set(event.source, D(day.sources.get(event.source) || 0).plus(event.net));
+    sourceDays.set(dateKey, day);
+  }
+  const incomeSourceTimeline = Array.from(sourceDays.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, value]) => ({
       date,
@@ -224,106 +283,39 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       sources: Array.from(value.sources.entries()).map(([name, amount]) => ({ name, value: amount.toNumber() }))
     }));
 
-  const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
-  // Net result events over ALL time; the page period only slices them, the chart has its own presets.
-  const pnlEvents: { date: Date; net: Decimal }[] = [];
-  const addPnlEvent = (date: Date, amount: Decimal) => pnlEvents.push({ date, net: amount });
-  for (const transaction of allTransactions.filter(
-    (item) => (item.type === TransactionType.INCOME || item.type === TransactionType.EXPECTED_MONEY_RECEIVED) && !isOpeningBalanceTransaction(item) && !isFlipLedgerTransaction(item)
-  )) {
-    const metadata = metadataObject(transaction.metadata);
-    let amount = asUsdt(transaction.amount, transaction.currency);
-    if (metadata?.steamType === "ARBITRAGE_COMPLETION") {
-      amount = decimalFromMetadata(transaction.metadata, "profit") || amount;
-    } else if (metadata?.steamType === "RESALE_WITHDRAWAL") {
-      const softwareAmountSpent = decimalFromMetadata(transaction.metadata, "softwareAmountSpent");
-      if (softwareAmountSpent) amount = amount.minus(softwareAmountSpent);
-    }
-    addPnlEvent(transaction.transactionDate, amount);
-  }
-  for (const transaction of allTransactions.filter((item) => item.type === TransactionType.EXPENSE && !isFlipLedgerTransaction(item))) {
-    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated());
-  }
-  for (const flip of allFlips) addPnlEvent(flip.tradeDate, D(flip.pnl));
-  pnlEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
-  const netPnlUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
-  const periodNetPnlUsdt = pnlEvents.filter((event) => inPeriod(event.date)).reduce((sum, event) => sum.plus(event.net), new Decimal(0));
-  let runningNet = new Decimal(0);
-  const pnlTimeline = pnlEvents.map((event) => {
-    runningNet = runningNet.plus(event.net);
-    return { t: event.date.getTime(), delta: event.net.toNumber(), total: runningNet.toNumber() };
+  const bankHistory = buildBankHistory({
+    now: new Date(),
+    rate,
+    current: { total: potentialBankUsdt, available: availableBankUsdt, turnover: turnoverUsdt },
+    polyPoolId,
+    accounts,
+    transactions: allTransactions,
+    expected: allExpectedMoney.map((item) => ({
+      amountUsdt: asUsdt(item.amount, item.currency),
+      createdAt: item.createdAt,
+      endedAt: item.status === ExpectedMoneyStatus.EXPECTED || item.status === ExpectedMoneyStatus.NEED_TO_COLLECT || item.status === ExpectedMoneyStatus.IN_PROGRESS ? null : item.resolvedAt ?? item.createdAt
+    })),
+    frozen: frozenFunds.filter((fund) => fund.currency === "USDT").map((fund) => ({ amountUsdt: fund.amount, since: fund.frozenDate })),
+    polyLocks: polyLocks.map((lock) => ({ amountUsd: lock.amountUsd, lockedAt: lock.lockedAt, releasedAt: lock.releasedAt, locked: lock.status === "LOCKED" })),
+    steamInvestments: steamInvestments.map((item) => ({
+      sourceAccountId: item.sourceAccountId,
+      externalAmount: item.externalAmount,
+      startedAt: item.startedAt,
+      endedAt: item.updatedAt,
+      active: item.status === "ACTIVE"
+    })),
+    steamRounds: steamRounds.map((round) => ({
+      sourceAccountId: round.sourceAccountId,
+      investedAmount: round.investedAmount,
+      startedAt: round.startedAt,
+      completedAt: round.completedAt,
+      completed: round.status === "COMPLETED",
+      destinationAccountId: round.destinationAccountId,
+      finalAmountReceived: round.finalAmountReceived,
+      hasTransaction: Boolean(round.transactionId)
+    })),
+    steamWithdrawals
   });
-  const polySource = (metadata: unknown) => {
-    const source = metadataObject(metadata)?.source;
-    return source === "POLY_LOCK" || source === "POLY_RELEASE" ? source : null;
-  };
-  const balanceEvents: { date: Date; fullDelta: Decimal; availableDelta: Decimal }[] = [];
-  for (const transaction of balanceTransactions) {
-    const amount = asUsdt(transaction.amount, transaction.currency);
-    const comesFromSavings = Boolean(transaction.sourceAccountId && reservedIds.has(transaction.sourceAccountId));
-    const goesToSavings = Boolean(transaction.destinationAccountId && reservedIds.has(transaction.destinationAccountId));
-    if (transaction.type === TransactionType.INCOME) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
-    } else if (transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: goesToSavings ? new Decimal(0) : amount });
-    } else if (transaction.type === TransactionType.EXPENSE) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount.negated(), availableDelta: comesFromSavings ? new Decimal(0) : amount.negated() });
-    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT && polySource(transaction.metadata) === "POLY_LOCK") {
-      // Pool -> locked principal: the full bank and available turnover do not change.
-    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT && polySource(transaction.metadata) === "POLY_RELEASE") {
-      const lock = polyLocksById.get(String(metadataObject(transaction.metadata)?.polyLockId ?? ""));
-      const result = lock?.resultPnlUsd == null ? amount : D(lock.resultPnlUsd);
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: result, availableDelta: result });
-    } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: amount, availableDelta: goesToSavings ? new Decimal(0) : amount });
-    } else if (transaction.type === TransactionType.TRANSFER && comesFromSavings !== goesToSavings) {
-      balanceEvents.push({
-        date: transaction.transactionDate,
-        fullDelta: new Decimal(0),
-        availableDelta: goesToSavings ? amount.negated() : amount
-      });
-    } else if (transaction.type === TransactionType.FUNDS_FROZEN) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount.negated() });
-    } else if (transaction.type === TransactionType.FUNDS_RELEASED) {
-      balanceEvents.push({ date: transaction.transactionDate, fullDelta: new Decimal(0), availableDelta: amount });
-    }
-  }
-  for (const item of allExpectedMoney) {
-    balanceEvents.push({ date: item.createdAt, fullDelta: asUsdt(item.amount, item.currency), availableDelta: new Decimal(0) });
-    if ((item.status === ExpectedMoneyStatus.LOST || item.status === ExpectedMoneyStatus.SCAMMED) && item.resolvedAt) {
-      balanceEvents.push({ date: item.resolvedAt, fullDelta: asUsdt(item.amount, item.currency).negated(), availableDelta: new Decimal(0) });
-    }
-  }
-  const totalFullDelta = balanceEvents.reduce((sum, event) => sum.plus(event.fullDelta), new Decimal(0));
-  const totalAvailableDelta = balanceEvents.reduce((sum, event) => sum.plus(event.availableDelta), new Decimal(0));
-  let runningFull = potentialBankUsdt.minus(totalFullDelta);
-  let runningAvailable = availableWithTurnoverUsdt.minus(totalAvailableDelta);
-  const balanceTimeline = balanceEvents
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((event, index) => {
-      runningFull = runningFull.plus(event.fullDelta);
-      runningAvailable = runningAvailable.plus(event.availableDelta);
-      return {
-        date: event.date.toISOString(),
-        label: dateFormatter.format(event.date),
-        tooltipLabel: dateTimeFormatter.format(event.date),
-        eventIndex: index + 1,
-        full: runningFull.toNumber(),
-        available: runningAvailable.toNumber()
-      };
-    });
-  if (!balanceTimeline.length) {
-    const today = new Date();
-    balanceTimeline.push({
-      date: today.toISOString(),
-      label: dateFormatter.format(today),
-      tooltipLabel: dateTimeFormatter.format(today),
-      eventIndex: 1,
-      full: potentialBankUsdt.toNumber(),
-      available: availableWithTurnoverUsdt.toNumber()
-    });
-  }
   return {
     period: {
       label: period.label,
@@ -347,7 +339,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     incomeTimeline,
     incomeSourceTimeline,
     pnlTimeline,
-    balanceTimeline,
+    bankHistory,
     flips: flipStatistics,
     steam: {
       frozenCapital: steamFrozenCapital.toString(),
@@ -377,6 +369,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       monthExpenseUah: monthExpenseUah.toString(),
       netPnlUsdt: netPnlUsdt.toString(),
       periodNetPnlUsdt: periodNetPnlUsdt.toString(),
+      periodGrossUsdt: periodGrossUsdt.toString(),
+      periodFxUsdt: periodFxUsdt.toString(),
+      periodPolyUsdt: periodPolyUsdt.toString(),
+      periodSteamUsdt: periodSteamUsdt.toString(),
       p2pCount,
       p2pDepositCount,
       cashWithdrawalCount
