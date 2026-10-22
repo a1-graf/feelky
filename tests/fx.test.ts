@@ -198,3 +198,17 @@ describe("FX broker flows", () => {
     expect(flows.items.map((item) => item.id)).toEqual(["b", "a"]);
   });
 });
+
+describe("buildFxBalanceSeries", () => {
+  it("anchors the last point to the broker balance and tracks deposits and trades", async () => {
+    const { buildFxBalanceSeries } = await import("@/lib/fx-stats");
+    const series = buildFxBalanceSeries(
+      [{ pnl: "10", closedAt: new Date("2026-10-02T10:00:00Z") }, { pnl: "-4", closedAt: new Date("2026-10-03T10:00:00Z") }],
+      [{ direction: "deposit", amount: "500", date: new Date("2026-10-01T10:00:00Z") }],
+      "506"
+    );
+    expect(series.map((p) => p.balance)).toEqual([500, 510, 506]);
+    expect(series[0].date).toBe("2026-10-01");
+    expect(buildFxBalanceSeries([], [])).toEqual([]);
+  });
+});

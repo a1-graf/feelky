@@ -2,7 +2,7 @@ import { AccountType, Prisma, TransactionType } from "@prisma/client";
 import type { Account, FxSide, FxTrade } from "@prisma/client";
 import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
-import { summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
+import { buildFxBalanceSeries, summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
 import { D, roundCurrency } from "@/lib/money";
 
 type Tx = Prisma.TransactionClient;
@@ -245,17 +245,17 @@ export async function getFxStatistics(userId: string) {
       select: { id: true, amount: true, transactionDate: true, note: true, metadata: true }
     })
   ]);
+  const flowItems = flowRows.map((row) => ({
+    id: row.id,
+    amount: row.amount,
+    date: row.transactionDate,
+    note: row.note,
+    direction: (row.metadata as { direction?: string } | null)?.direction === "withdraw" ? ("withdraw" as const) : ("deposit" as const)
+  }));
   return {
     data: summarizeFx(trades.map((trade) => ({ ...trade, side: trade.side }))),
-    flows: summarizeFxFlows(
-      flowRows.map((row) => ({
-        id: row.id,
-        amount: row.amount,
-        date: row.transactionDate,
-        note: row.note,
-        direction: (row.metadata as { direction?: string } | null)?.direction === "withdraw" ? ("withdraw" as const) : ("deposit" as const)
-      }))
-    ),
+    flows: summarizeFxFlows(flowItems),
+    balanceSeries: buildFxBalanceSeries(trades, flowItems, brokers[0]?.currentBalance),
     brokers: brokers.map((broker) => ({ name: broker.name, currency: broker.currency, balance: broker.currentBalance.toString() })),
     hidden: Boolean(settings?.hideAmounts)
   };

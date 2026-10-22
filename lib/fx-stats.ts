@@ -291,3 +291,38 @@ export function summarizeFxFlows(flows: FxFlowLike[]) {
     }))
   };
 }
+
+export type FxBalancePoint = { date: string; label: string; balance: number };
+
+/** Account balance by Kyiv day: deposits/withdrawals and closed-trade PnL, anchored so the last point equals the real broker balance. */
+export function buildFxBalanceSeries(
+  trades: Pick<FxTradeLike, "pnl" | "closedAt">[],
+  flows: Pick<FxFlowLike, "direction" | "amount" | "date">[],
+  currentBalance?: Decimal.Value | null
+): FxBalancePoint[] {
+  const byDay = new Map<string, Decimal>();
+  const add = (date: Date, delta: Decimal) => {
+    const day = kyivStamp(date).slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? new Decimal(0)).plus(delta));
+  };
+  for (const trade of trades) add(trade.closedAt, D(trade.pnl));
+  for (const flow of flows) add(flow.date, flow.direction === "deposit" ? D(flow.amount) : D(flow.amount).neg());
+  const days = Array.from(byDay.keys()).sort();
+  if (!days.length) return [];
+
+  let running = new Decimal(0);
+  const points = days.map((date) => {
+    running = running.plus(byDay.get(date)!);
+    return { date, value: running };
+  });
+  const offset = currentBalance == null ? new Decimal(0) : D(currentBalance).minus(running);
+
+  const label = (date: string) => `${date.slice(8, 10)}.${date.slice(5, 7)}`;
+  const result = points.map((p) => ({ date: p.date, label: label(p.date), balance: p.value.plus(offset).toNumber() }));
+  if (result.length > 1) return result;
+  // A single day still needs a line: start it from the balance before that day.
+  const prev = new Date(`${days[0]}T00:00:00.000Z`);
+  prev.setUTCDate(prev.getUTCDate() - 1);
+  const start = prev.toISOString().slice(0, 10);
+  return [{ date: start, label: label(start), balance: offset.toNumber() }, ...result];
+}

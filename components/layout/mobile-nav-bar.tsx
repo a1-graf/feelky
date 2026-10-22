@@ -5,7 +5,7 @@ import { MobileNav } from "@/components/layout/app-nav";
 
 const mobileTabs = [
   { href: "/overview", label: "Огляд", icon: "overview" },
-  { href: "/fx", label: "FX", icon: "fx" },
+  { href: "/fx", label: "Форекс", icon: "fx" },
   { href: "/poly", label: "Poly", icon: "poly" },
   { href: "/steam", label: "Steam", icon: "steam" },
   { href: "/settings", label: "Меню", icon: "settings" }

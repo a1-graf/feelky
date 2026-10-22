@@ -1,8 +1,9 @@
+import { FxBalanceChart } from "@/components/fx-balance-chart";
 import { NetPnlChart } from "@/components/income-line-chart";
 import { FxPositions } from "@/components/fx-positions";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money";
-import type { summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
+import type { FxBalancePoint, summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
 
 type FxData = ReturnType<typeof summarizeFx>;
 type Broker = { name: string; currency: string; balance: string };
@@ -12,6 +13,7 @@ type Period = FxData["allTime"];
 
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const signed = (value: string) => (Number(value) > 0 ? `+${value}` : value);
+const signedMoney = (value: string, currency: string, hidden: boolean) => `${Number(value) > 0 && !hidden ? "+" : ""}${formatMoney(value, currency, hidden)}`;
 const formatR = (r: string | null, hidden: boolean) => (hidden ? "****" : r == null ? "—" : `${signed(r)}R`);
 const formatDate = (iso: string) => new Date(iso).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" });
 const formatMonth = (key: string) => {
@@ -21,33 +23,16 @@ const formatMonth = (key: string) => {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
 };
 
-const th = "px-2 py-2 text-xs font-normal text-[hsl(var(--card-muted-foreground))]";
-const td = "px-2 py-2.5 whitespace-nowrap";
-
-function Metric({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
-  return (
-    <div className="rounded-lg bg-muted p-3.5">
-      <div className="text-sm text-[hsl(var(--card-muted-foreground))]">{label}</div>
-      <div className={`mt-1.5 text-xl font-bold tabular-nums sm:text-2xl ${className}`}>{value}</div>
-    </div>
-  );
-}
+const th = "px-1.5 py-2 sm:px-2 text-xs font-normal text-[hsl(var(--card-muted-foreground))]";
+const td = "px-1.5 py-2.5 whitespace-nowrap sm:px-2";
 
 function PeriodRow({ period, currency, hidden, total = false, current = false }: { period: Period; currency: string; hidden: boolean; total?: boolean; current?: boolean }) {
   return (
     <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
-      <td className={`${td} relative pl-6 ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-success" />}{formatMonth(period.key)}</td>
+      <td className={`${td} relative pl-5 sm:pl-6 ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="absolute left-2 top-1/2 sm:left-2.5 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-success" />}{formatMonth(period.key)}</td>
       <td className={`${td} text-right`}>{period.count}</td>
       <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
-      <td className={`${td} text-right ${tone(period.sumR)}`}>{formatR(period.sumR, hidden)}</td>
-      <td className={`${td} text-right ${tone(period.avgR)}`}>{formatR(period.avgR, hidden)}</td>
       <td className={`${td} text-right ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
-      <td className={`${td} text-right text-success`}>
-        {period.best ? `${formatMoney(period.best.pnl, currency, hidden)}${period.best.r ? ` · ${formatR(period.best.r, hidden)}` : ""}` : "—"}
-      </td>
-      <td className={`${td} text-right text-danger`}>
-        {period.worst ? `${formatMoney(period.worst.pnl, currency, hidden)}${period.worst.r ? ` · ${formatR(period.worst.r, hidden)}` : ""}` : "—"}
-      </td>
     </tr>
   );
 }
@@ -55,17 +40,13 @@ function PeriodRow({ period, currency, hidden, total = false, current = false }:
 function PeriodTable({ months, allTime, currency, hidden, currentMonthKey }: { months: Period[]; allTime: Period; currency: string; hidden: boolean; currentMonthKey: string }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
+      <table className="w-full min-w-0 text-[13px] sm:text-sm">
         <thead>
           <tr className="text-left">
-            <th className={`${th} pl-6`}>Період</th>
+            <th className={`${th} pl-5 sm:pl-6`}>Період</th>
             <th className={`${th} text-right`}>Угод</th>
             <th className={`${th} text-right`}>Winrate</th>
-            <th className={`${th} text-right`}>Сума R</th>
-            <th className={`${th} text-right`}>Серед. R</th>
             <th className={`${th} text-right`}>Результат</th>
-            <th className={`${th} text-right`}>Краща</th>
-            <th className={`${th} text-right`}>Гірша</th>
           </tr>
         </thead>
         <tbody>
@@ -74,7 +55,7 @@ function PeriodTable({ months, allTime, currency, hidden, currentMonthKey }: { m
           ))}
         </tbody>
         <tbody aria-hidden>
-          <tr><td colSpan={8} className="h-3 p-0" /></tr>
+          <tr><td colSpan={4} className="h-3 p-0" /></tr>
         </tbody>
         <tbody>
           <PeriodRow period={allTime} currency={currency} hidden={hidden} total />
@@ -109,46 +90,50 @@ function Breakdown({ title, rows, currency, hidden }: { title: string; rows: Row
   );
 }
 
-export function FxStatistics({ data, brokers, flows, hidden = false }: { data: FxData; brokers: Broker[]; flows: Flows; hidden?: boolean }) {
+function SplitTile({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2">{children}</div>;
+}
+
+function Half({ label, main, sub, className = "", divider = false }: { label: string; main: React.ReactNode; sub?: string; className?: string; divider?: boolean }) {
+  return (
+    <div className={`min-w-0 px-2 text-center ${divider ? "mt-3 border-t-2 border-foreground/70 pt-3 lg:mt-0 lg:self-stretch lg:border-l-2 lg:border-t-0 lg:pt-0" : "lg:pb-0"}`}>
+      <div className="text-sm text-[hsl(var(--card-muted-foreground))]">{label}</div>
+      <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${className}`}>
+        <div className="text-xl sm:text-2xl xl:text-3xl">{main}</div>
+        {sub && <div className="mt-0.5 text-lg">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = false }: { data: FxData; brokers: Broker[]; flows: Flows; balanceSeries: FxBalancePoint[]; hidden?: boolean }) {
   const currency = brokers[0]?.currency || "USD";
 
   return (
     <>
       <Card className="mt-0 md:mt-4">
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <Metric
-            label="Баланс (FX брокер)"
-            value={
-              brokers.length
-                ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ")
-                : "Рахунок брокера ще не створено"
-            }
-          />
-          <div className="grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2">
-            <div className="min-w-0 px-3 pb-3 text-center lg:pb-0">
-              <div className="text-sm text-[hsl(var(--card-muted-foreground))]">За місяць</div>
-              <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.monthPnl)}`}>
-                <div className="text-2xl xl:text-3xl">{formatMoney(data.monthPnl, currency, hidden)}</div>
-                <div className="mt-0.5 text-lg">{formatR(data.monthSumR, hidden)}</div>
-              </div>
-            </div>
-            <div className="min-w-0 border-t-2 border-foreground/70 px-3 pt-3 text-center lg:self-stretch lg:border-l-2 lg:border-t-0 lg:pt-0">
-              <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Total profit</div>
-              <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.totalPnl)}`}>
-                <div className="text-2xl xl:text-3xl">{formatMoney(data.totalPnl, currency, hidden)}</div>
-                <div className="mt-0.5 text-lg">{formatR(data.allTime.sumR, hidden)}</div>
-              </div>
+          <div className="flex items-center justify-center rounded-lg bg-muted px-3 py-3.5 text-center">
+            <div className="font-bold tabular-nums text-xl sm:text-2xl xl:text-3xl">
+              {brokers.length ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ") : <span className="text-base font-normal text-[hsl(var(--card-muted-foreground))]">Рахунок брокера ще не створено</span>}
             </div>
           </div>
-          <Metric label="Winrate" value={hidden ? "****" : `${data.winRate}%`} />
-          <Metric label="Плюсових / мінусових" value={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
+          <SplitTile>
+            <Half label="За місяць" className={tone(data.monthPnl)} main={signedMoney(data.monthPnl, currency, hidden)} sub={formatR(data.monthSumR, hidden)} />
+            <Half label="Total profit" className={tone(data.totalPnl)} main={signedMoney(data.totalPnl, currency, hidden)} sub={formatR(data.allTime.sumR, hidden)} divider />
+          </SplitTile>
+          <FxBalanceChart data={balanceSeries} currency={currency} hidden={hidden} />
+          <SplitTile>
+            <Half label="Winrate" main={hidden ? "****" : `${data.winRate}%`} />
+            <Half label="Плюсових / мінусових" main={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} divider />
+          </SplitTile>
         </div>
       </Card>
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Місяці та весь час</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          1R — фіксована сума {data.oneRUsd} {currency} (плановий ризик 1% депозиту). R угоди = $ / 1R, тож сума R узгоджується з доларами.
+          1R = {data.oneRUsd} {currency} (1%)
         </div>
         {data.count ? (
           <PeriodTable months={data.byMonth} allTime={data.allTime} currency={currency} hidden={hidden} currentMonthKey={data.currentMonthKey} />
