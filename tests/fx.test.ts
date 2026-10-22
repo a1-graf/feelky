@@ -208,6 +208,7 @@ describe("buildFxBalanceSeries", () => {
       "506"
     );
     expect(series.map((p) => p.balance)).toEqual([500, 510, 506]);
+    expect(series.map((p) => p.total)).toEqual([0, 10, 6]);
     expect(series.map((p) => p.label)).toEqual(["Поповнення", "EURUSD", "XAUUSD"]);
     expect(buildFxBalanceSeries([], [])).toEqual([]);
   });

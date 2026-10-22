@@ -292,7 +292,7 @@ export function summarizeFxFlows(flows: FxFlowLike[]) {
   };
 }
 
-export type FxBalancePoint = { t: number; balance: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
+export type FxBalancePoint = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
 
 /** Account balance after every trade and deposit/withdrawal, anchored so the last point equals the real broker balance. */
 export function buildFxBalanceSeries(
@@ -312,10 +312,12 @@ export function buildFxBalanceSeries(
   if (!events.length) return [];
 
   let running = new Decimal(0);
+  let totalPnl = new Decimal(0);
   const points = events.map((event) => {
     running = running.plus(event.delta);
-    return { ...event, value: running };
+    if (event.kind === "trade") totalPnl = totalPnl.plus(event.delta);
+    return { ...event, value: running, total: totalPnl };
   });
   const offset = currentBalance == null ? new Decimal(0) : D(currentBalance).minus(running);
-  return points.map((p) => ({ t: p.t, balance: p.value.plus(offset).toNumber(), delta: p.delta.toNumber(), kind: p.kind, label: p.label }));
+  return points.map((p) => ({ t: p.t, balance: p.value.plus(offset).toNumber(), total: p.total.toNumber(), delta: p.delta.toNumber(), kind: p.kind, label: p.label }));
 }

@@ -4,7 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 
-type Point = { t: number; balance: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
+type Point = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
 
 const PROFIT_COLOR = "#16a34a";
 const LOSS_COLOR = "#e04d65";
@@ -34,6 +34,10 @@ function BalanceTooltip({ active, payload, hidden, currency }: { active?: boolea
           {point.delta !== 0 && <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : `${point.delta > 0 ? "+" : ""}${point.delta.toFixed(2)}`}</span>}
         </div>
       )}
+      <div className="text-[hsl(var(--card-muted-foreground))]">
+        Total{" "}
+        <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${point.total > 0 ? "+" : ""}${point.total.toFixed(2)}`}</span>
+      </div>
     </div>
   );
 }
@@ -61,11 +65,13 @@ export function FxBalanceChart({ data, currency, hidden = false }: { data: Point
     // Before the first event the account did not exist yet, so the line starts at that event.
     const windowStart = before ? start : Math.max(start, inside[0].t);
     const startBalance = before ? before.balance : inside[0].balance;
+    const startTotal = before ? before.total : inside[0].total;
     const last = inside[inside.length - 1]?.balance ?? startBalance;
+    const lastTotal = inside[inside.length - 1]?.total ?? startTotal;
     return [
-      { t: windowStart, balance: startBalance, delta: 0, kind: "trade", label: "" },
+      { t: windowStart, balance: startBalance, total: startTotal, delta: 0, kind: "trade", label: "" },
       ...inside,
-      { t: Math.min(end, Math.max(now, inside[inside.length - 1]?.t ?? windowStart)), balance: last, delta: 0, kind: "trade", label: "" }
+      { t: Math.min(end, Math.max(now, inside[inside.length - 1]?.t ?? windowStart)), balance: last, total: lastTotal, delta: 0, kind: "trade", label: "" }
     ];
   }, [data, preset, from, to, now]);
 
