@@ -124,19 +124,19 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
                 : "Рахунок брокера ще не створено"
             }
           />
-          <div className="grid grid-cols-1 rounded-lg bg-muted p-3.5 lg:grid-cols-2">
-            <div className="min-w-0 pb-3 lg:pb-0 lg:pr-4">
+          <div className="grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2">
+            <div className="min-w-0 px-3 pb-3 text-center lg:pb-0">
               <div className="text-sm text-[hsl(var(--card-muted-foreground))]">За місяць</div>
               <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.monthPnl)}`}>
-                <div className="text-xl sm:text-2xl">{formatMoney(data.monthPnl, currency, hidden)}</div>
-                <div className="text-base">{formatR(data.monthSumR, hidden)}</div>
+                <div className="text-2xl xl:text-3xl">{formatMoney(data.monthPnl, currency, hidden)}</div>
+                <div className="mt-0.5 text-lg">{formatR(data.monthSumR, hidden)}</div>
               </div>
             </div>
-            <div className="min-w-0 border-t-2 border-foreground/40 pt-3 lg:border-l-2 lg:border-t-0 lg:pl-4 lg:pt-0">
+            <div className="min-w-0 border-t-2 border-foreground/70 px-3 pt-3 text-center lg:self-stretch lg:border-l-2 lg:border-t-0 lg:pt-0">
               <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Total profit</div>
               <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.totalPnl)}`}>
-                <div className="text-xl sm:text-2xl">{formatMoney(data.totalPnl, currency, hidden)}</div>
-                <div className="text-base">{formatR(data.allTime.sumR, hidden)}</div>
+                <div className="text-2xl xl:text-3xl">{formatMoney(data.totalPnl, currency, hidden)}</div>
+                <div className="mt-0.5 text-lg">{formatR(data.allTime.sumR, hidden)}</div>
               </div>
             </div>
           </div>
