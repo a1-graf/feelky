@@ -200,15 +200,15 @@ describe("FX broker flows", () => {
 });
 
 describe("buildFxBalanceSeries", () => {
-  it("anchors the last point to the broker balance and tracks deposits and trades", async () => {
+  it("gives one point per trade or flow and anchors the last one to the broker balance", async () => {
     const { buildFxBalanceSeries } = await import("@/lib/fx-stats");
     const series = buildFxBalanceSeries(
-      [{ pnl: "10", closedAt: new Date("2026-10-02T10:00:00Z") }, { pnl: "-4", closedAt: new Date("2026-10-03T10:00:00Z") }],
+      [{ instrument: "EURUSD", pnl: "10", closedAt: new Date("2026-10-02T10:00:00Z") }, { instrument: "XAUUSD", pnl: "-4", closedAt: new Date("2026-10-02T12:00:00Z") }],
       [{ direction: "deposit", amount: "500", date: new Date("2026-10-01T10:00:00Z") }],
       "506"
     );
     expect(series.map((p) => p.balance)).toEqual([500, 510, 506]);
-    expect(series[0].date).toBe("2026-10-01");
+    expect(series.map((p) => p.label)).toEqual(["Поповнення", "EURUSD", "XAUUSD"]);
     expect(buildFxBalanceSeries([], [])).toEqual([]);
   });
 });
