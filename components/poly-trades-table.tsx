@@ -19,6 +19,7 @@ export type PolyTradeRow = {
   openedAt: string;
   resolvedAt: string | null;
   signalPrice: string | null;
+  note?: string | null;
 };
 
 const SECTION_LABELS = { MANUAL: "Вручну", COPYTRADE: "Копітрейд", AI_AGENT: "AI-агент" } as const;
@@ -27,6 +28,7 @@ const PAGE_SIZE = 25;
 
 type SortKey = "openedAt" | "pnlUsd" | "sizeUsd" | "entryPrice";
 
+const liveNote = (note?: string | null) => note?.split("wallet-sync:")[1]?.trim() ?? null;
 const tone = (value: string) => (Number(value) > 0 ? "text-success" : Number(value) < 0 ? "text-danger" : "");
 const selectClass = "h-9 rounded-lg border border-border bg-background px-2 text-sm";
 
@@ -54,7 +56,7 @@ export function PolyTradesTable({ trades, hidden }: { trades: PolyTradeRow[]; hi
         (!needle || trade.title.toLowerCase().includes(needle) || trade.externalId.toLowerCase().includes(needle))
     );
     const value = (trade: PolyTradeRow) => (sortKey === "openedAt" ? new Date(trade.openedAt).getTime() : Number(trade[sortKey]));
-    rows.sort((a, b) => (descending ? value(b) - value(a) : value(a) - value(b)));
+    rows.sort((a, b) => Number(b.status === "OPEN") - Number(a.status === "OPEN") || (descending ? value(b) - value(a) : value(a) - value(b)));
     return rows;
   }, [trades, section, agent, status, kind, query, sortKey, descending]);
 
@@ -157,7 +159,10 @@ export function PolyTradesTable({ trades, hidden }: { trades: PolyTradeRow[]; hi
                   </td>
                   <td className="py-2 pr-3 text-right">{Number(trade.entryPrice).toFixed(3)}</td>
                   <td className="py-2 pr-3 text-right">{formatMoney(trade.sizeUsd, "USDT", hidden)}</td>
-                  <td className="py-2 pr-3 text-xs">{STATUS_LABELS[trade.status]}</td>
+                  <td className="py-2 pr-3 text-xs">
+                    {STATUS_LABELS[trade.status]}
+                    {trade.status === "OPEN" && liveNote(trade.note) ? <div className="max-w-[14rem] text-[hsl(var(--card-muted-foreground))]">{liveNote(trade.note)}</div> : null}
+                  </td>
                   <td className={`py-2 text-right font-semibold ${tone(trade.pnlUsd)}`}>{trade.status === "OPEN" ? "—" : formatMoney(trade.pnlUsd, "USDT", hidden)}</td>
                 </tr>
               ))}

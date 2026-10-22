@@ -515,7 +515,8 @@ export async function getPolyOverview(userId: string, now: Date = new Date()) {
       pnlUsd: trade.pnlUsd.toString(),
       openedAt: trade.openedAt.toISOString(),
       resolvedAt: trade.resolvedAt?.toISOString() ?? null,
-      signalPrice: trade.signalPrice?.toString() ?? null
+      signalPrice: trade.signalPrice?.toString() ?? null,
+      note: trade.note
     })),
     hidden: Boolean(settings?.hideAmounts)
   };
