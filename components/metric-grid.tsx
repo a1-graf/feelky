@@ -15,22 +15,22 @@ export function MetricGrid({ items, desktopColumns = 4 }: { items: MetricItem[];
   return (
     <div className={`grid grid-cols-2 gap-2.5 sm:gap-3 ${desktopColumns === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
       {items.map((item) => (
-        <Card key={item.label} className="min-h-28 p-3.5 transition-shadow duration-150 hover:shadow-soft sm:min-h-32 sm:p-4">
-          <div className="flex items-start gap-2">
+        <Card key={item.label} className="min-h-24 p-3.5 transition-shadow duration-150 hover:shadow-soft sm:min-h-28 sm:p-4">
+          <div className="flex items-center gap-2">
             {item.icon ? (
-              <span aria-hidden="true" className="text-lg leading-none sm:text-xl">{item.icon}</span>
+              <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-[13px] leading-none">{item.icon}</span>
             ) : (
               <span
                 aria-hidden="true"
                 className={`mt-1 h-2 w-2 shrink-0 rounded-full ${item.tone === "danger" ? "bg-danger" : item.tone === "warn" ? "bg-warning" : item.tone === "ok" ? "bg-success" : "bg-[hsl(var(--border))]"}`}
               />
             )}
-            <div className="min-h-8 text-[11px] font-medium leading-tight text-[hsl(var(--card-muted-foreground))] sm:min-h-10 sm:text-[13px]">
+            <div className={`text-[11px] font-medium leading-tight text-[hsl(var(--card-muted-foreground))] sm:text-[13px] ${item.icon ? "" : "min-h-8 sm:min-h-10"}`}>
               {item.label}
             </div>
           </div>
           <div
-            className={`mt-1 break-words text-lg font-bold leading-tight tracking-tight sm:text-[22px] ${item.tone === "danger" ? "text-danger" : item.tone === "warn" ? "text-warning" : item.tone === "ok" ? "text-success" : ""}`}
+            className={`mt-2.5 break-words text-lg font-bold leading-tight tracking-tight sm:text-[22px] ${item.tone === "danger" ? "text-danger" : item.tone === "warn" ? "text-warning" : item.tone === "ok" ? "text-success" : ""}`}
             style={item.valueStyle}
           >
             {item.value}
