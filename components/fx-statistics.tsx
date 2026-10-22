@@ -26,9 +26,9 @@ const td = "px-2 py-2.5 whitespace-nowrap";
 
 function Metric({ label, value, className = "" }: { label: string; value: React.ReactNode; className?: string }) {
   return (
-    <div className="rounded-lg bg-muted p-3">
-      <div className="text-xs text-[hsl(var(--card-muted-foreground))]">{label}</div>
-      <div className={`mt-1 font-semibold ${className}`}>{value}</div>
+    <div className="rounded-lg bg-muted p-3.5">
+      <div className="text-sm text-[hsl(var(--card-muted-foreground))]">{label}</div>
+      <div className={`mt-1.5 text-xl font-bold tabular-nums sm:text-2xl ${className}`}>{value}</div>
     </div>
   );
 }
@@ -124,19 +124,19 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
                 : "Рахунок брокера ще не створено"
             }
           />
-          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-2.5 sm:p-3">
-            <div className="min-w-0">
-              <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Total profit</div>
-              <div className={`mt-1 whitespace-nowrap text-[15px] font-semibold tabular-nums sm:text-base ${tone(data.totalPnl)}`}>
-                <div>{formatMoney(data.totalPnl, currency, hidden)}</div>
-                <div className="text-sm">{formatR(data.allTime.sumR, hidden)}</div>
+          <div className="grid grid-cols-1 rounded-lg bg-muted p-3.5 lg:grid-cols-2">
+            <div className="min-w-0 pb-3 lg:pb-0 lg:pr-4">
+              <div className="text-sm text-[hsl(var(--card-muted-foreground))]">За місяць</div>
+              <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.monthPnl)}`}>
+                <div className="text-xl sm:text-2xl">{formatMoney(data.monthPnl, currency, hidden)}</div>
+                <div className="text-base">{formatR(data.monthSumR, hidden)}</div>
               </div>
             </div>
-            <div className="min-w-0">
-              <div className="text-xs text-[hsl(var(--card-muted-foreground))]">За місяць</div>
-              <div className={`mt-1 whitespace-nowrap text-[15px] font-semibold tabular-nums sm:text-base ${tone(data.monthPnl)}`}>
-                <div>{formatMoney(data.monthPnl, currency, hidden)}</div>
-                <div className="text-sm">{formatR(data.monthSumR, hidden)}</div>
+            <div className="min-w-0 border-t-2 border-foreground/40 pt-3 lg:border-l-2 lg:border-t-0 lg:pl-4 lg:pt-0">
+              <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Total profit</div>
+              <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${tone(data.totalPnl)}`}>
+                <div className="text-xl sm:text-2xl">{formatMoney(data.totalPnl, currency, hidden)}</div>
+                <div className="text-base">{formatR(data.allTime.sumR, hidden)}</div>
               </div>
             </div>
           </div>
