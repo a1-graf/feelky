@@ -70,7 +70,7 @@ export async function agentTransactions(userId: string, query: TransactionQuery)
 export async function agentSummary(userId: string, month?: string | null) {
   const [data, steam] = await Promise.all([getDashboard(userId, { month: month || undefined }), steamWallets(userId, { historyDays: 1 })]);
   return {
-    period: { month: data.period.month, label: data.period.label, range: data.period.rangeLabel, isCurrentMonth: data.period.isCurrentMonth },
+    period: { month: data.period.monthKey, label: data.period.label, range: data.period.rangeLabel, isCurrentMonth: data.period.isCurrentMonth },
     rate: { uahPerUsdt: data.rate, source: data.rateSource },
     accounts: data.accounts.map((account) => ({
       name: account.name,
@@ -92,6 +92,7 @@ export async function agentSummary(userId: string, month?: string | null) {
       savingsUah: data.totals.savingsUah,
       brokerUsdt: data.totals.brokerUsdt,
       polyLockedUsdt: data.totals.polyLockedUsdt,
+      polyPoolUsdt: data.totals.polyPoolUsdt,
       cryptoUsdt: data.totals.cryptoTotal,
       frozenTotalUsdt: data.totals.frozenTotalUsdt,
       netPnlUsdt: data.totals.netPnlUsdt,

@@ -1,52 +1,13 @@
 ﻿import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, RateMode, TransactionType } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
-type DashboardPeriod = {
-  month?: string;
-};
-
-function localDate(year: number, monthIndex: number, day: number, endOfDay = false) {
-  const date = new Date(year, monthIndex, day);
-  if (endOfDay) date.setHours(23, 59, 59, 999);
-  else date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function resolveDashboardPeriod(input: DashboardPeriod = {}) {
-  const now = new Date();
-  const match = /^(\d{4})-(\d{2})$/.exec(input.month || "");
-  const parsedMonth = match ? Number(match[2]) : null;
-  const hasValidMonth = Boolean(match && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12);
-  const year = hasValidMonth ? Number(match![1]) : now.getFullYear();
-  const monthIndex = hasValidMonth ? Number(match![2]) - 1 : now.getMonth();
-  const normalizedMonth = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-  const from = localDate(year, monthIndex, 1);
-  const nextMonthStart = localDate(year, monthIndex + 1, 1);
-  const currentMonthStart = localDate(now.getFullYear(), now.getMonth(), 1);
-  const isCurrentMonth = from.getTime() === currentMonthStart.getTime();
-  const to = isCurrentMonth ? now : new Date(nextMonthStart.getTime() - 1);
-  const range = { gte: from, lte: to };
-  const formatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const lastDay = String(new Date(year, monthIndex + 1, 0).getDate()).padStart(2, "0");
-
-  return {
-    month: normalizedMonth,
-    from,
-    to,
-    // Day keys in the same form as the timeline dates, so a chart can lay out the whole month.
-    fromKey: `${normalizedMonth}-01`,
-    toKey: isCurrentMonth ? now.toISOString().slice(0, 10) : `${normalizedMonth}-${lastDay}`,
-    isCurrentMonth,
-    label: new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(from),
-    rangeLabel: `${formatter.format(from)} - ${formatter.format(to)}`,
-    range
-  };
-}
+type DashboardPeriod = PeriodInput;
 
 export async function resolveUahUsdtRate(userId: string) {
   const settings = await prisma.settings.findUnique({ where: { userId } });
@@ -76,8 +37,8 @@ export async function resolveUahUsdtRate(userId: string) {
 }
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
-  const period = resolveDashboardPeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, expenseTransactions, incomeTransactions, balanceTransactions, flips, rateData, steam, periodTransactions, polyLocks] = await Promise.all([
+  const period = resolvePeriod(input);
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, allTransactions, allFlips, rateData, steam, polyLocks] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -92,32 +53,25 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
-      where: { userId, archivedAt: null, type: TransactionType.EXPENSE, transactionDate: period.range },
-      orderBy: { transactionDate: "desc" },
+      where: { userId, archivedAt: null },
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
       include: { category: true, incomeSource: true }
     }),
-    prisma.transaction.findMany({
-      where: { userId, archivedAt: null, type: { in: [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED] }, transactionDate: period.range },
-      orderBy: { transactionDate: "desc" },
-      include: { incomeSource: true }
-    }),
-    prisma.transaction.findMany({
-      where: { userId, archivedAt: null },
-      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }]
-    }),
-    prisma.flip.findMany({
-      where: { userId, tradeDate: period.range },
-      orderBy: { tradeDate: "desc" }
-    }),
+    prisma.flip.findMany({ where: { userId }, orderBy: { tradeDate: "desc" } }),
     resolveUahUsdtRate(userId),
     steamAnalytics.dashboard(userId, { from: period.from, to: period.to }),
-    prisma.transaction.findMany({
-      where: { userId, archivedAt: null, transactionDate: period.range }
-    }),
     prisma.polyLock.findMany({ where: { userId } })
   ]);
 
   const { rate, source } = rateData;
+  const inPeriod = (date: Date) => date >= period.from && date <= period.to;
+  const balanceTransactions = allTransactions;
+  const periodTransactions = allTransactions.filter((t) => inPeriod(t.transactionDate));
+  const expenseTransactions = periodTransactions.filter((t) => t.type === TransactionType.EXPENSE);
+  const incomeTransactions = periodTransactions.filter(
+    (t) => t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED
+  );
+  const flips = allFlips.filter((flip) => inPeriod(flip.tradeDate));
   const asUsdt = (amount: Decimal.Value, currency: string) => {
     if (currency === "UAH") return D(amount).div(rate);
     return D(amount);
@@ -141,7 +95,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const reservedIds = new Set(reservedAccounts.map((account) => account.id));
   const spendable = accounts.filter((account) => !account.isReserved);
   const cryptoTypes: AccountType[] = [AccountType.EXCHANGE, AccountType.EXCHANGE_SUBACCOUNT, AccountType.CRYPTO_WALLET];
-  const cryptoAccounts = spendable.filter((account) => cryptoTypes.includes(account.type));
+  // The Polymarket pool is money at work, not spendable: it sits in "в обороті" next to Steam and the broker.
+  const polyPoolId = `${userId}-polymarket`;
+  const polyPoolAccounts = spendable.filter((account) => account.id === polyPoolId);
+  const cryptoAccounts = spendable.filter((account) => cryptoTypes.includes(account.type) && account.id !== polyPoolId);
   const bankCards = spendable.filter((account) => account.type === AccountType.BANK_CARD);
   const cashAccounts = spendable.filter((account) => account.type === AccountType.CASH);
   const brokerAccounts = spendable.filter((account) => account.type === AccountType.BROKER);
@@ -163,6 +120,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     (sum, account) => sum.plus(account.currency === "UAH" ? D(account.currentBalance).div(rate) : account.currentBalance),
     new Decimal(0)
   );
+  const polyPoolUsdt = polyPoolAccounts.reduce((sum, account) => sum.plus(account.currentBalance), new Decimal(0));
   const uahAsUsdt = cardUah.plus(cashUah).div(rate);
   const savingsAsUsdt = savingsUah.div(rate).plus(reservedForeignUsdt);
   const cashUsdAsUsdt = cashUsd;
@@ -176,8 +134,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   // Principal locked in Polymarket AI agents left the pool but is still the user's money, like Steam turnover.
   const polyLockedUsdt = polyLocks.filter((lock) => lock.status === "LOCKED").reduce((sum, lock) => sum.plus(lock.amountUsd), new Decimal(0));
   const polyLocksById = new Map(polyLocks.map((lock) => [lock.id, lock]));
-  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt);
-  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt);
+  const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt).plus(polyPoolUsdt);
+  const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt).plus(polyPoolUsdt);
+  const polyTurnoverUsdt = polyPoolUsdt.plus(polyLockedUsdt);
+  const turnoverUsdt = steamFrozenCapital.plus(brokerUsdt).plus(polyTurnoverUsdt);
 
   const monthIncome = periodTransactions
     .filter((t) => !isOpeningBalanceTransaction(t) && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPECTED_MONEY_RECEIVED))
@@ -266,74 +226,34 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
 
   const dateTimeFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const dateFormatter = new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit" });
-  const lossBreakdownMap = new Map<string, Decimal>();
-  const pnlEvents: { date: Date; profit: Decimal; loss: Decimal; net: Decimal }[] = [];
-  const addPnlEvent = (date: Date, amount: Decimal, lossLabel?: string) => {
-    pnlEvents.push({
-      date,
-      profit: amount.gt(0) ? amount : new Decimal(0),
-      loss: amount.lt(0) ? amount.abs() : new Decimal(0),
-      net: amount
-    });
-    if (amount.lt(0) && lossLabel) {
-      lossBreakdownMap.set(lossLabel, D(lossBreakdownMap.get(lossLabel) || 0).plus(amount.abs()));
-    }
-  };
-  for (const transaction of incomeTransactions.filter((item) => !isOpeningBalanceTransaction(item) && !isFlipLedgerTransaction(item))) {
+  // Net result events over ALL time; the page period only slices them, the chart has its own presets.
+  const pnlEvents: { date: Date; net: Decimal }[] = [];
+  const addPnlEvent = (date: Date, amount: Decimal) => pnlEvents.push({ date, net: amount });
+  for (const transaction of allTransactions.filter(
+    (item) => (item.type === TransactionType.INCOME || item.type === TransactionType.EXPECTED_MONEY_RECEIVED) && !isOpeningBalanceTransaction(item) && !isFlipLedgerTransaction(item)
+  )) {
     const metadata = metadataObject(transaction.metadata);
     let amount = asUsdt(transaction.amount, transaction.currency);
-    let lossLabel = transaction.incomeSource?.name ? `Дохід · ${transaction.incomeSource.name}` : "Дохід · Без джерела";
     if (metadata?.steamType === "ARBITRAGE_COMPLETION") {
       amount = decimalFromMetadata(transaction.metadata, "profit") || amount;
-      lossLabel = "Steam · Арбітраж";
     } else if (metadata?.steamType === "RESALE_WITHDRAWAL") {
       const softwareAmountSpent = decimalFromMetadata(transaction.metadata, "softwareAmountSpent");
       if (softwareAmountSpent) amount = amount.minus(softwareAmountSpent);
-      lossLabel = "Steam · Перепродаж";
     }
-    addPnlEvent(transaction.transactionDate, amount, lossLabel);
+    addPnlEvent(transaction.transactionDate, amount);
   }
-  for (const transaction of expenseTransactions.filter((item) => !isFlipLedgerTransaction(item))) {
-    const label = isWorkExpenseTransaction(transaction)
-      ? `Робочі · ${transaction.incomeSource?.name || "Без напрямку"}`
-      : `Витрати · ${transaction.category?.name || "Без категорії"}`;
-    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated(), label);
+  for (const transaction of allTransactions.filter((item) => item.type === TransactionType.EXPENSE && !isFlipLedgerTransaction(item))) {
+    addPnlEvent(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated());
   }
-  for (const flip of flips) {
-    addPnlEvent(flip.tradeDate, D(flip.pnl), `Фліпи · ${flip.setup}`);
-  }
-  const totalProfitUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.profit), new Decimal(0));
-  const totalLossUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.loss), new Decimal(0));
+  for (const flip of allFlips) addPnlEvent(flip.tradeDate, D(flip.pnl));
+  pnlEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
   const netPnlUsdt = pnlEvents.reduce((sum, event) => sum.plus(event.net), new Decimal(0));
-  const lossBreakdown = Array.from(lossBreakdownMap.entries())
-    .map(([name, value]) => ({ name, value: value.toString() }))
-    .sort((a, b) => Number(b.value) - Number(a.value));
-  let runningProfit = new Decimal(0);
-  let runningLoss = new Decimal(0);
+  const periodNetPnlUsdt = pnlEvents.filter((event) => inPeriod(event.date)).reduce((sum, event) => sum.plus(event.net), new Decimal(0));
   let runningNet = new Decimal(0);
-  const pnlByDate = new Map<string, { label: string; profit: Decimal; loss: Decimal; net: Decimal }>();
-  for (const event of pnlEvents) {
-    const date = event.date.toISOString().slice(0, 10);
-    const current = pnlByDate.get(date) || { label: dateFormatter.format(event.date), profit: new Decimal(0), loss: new Decimal(0), net: new Decimal(0) };
-    current.profit = current.profit.plus(event.profit);
-    current.loss = current.loss.plus(event.loss);
-    current.net = current.net.plus(event.net);
-    pnlByDate.set(date, current);
-  }
-  const pnlTimeline = Array.from(pnlByDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, event]) => {
-      runningProfit = runningProfit.plus(event.profit);
-      runningLoss = runningLoss.plus(event.loss);
-      runningNet = runningNet.plus(event.net);
-      return {
-        date,
-        label: event.label,
-        profit: event.profit.toNumber(),
-        loss: event.loss.toNumber(),
-        net: runningNet.toNumber()
-      };
-    });
+  const pnlTimeline = pnlEvents.map((event) => {
+    runningNet = runningNet.plus(event.net);
+    return { t: event.date.getTime(), delta: event.net.toNumber(), total: runningNet.toNumber() };
+  });
   const polySource = (metadata: unknown) => {
     const source = metadataObject(metadata)?.source;
     return source === "POLY_LOCK" || source === "POLY_RELEASE" ? source : null;
@@ -406,12 +326,12 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   }
   return {
     period: {
-      month: period.month,
       label: period.label,
       rangeLabel: period.rangeLabel,
-      isCurrentMonth: period.isCurrentMonth,
-      from: period.fromKey,
-      to: period.toKey
+      key: period.key,
+      month: period.month,
+      monthKey: period.month ?? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
+      isCurrentMonth: period.key === "month"
     },
     settings,
     rate: rate.toString(),
@@ -419,7 +339,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     accounts,
     frozenByAccount,
     expectedMoney,
-    recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 8),
+    recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 3),
     expenseCategories,
     workExpenseSourcesUsdt,
     incomeSourcesUah,
@@ -427,12 +347,17 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     incomeTimeline,
     incomeSourceTimeline,
     pnlTimeline,
-    lossBreakdown,
     balanceTimeline,
     flips: flipStatistics,
     steam: {
       frozenCapital: steamFrozenCapital.toString(),
       profit: steam.totals.steamProfit
+    },
+    turnover: {
+      totalUsdt: turnoverUsdt.toString(),
+      steamUsdt: steamFrozenCapital.toString(),
+      aurumUsdt: brokerUsdt.toString(),
+      polyUsdt: polyTurnoverUsdt.toString()
     },
     totals: {
       cryptoTotal: cryptoTotal.toString(),
@@ -445,13 +370,13 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       savingsUah: savingsUah.toString(),
       brokerUsdt: brokerUsdt.toString(),
       polyLockedUsdt: polyLockedUsdt.toString(),
+      polyPoolUsdt: polyPoolUsdt.toString(),
       availableBankUsdt: availableBankUsdt.toString(),
       potentialBankUsdt: potentialBankUsdt.toString(),
       monthIncomeUsdt: monthIncome.toString(),
       monthExpenseUah: monthExpenseUah.toString(),
-      totalProfitUsdt: totalProfitUsdt.toString(),
-      totalLossUsdt: totalLossUsdt.toString(),
       netPnlUsdt: netPnlUsdt.toString(),
+      periodNetPnlUsdt: periodNetPnlUsdt.toString(),
       p2pCount,
       p2pDepositCount,
       cashWithdrawalCount

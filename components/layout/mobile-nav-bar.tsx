@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { MobileNav } from "@/components/layout/app-nav";
 
 const mobileTabs = [
-  { href: "/overview", label: "Огляд", icon: "overview" },
+  { href: "/overview", label: "Головна", icon: "overview" },
   { href: "/fx", label: "Форекс", icon: "fx" },
   { href: "/poly", label: "Poly", icon: "poly" },
   { href: "/steam", label: "Steam", icon: "steam" },

@@ -9,7 +9,7 @@ const navSections: readonly NavSection[] = [
   {
     label: "Головне",
     items: [
-      { href: "/overview", label: "Огляд", icon: "overview" }
+      { href: "/overview", label: "Головна", icon: "overview" }
     ]
   },
   {

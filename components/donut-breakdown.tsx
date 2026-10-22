@@ -8,6 +8,7 @@ export type DonutItem = { name: string; value: number };
 type Slice = DonutItem & { color: string; share: number; scale: number };
 
 const DONUT_SIZE = 192;
+const COMPACT_SIZE = 128;
 const REST_COLOR = "#9aa1ad";
 
 function amountText(value: number, currency: string, hidden: boolean) {
@@ -45,7 +46,8 @@ export function DonutBreakdown({
   hidden = false,
   totalLabel = "Загалом",
   emptyLabel,
-  maxSlices = 8
+  maxSlices = 8,
+  compact = false
 }: {
   items: DonutItem[];
   colors: string[];
@@ -54,7 +56,12 @@ export function DonutBreakdown({
   totalLabel?: string;
   emptyLabel: string;
   maxSlices?: number;
+  /** Small donut with a plain legend (no bars) for dense layouts. */
+  compact?: boolean;
 }) {
+  const size = compact ? COMPACT_SIZE : DONUT_SIZE;
+  const innerRadius = compact ? 44 : 68;
+  const outerRadius = compact ? 62 : 94;
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const { slices, total } = useMemo(() => {
     const positive = items.filter((item) => Number.isFinite(item.value) && item.value > 0).sort((a, b) => b.value - a.value);
@@ -76,15 +83,15 @@ export function DonutBreakdown({
   const active = activeIndex === null ? null : slices[activeIndex];
 
   return (
-    <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8">
-      <div className="relative shrink-0" style={{ width: DONUT_SIZE, height: DONUT_SIZE }}>
-        <PieChart width={DONUT_SIZE} height={DONUT_SIZE}>
+    <div className={compact ? "flex flex-row items-center gap-4" : "flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8"}>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <PieChart width={size} height={size}>
           <Pie
             data={slices}
             dataKey="value"
             nameKey="name"
-            innerRadius={68}
-            outerRadius={94}
+            innerRadius={innerRadius}
+            outerRadius={outerRadius}
             startAngle={90}
             endAngle={-270}
             paddingAngle={slices.length > 1 ? 2 : 0}
@@ -99,27 +106,29 @@ export function DonutBreakdown({
             ))}
           </Pie>
         </PieChart>
-        <div className="pointer-events-none absolute inset-[30px] flex flex-col items-center justify-center text-center">
-          <div className="max-w-full truncate text-xs text-[hsl(var(--card-muted-foreground))]">{active ? active.name.split(" · ").pop() : totalLabel}</div>
-          <div className="mt-0.5 text-base font-bold tabular-nums leading-tight">{amountText(active ? active.value : total, currency, hidden)}</div>
-          {active && <div className="mt-0.5 text-xs font-medium tabular-nums" style={{ color: active.color }}>{shareText(active.share, hidden)}</div>}
-        </div>
+        {!compact && (
+          <div className="pointer-events-none absolute inset-[30px] flex flex-col items-center justify-center text-center">
+            <div className="max-w-full truncate text-xs text-[hsl(var(--card-muted-foreground))]">{active ? active.name.split(" · ").pop() : totalLabel}</div>
+            <div className="mt-0.5 text-base font-bold tabular-nums leading-tight">{amountText(active ? active.value : total, currency, hidden)}</div>
+            {active && <div className="mt-0.5 text-xs font-medium tabular-nums" style={{ color: active.color }}>{shareText(active.share, hidden)}</div>}
+          </div>
+        )}
       </div>
 
-      <ul className="w-full min-w-0 flex-1 space-y-2.5" onMouseLeave={() => setActiveIndex(null)}>
+      <ul className={`w-full min-w-0 flex-1 ${compact ? "space-y-1" : "space-y-2.5"}`} onMouseLeave={() => setActiveIndex(null)}>
         {slices.map((slice, index) => (
           <li
             key={slice.name}
             className={`transition-opacity ${activeIndex === null || activeIndex === index ? "opacity-100" : "opacity-50"}`}
             onMouseEnter={() => setActiveIndex(index)}
           >
-            <div className="flex items-center gap-2 text-sm">
+            <div className={`flex items-center gap-2 ${compact ? "text-xs" : "text-sm"}`}>
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
               <span className="min-w-0 flex-1 truncate"><SliceName name={slice.name} /></span>
               <span className="shrink-0 font-medium tabular-nums">{amountText(slice.value, currency, hidden)}</span>
               <span className="w-10 shrink-0 text-right tabular-nums text-[hsl(var(--card-muted-foreground))]">{shareText(slice.share, hidden)}</span>
             </div>
-            <div className="ml-[18px] mt-1 h-1 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
+            <div className={`ml-[18px] mt-1 h-1 overflow-hidden rounded-full bg-[hsl(var(--muted))] ${compact ? "hidden" : ""}`}>
               <div className="h-full rounded-full" style={{ width: `${Math.max(slice.scale * 100, 2)}%`, backgroundColor: slice.color }} />
             </div>
           </li>

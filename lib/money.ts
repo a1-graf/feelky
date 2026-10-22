@@ -49,3 +49,9 @@ export function formatMoney(value: MoneyInput, currency: string, hidden = false)
     maximumFractionDigits: currency === "USDT" ? 4 : 2
   }).format(amount) + ` ${currency}`;
 }
+
+/** Plain number with exactly 2 decimals (uk-UA grouping), no currency suffix. */
+export function formatPlain(value: MoneyInput, hidden = false) {
+  if (hidden) return "••••";
+  return new Intl.NumberFormat("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(D(value).toNumber());
+}
