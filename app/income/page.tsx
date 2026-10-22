@@ -45,7 +45,7 @@ export default async function IncomePage({ searchParams }: { searchParams?: Prom
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Дохід у часі</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючий підсумок у USDT, усі джерела разом</div>
-        <RangeAreaChart key={period.key} data={data.series} hidden={hidden} totalLabel="Всього" emptyLabel="Поки немає доходів" defaultPreset={chartPresetFor(period.key)} />
+        <RangeAreaChart key={period.key} data={data.series} hidden={hidden} totalLabel="Всього" emptyLabel="Поки немає доходів" defaultPreset={chartPresetFor(period.key)} minimal />
       </Card>
 
       <Card className="mt-4">
