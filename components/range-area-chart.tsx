@@ -63,7 +63,8 @@ export function RangeAreaChart({
   defaultPreset = "1m",
   signed = false,
   color,
-  showChange = true
+  showChange = true,
+  minimal = false
 }: {
   data: RangePoint[];
   currency?: string;
@@ -74,6 +75,7 @@ export function RangeAreaChart({
   signed?: boolean;
   color?: string;
   showChange?: boolean;
+  minimal?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>(defaultPreset);
@@ -106,6 +108,7 @@ export function RangeAreaChart({
   const scale = niceRange(signed ? Math.min(low, 0) : low, signed ? Math.max(high, 0) : high);
   const xTicks = first && last ? timeTicks(first.t, last.t, 4) : [];
   const span = first && last ? last.t - first.t : 0;
+  const minimalPad = (high - low) * 0.1 || Math.max(1, Math.abs(high) * 0.02);
   const strokeSplit = zeroOffset(low, high);
   const fillSplit = zeroOffset(Math.min(0, low), Math.max(0, high));
   const sign = (value: number) => (value > 0 ? "+" : "");
@@ -171,8 +174,9 @@ export function RangeAreaChart({
                     </linearGradient>
                   )}
                 </defs>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                {!minimal && <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />}
                 <XAxis
+                  hide={minimal}
                   type="number"
                   dataKey="t"
                   scale="time"
@@ -187,12 +191,13 @@ export function RangeAreaChart({
                   padding={{ left: 8, right: 8 }}
                 />
                 <YAxis
+                  hide={minimal}
                   tickLine={false}
                   axisLine={false}
                   tick={AXIS_TICK}
                   tickFormatter={(value) => (hidden ? "••" : shortAxisValue(Number(value)))}
-                  domain={scale.domain}
-                  ticks={scale.ticks}
+                  domain={minimal ? [low - minimalPad, high + minimalPad] : scale.domain}
+                  ticks={minimal ? undefined : scale.ticks}
                   interval={0}
                   width={44}
                 />
@@ -201,7 +206,7 @@ export function RangeAreaChart({
                 <Area
                   type="monotone"
                   dataKey="total"
-                  baseValue={signed ? 0 : scale.domain[0]}
+                  baseValue={signed ? 0 : minimal ? low - minimalPad : scale.domain[0]}
                   stroke={crossesZero ? `url(#${gradientId}-stroke)` : lineColor}
                   strokeWidth={2.5}
                   fill={`url(#${gradientId}-fill)`}
