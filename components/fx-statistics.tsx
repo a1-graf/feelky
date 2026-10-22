@@ -36,7 +36,7 @@ function Metric({ label, value, className = "" }: { label: string; value: React.
 function PeriodRow({ period, currency, hidden, total = false, current = false }: { period: Period; currency: string; hidden: boolean; total?: boolean; current?: boolean }) {
   return (
     <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
-      <td className={`${td} ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="mr-2 inline-block h-2 w-2 rounded-full bg-success align-middle" />}{formatMonth(period.key)}</td>
+      <td className={`${td} relative pl-6 ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-success" />}{formatMonth(period.key)}</td>
       <td className={`${td} text-right`}>{period.count}</td>
       <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
       <td className={`${td} text-right ${tone(period.sumR)}`}>{formatR(period.sumR, hidden)}</td>
@@ -58,7 +58,7 @@ function PeriodTable({ months, allTime, currency, hidden, currentMonthKey }: { m
       <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="text-left">
-            <th className={th}>Період</th>
+            <th className={`${th} pl-6`}>Період</th>
             <th className={`${th} text-right`}>Угод</th>
             <th className={`${th} text-right`}>Winrate</th>
             <th className={`${th} text-right`}>Сума R</th>
