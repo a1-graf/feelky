@@ -33,10 +33,10 @@ function Metric({ label, value, className = "" }: { label: string; value: React.
   );
 }
 
-function PeriodRow({ period, currency, hidden, total = false }: { period: Period; currency: string; hidden: boolean; total?: boolean }) {
+function PeriodRow({ period, currency, hidden, total = false, current = false }: { period: Period; currency: string; hidden: boolean; total?: boolean; current?: boolean }) {
   return (
     <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
-      <td className={`${td} ${total ? "border-l-4 border-l-primary" : ""}`}>{formatMonth(period.key)}</td>
+      <td className={`${td} ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="mr-2 inline-block h-2 w-2 rounded-full bg-success align-middle" />}{formatMonth(period.key)}</td>
       <td className={`${td} text-right`}>{period.count}</td>
       <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
       <td className={`${td} text-right ${tone(period.sumR)}`}>{formatR(period.sumR, hidden)}</td>
@@ -52,7 +52,7 @@ function PeriodRow({ period, currency, hidden, total = false }: { period: Period
   );
 }
 
-function PeriodTable({ months, allTime, currency, hidden }: { months: Period[]; allTime: Period; currency: string; hidden: boolean }) {
+function PeriodTable({ months, allTime, currency, hidden, currentMonthKey }: { months: Period[]; allTime: Period; currency: string; hidden: boolean; currentMonthKey: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
@@ -70,7 +70,7 @@ function PeriodTable({ months, allTime, currency, hidden }: { months: Period[]; 
         </thead>
         <tbody>
           {months.map((period) => (
-            <PeriodRow key={period.key} period={period} currency={currency} hidden={hidden} />
+            <PeriodRow key={period.key} period={period} currency={currency} hidden={hidden} current={period.key === currentMonthKey} />
           ))}
         </tbody>
         <tbody aria-hidden>
@@ -151,7 +151,7 @@ export function FxStatistics({ data, brokers, flows, hidden = false }: { data: F
           1R — фіксована сума {data.oneRUsd} {currency} (плановий ризик 1% депозиту). R угоди = $ / 1R, тож сума R узгоджується з доларами.
         </div>
         {data.count ? (
-          <PeriodTable months={data.byMonth} allTime={data.allTime} currency={currency} hidden={hidden} />
+          <PeriodTable months={data.byMonth} allTime={data.allTime} currency={currency} hidden={hidden} currentMonthKey={data.currentMonthKey} />
         ) : (
           <div className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає угод.</div>
         )}

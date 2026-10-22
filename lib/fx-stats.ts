@@ -218,6 +218,7 @@ export function summarizeFx(trades: FxTradeLike[], now: Date = new Date(), oneR:
     count: total.count,
     monthCount: month.count,
     monthSumR,
+    currentMonthKey: kyivToday(now).slice(0, 7),
     wins: total.wins,
     losses: total.losses,
     winRate: winRate(total.wins, total.losses),
