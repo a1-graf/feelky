@@ -30,9 +30,9 @@ function PeriodRow({ period, currency, hidden, total = false, current = false }:
   return (
     <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
       <td className={`${td} relative pl-5 sm:pl-6 ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="absolute left-2 top-1/2 sm:left-2.5 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-success" />}{formatMonth(period.key)}</td>
-      <td className={`${td} text-right`}>{period.count}</td>
-      <td className={`${td} text-right`}>{hidden ? "****" : `${period.winRate}%`}</td>
-      <td className={`${td} text-right ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
+      <td className={`${td} text-center`}>{period.count}</td>
+      <td className={`${td} text-center`}>{hidden ? "****" : `${period.winRate}%`}</td>
+      <td className={`${td} text-center ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
     </tr>
   );
 }
@@ -44,9 +44,9 @@ function PeriodTable({ months, allTime, currency, hidden, currentMonthKey }: { m
         <thead>
           <tr className="text-left">
             <th className={`${th} pl-5 sm:pl-6`}>Період</th>
-            <th className={`${th} text-right`}>Угод</th>
-            <th className={`${th} text-right`}>Winrate</th>
-            <th className={`${th} text-right`}>Результат</th>
+            <th className={`${th} text-center`}>Угод</th>
+            <th className={`${th} text-center`}>Winrate</th>
+            <th className={`${th} text-center`}>Результат</th>
           </tr>
         </thead>
         <tbody>
@@ -124,8 +124,8 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
           </SplitTile>
           <FxBalanceChart data={balanceSeries} currency={currency} hidden={hidden} />
           <SplitTile>
-            <Half label="Winrate" main={hidden ? "****" : `${data.winRate}%`} />
-            <Half label="Плюсових / мінусових" main={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} divider />
+            <Half label="Плюсових / мінусових" main={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
+            <Half label="Winrate" main={hidden ? "****" : `${data.winRate}%`} divider />
           </SplitTile>
         </div>
       </Card>
