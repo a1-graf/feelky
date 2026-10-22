@@ -113,9 +113,9 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
     <>
       <Card className="mt-0 md:mt-4">
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="flex flex-col items-center justify-center rounded-lg bg-muted px-3 py-3.5 text-center">
-            <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Баланс FX</div>
-            <div className="mt-1.5 font-bold tabular-nums text-xl sm:text-2xl xl:text-3xl">
+          <div className="relative flex items-center justify-center rounded-lg bg-muted px-3 py-3.5 text-center">
+            <div className="absolute left-3 top-2 text-xs text-[hsl(var(--card-muted-foreground))]">Баланс FX</div>
+            <div className="font-bold tabular-nums text-xl sm:text-2xl xl:text-3xl">
               {brokers.length ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ") : <span className="text-base font-normal text-[hsl(var(--card-muted-foreground))]">Рахунок брокера ще не створено</span>}
             </div>
           </div>
