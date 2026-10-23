@@ -45,7 +45,6 @@ import {
   findIncomeSource,
   formatBalances,
   formatSteamSummary,
-  loadFlipSetups,
   loadFrozenFromAccounts,
   loadReferenceData,
   pickExpenseAccount,
@@ -672,14 +671,9 @@ async function promptSource(ctx: Ctx, action: FlowAction, draft: Draft, prefix?:
 }
 
 async function promptSetup(ctx: Ctx, draft: Draft): Promise<void> {
-  const setups = await loadFlipSetups(ctx.userId);
-  if (!setups.length) {
-    await endFlow(ctx, "Немає збережених сетапів. Додай перший фліп на сайті.");
-    return;
-  }
-  draft.options = setups;
+  delete draft.options;
   await saveFlow(ctx.telegramUserId, { action: "flip", step: "setup", draft });
-  await reply(ctx, "<b>Сетап</b>", optionKeyboard(setups.map((setup) => optionLabel(setup)), 1));
+  await reply(ctx, "<b>Причина фліпа</b>\nНапиши своїми словами, напр. <code>шорт $BTC при рості</code>", stepKeyboard(ctx, "flip", draft));
 }
 
 async function promptDate(ctx: Ctx, action: FlowAction, draft: Draft, from: FlowStep): Promise<void> {
@@ -1043,6 +1037,11 @@ async function handleFlowMessage(ctx: Ctx, action: FlowAction, step: FlowStep, t
     const back = draft.returnStep || "note";
     delete draft.returnStep;
     await renderStep(ctx, action, back, draft);
+    return;
+  }
+  if (step === "setup") {
+    draft.setup = truncate(text, 80);
+    await advance(ctx, action, draft);
     return;
   }
   if (step === "note") {
