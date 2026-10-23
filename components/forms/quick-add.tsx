@@ -30,7 +30,8 @@ const today = () => {
 };
 
 const actionOptions = [
-  { value: "withdrawal", label: "Вивід" },
+  { value: "p2p", label: "P2P-вивід" },
+  { value: "cash", label: "Готівковий вивід" },
   { value: "p2pDeposit", label: "P2P-завод" },
   { value: "income", label: "Дохід" },
   { value: "expense", label: "Витрата" },
@@ -60,8 +61,7 @@ export function QuickAdd() {
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState("");
-  const [action, setAction] = useState("withdrawal");
-  const [withdrawalMode, setWithdrawalMode] = useState<"p2p" | "cash">("p2p");
+  const [action, setAction] = useState("p2p");
   const [incomeCurrency, setIncomeCurrency] = useState("USDT");
   const [expenseCurrency, setExpenseCurrency] = useState<"UAH" | "USDT">("UAH");
   const [incomeDate, setIncomeDate] = useState(today());
@@ -167,7 +167,7 @@ export function QuickAdd() {
     setLoading(true);
     setMessage("");
     const body = Object.fromEntries(formData.entries());
-    body.action = action === "withdrawal" ? withdrawalMode : action;
+    body.action = action;
     if (isSteamExpense) {
       body.action = "expenseWithAllocation";
       body.resalePercent = steamExpenseMode === "arbitrage" ? "0" : steamExpenseMode === "resale" ? "100" : "50";
@@ -237,31 +237,21 @@ export function QuickAdd() {
                   {actionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-              {action === "withdrawal" && (
+              {action === "p2p" && (
                 <>
-                  <label>
-                    Формат виводу
-                    <select value={withdrawalMode} onChange={(event) => setWithdrawalMode(event.target.value as "p2p" | "cash")}>
-                      <option value="p2p">P2P</option>
-                      <option value="cash">Готівка</option>
-                    </select>
-                  </label>
-                  {withdrawalMode === "p2p" ? (
-                    <>
-                      <label>Отримано UAH<input name="receivedUah" inputMode="decimal" required /></label>
-                      <label>Курс UAH/USDT<input name="rateUahPerUsdt" inputMode="decimal" required /></label>
-                      <DateField />
-                    </>
-                  ) : (
-                    <>
-                      <label>Отримана сума<input name="receivedAmount" inputMode="decimal" required /></label>
-                      <label>Валюта<select name="receivedCurrency" defaultValue="UAH"><option>UAH</option><option>USD</option></select></label>
-                      <label>Курс<input name="rate" inputMode="decimal" required /></label>
-                      <DateField />
-                      <label>Місце обміну<input name="exchangePlace" defaultValue={settings?.cashExchangePlace || "Cashalot"} /></label>
-                      <input type="hidden" name="destinationAccountId" value={cashTarget("UAH")} />
-                    </>
-                  )}
+                  <label>Отримано UAH<input name="receivedUah" inputMode="decimal" required /></label>
+                  <label>Курс UAH/USDT<input name="rateUahPerUsdt" inputMode="decimal" required /></label>
+                  <DateField />
+                </>
+              )}
+              {action === "cash" && (
+                <>
+                  <label>Отримана сума<input name="receivedAmount" inputMode="decimal" required /></label>
+                  <label>Валюта<select name="receivedCurrency" defaultValue="UAH"><option>UAH</option><option>USD</option></select></label>
+                  <label>Курс<input name="rate" inputMode="decimal" required /></label>
+                  <DateField />
+                  <label>Місце обміну<input name="exchangePlace" defaultValue={settings?.cashExchangePlace || "Cashalot"} /></label>
+                  <input type="hidden" name="destinationAccountId" value={cashTarget("UAH")} />
                 </>
               )}
               {action === "p2pDeposit" && (
