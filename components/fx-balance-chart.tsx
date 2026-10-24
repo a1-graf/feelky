@@ -3,11 +3,10 @@
 import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
+import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 type Point = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
 
-const PROFIT_COLOR = "#16a34a";
-const LOSS_COLOR = "#e04d65";
 const DAY = 86_400_000;
 const PRESETS = [
   { key: "1d", label: "1D", span: DAY },

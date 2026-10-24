@@ -2,6 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
+import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 export type SteamWalletView = {
   id: string;
@@ -92,7 +93,7 @@ export function SteamWallets({ wallets }: { wallets: SteamWalletView[] }) {
             </div>
             <div className="mt-3 text-xs uppercase tracking-wide text-[hsl(var(--card-muted-foreground))]">Зараз на Steam</div>
             <div className="text-2xl font-bold tabular-nums">{formatMoney(wallet.balance, "USD")}</div>
-            <Sparkline points={wallet.history} color={difference >= 0 ? "#16a34a" : "#e04d65"} />
+            <Sparkline points={wallet.history} color={difference >= 0 ? PROFIT_COLOR : LOSS_COLOR} />
             <div className="mt-3 divide-y divide-border border-t border-border">
               <Row label="Завезено" value={formatMoney(wallet.investedReal, "USDT")} />
               <Row label="Зайшло на Steam" value={formatMoney(wallet.receivedSteam, "USD")} detail={percent(wallet.bonusPercent)} />
