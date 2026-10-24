@@ -59,18 +59,28 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               курс {formatPlain(data.rate)} <span className="text-[11px] font-medium text-white/70">UAH/USDT</span>
             </div>
           </div>
-          <div className="mt-2 break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
-            {formatPlain(data.totals.availableBankUsdt, hidden)}
-            <span className="text-white/60"> / </span>
-            {formatPlain(data.totals.potentialBankUsdt, hidden)}
-            <span className="ml-2 text-base font-semibold text-white/60">USDT</span>
+          <div className="mt-2 flex flex-wrap items-start gap-x-3 gap-y-2">
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
+                {formatPlain(data.totals.availableBankUsdt, hidden)}
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
+            </div>
+            <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
+                {formatPlain(data.totals.potentialBankUsdt, hidden)}
+                <span className="ml-2 text-base font-semibold text-white/60">USDT</span>
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
+            </div>
           </div>
-          <div className="mt-2 text-sm text-white/70">доступно / повний банк · доступно ≈ {asUah(data.totals.availableBankUsdt)}</div>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-200">В обороті</div>
               <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-100">{formatMoney(data.turnover.totalUsdt, "USDT", hidden)}</div>
+              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.turnover.totalUsdt)}</div>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {turnover.map((item) => (
                   <span key={item.label} className="rounded-md bg-black/15 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white/85">
@@ -82,10 +92,12 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
             <div className="px-1 py-2">
               <div className="text-[11px] uppercase tracking-wide text-white/60">❄️ Заморожено</div>
               <div className="mt-0.5 text-base font-semibold tabular-nums text-white/90">{formatMoney(data.totals.frozenTotalUsdt, "USDT", hidden)}</div>
+              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.totals.frozenTotalUsdt)}</div>
             </div>
             <div className="px-1 py-2">
               <div className="text-[11px] uppercase tracking-wide text-white/60">Чистий PnL</div>
               <div className={`mt-0.5 text-base font-semibold tabular-nums ${tone(netPnl)}`}>{signed(netPnl)} USDT</div>
+              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(String(netPnl))}</div>
               <div className="mt-0.5 text-xs tabular-nums text-white/70">
                 за {data.period.label}: <span className={`font-semibold ${tone(periodPnl)}`}>{signed(periodPnl)}</span>
               </div>
