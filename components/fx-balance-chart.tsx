@@ -20,7 +20,7 @@ type PresetKey = (typeof PRESETS)[number]["key"];
 const dayStart = (value: string) => (value ? new Date(`${value}T00:00:00`).getTime() : NaN);
 const dayEnd = (value: string) => (value ? new Date(`${value}T23:59:59.999`).getTime() : NaN);
 
-function BalanceTooltip({ active, payload, hidden, currency }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string }) {
+function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
   return (
@@ -34,14 +34,20 @@ function BalanceTooltip({ active, payload, hidden, currency }: { active?: boolea
         </div>
       )}
       <div className="text-[hsl(var(--card-muted-foreground))]">
-        Total{" "}
+        Total ${" "}
         <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
       </div>
+      {oneR > 0 && (
+        <div className="text-[hsl(var(--card-muted-foreground))]">
+          Total R{" "}
+          <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total / oneR)}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-export function FxBalanceChart({ data, currency, hidden = false }: { data: Point[]; currency: string; hidden?: boolean }) {
+export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data: Point[]; currency: string; oneR: number; hidden?: boolean }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>("1m");
   const [from, setFrom] = useState("");
@@ -114,7 +120,7 @@ export function FxBalanceChart({ data, currency, hidden = false }: { data: Point
                   </linearGradient>
                 </defs>
                 <YAxis hide domain={[low - pad, high + pad]} />
-                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
+                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
                 <Area type="monotone" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
