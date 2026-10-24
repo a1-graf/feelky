@@ -68,9 +68,9 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
             </div>
             <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
             <div>
-              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-amber-200 sm:text-5xl">
                 {formatPlain(data.totals.potentialBankUsdt, hidden)}
-                <span className="ml-2 text-base font-semibold text-white/60">USDT</span>
+                <span className="ml-2 text-base font-semibold text-amber-200/60">USDT</span>
               </div>
               <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
             </div>
