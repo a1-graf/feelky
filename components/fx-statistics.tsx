@@ -123,7 +123,7 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
             <Half label="За місяць" className={tone(data.monthPnl)} main={signedMoney(data.monthPnl, currency, hidden)} sub={formatR(data.monthSumR, hidden)} />
             <Half label="Total profit" className={tone(data.totalPnl)} main={signedMoney(data.totalPnl, currency, hidden)} sub={formatR(data.allTime.sumR, hidden)} divider />
           </SplitTile>
-          <FxBalanceChart data={balanceSeries} currency={currency} hidden={hidden} />
+          <FxBalanceChart data={balanceSeries} currency={currency} oneR={Number(data.oneRUsd)} hidden={hidden} />
           <SplitTile>
             <Half label="Плюсових / мінусових" main={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
             <Half label="Winrate" main={hidden ? "****" : formatPercent(data.winRate)} divider />
