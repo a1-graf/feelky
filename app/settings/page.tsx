@@ -5,6 +5,7 @@ import { SettingsForm } from "@/components/forms/settings-form";
 import { ReferenceManager } from "@/components/forms/reference-manager";
 import { AccountBalanceManager } from "@/components/forms/account-balance-manager";
 import { Card } from "@/components/ui/card";
+import { ThemeSwitcher } from "@/components/layout/theme-switcher";
 import { MobileLogout } from "@/components/layout/mobile-logout";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
@@ -44,6 +45,10 @@ export default async function SettingsPage() {
             </Link>
           ))}
         </div>
+      </Card>
+      <Card className="mb-4">
+        <div className="mb-3 font-semibold">Колірна тема</div>
+        <ThemeSwitcher />
       </Card>
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <SettingsForm settings={settings ? {

@@ -5,6 +5,7 @@ import { Area, Bar, CartesianGrid, Cell, ComposedChart, Line, LineChart, Referen
 import { DonutBreakdown } from "@/components/donut-breakdown";
 import { calendarDays, dayLabel, niceScale, shortAxisValue, zeroOffset } from "@/lib/chart-scale";
 import { formatMoney } from "@/lib/money";
+import { CHART_COLORS, LOSS_COLOR, LOSS_COLORS, PROFIT_COLOR } from "@/lib/chart-colors";
 
 type IncomeTimelinePoint = {
   date: string;
@@ -32,7 +33,7 @@ type LossBreakdownItem = {
   value: string;
 };
 
-const SOURCE_COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6", "#0ea5e9"];
+const SOURCE_COLORS = CHART_COLORS.slice(0, 6);
 function axisValue(value: number, hidden: boolean) {
   if (hidden) return "****";
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -90,9 +91,9 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
-        <ChartTotal color="#2563eb" label="USDT" value={formatMoney(latest.usdt, "USDT", hidden)} />
-        <ChartTotal color="#e8795f" label="UAH → USDT" value={formatMoney(latest.uahUsdt, "USDT", hidden)} />
-        <ChartTotal color="#16a34a" label="Загальний" value={formatMoney(latest.totalUsdt, "USDT", hidden)} />
+        <ChartTotal color={CHART_COLORS[0]} label="USDT" value={formatMoney(latest.usdt, "USDT", hidden)} />
+        <ChartTotal color={CHART_COLORS[1]} label="UAH → USDT" value={formatMoney(latest.uahUsdt, "USDT", hidden)} />
+        <ChartTotal color={CHART_COLORS[2]} label="Загальний" value={formatMoney(latest.totalUsdt, "USDT", hidden)} />
       </div>
       <div className="h-80 w-full">
         <ResponsiveContainer>
@@ -108,9 +109,9 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
               width={62}
             />
             <Tooltip content={<LinesTip hidden={hidden} />} cursor={HOVER_CURSOR} isAnimationActive={false} />
-            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={hoverDot("#2563eb", 4)} isAnimationActive={false} />
-            <Line yAxisId="usdt" type="monotone" dataKey="uahUsdt" name="UAH → USDT" stroke="#e8795f" strokeWidth={2.5} dot={false} activeDot={hoverDot("#e8795f", 4)} isAnimationActive={false} />
-            <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="Загальний" stroke="#16a34a" strokeWidth={3.5} dot={false} activeDot={hoverDot("#16a34a", 5)} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={false} activeDot={hoverDot(CHART_COLORS[0], 4)} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="uahUsdt" name="UAH → USDT" stroke={CHART_COLORS[1]} strokeWidth={2.5} dot={false} activeDot={hoverDot(CHART_COLORS[1], 4)} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="Загальний" stroke={CHART_COLORS[2]} strokeWidth={3.5} dot={false} activeDot={hoverDot(CHART_COLORS[2], 5)} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -189,8 +190,6 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
 
 type PnlDay = PnlTimelinePoint & { dayNet: number; active: boolean };
 
-const PROFIT_COLOR = "#16a34a";
-const LOSS_COLOR = "#e04d65";
 // Both PnL charts share these, so a day's bar sits exactly above its point on the running total.
 const PNL_MARGIN = { left: 0, right: 4, top: 8, bottom: 0 };
 const PNL_AXIS_WIDTH = 48;
@@ -372,7 +371,6 @@ export function NetPnlChart({
   );
 }
 
-const LOSS_COLORS = ["#e04d65", "#e8795f", "#d99b42", "#b7845b", "#8b5cf6", "#5d8aa8", "#4d9a78", "#6d7f98"];
 
 export function LossBreakdownChart({ data, hidden = false }: { data: LossBreakdownItem[]; hidden?: boolean }) {
   const items = useMemo(() => data.map((item) => ({ name: item.name, value: Number(item.value) })), [data]);

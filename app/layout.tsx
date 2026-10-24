@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { AppShell } from "@/components/layout/app-shell";
 import { PwaRegister } from "@/components/pwa-register";
 import { SessionProvider } from "@/components/session-provider";
+import { THEMES, THEME_COOKIE, parseTheme } from "@/lib/themes";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,16 +21,20 @@ export const metadata: Metadata = {
   }
 };
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: "#252833"
-};
+export async function generateViewport(): Promise<Viewport> {
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  return {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+    themeColor: THEMES.find((item) => item.id === theme)?.themeColor
+  };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="uk" suppressHydrationWarning>
+    <html lang="uk" data-theme={theme === "default" ? undefined : theme} suppressHydrationWarning>
       <body>
         <SessionProvider>
           <PwaRegister />

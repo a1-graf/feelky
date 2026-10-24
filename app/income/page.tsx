@@ -9,10 +9,10 @@ import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { getIncomePage } from "@/lib/income";
 import { formatMoney } from "@/lib/money";
+import { CHART_COLORS } from "@/lib/chart-colors";
 import { chartPresetFor } from "@/lib/period";
 import { requireUserId } from "@/lib/session";
 
-const COLORS = ["#2563eb", "#e8795f", "#16a34a", "#d99b42", "#8b5cf6", "#0ea5e9", "#ec4899", "#64748b"];
 
 export default async function IncomePage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
   const userId = await requireUserId();
@@ -60,11 +60,11 @@ export default async function IncomePage({ searchParams }: { searchParams?: Prom
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 font-semibold">За джерелами</div>
-          <DonutBreakdown compact items={data.bySource} colors={COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає доходів" />
+          <DonutBreakdown compact items={data.bySource} colors={CHART_COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає доходів" />
         </Card>
         <Card>
           <div className="mb-3 font-semibold">За типом</div>
-          <DonutBreakdown compact items={data.byType} colors={COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає доходів" />
+          <DonutBreakdown compact items={data.byType} colors={CHART_COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає доходів" />
         </Card>
       </div>
 

@@ -43,8 +43,8 @@ export function SignInForm() {
         <p className="mt-1 text-sm text-muted-foreground">Вхід до персонального фінансового dashboard</p>
       </div>
       <div className="mb-4 grid grid-cols-2 rounded-lg bg-muted p-1">
-        <button className={`min-h-10 rounded-md text-sm ${mode === "login" ? "bg-card text-[hsl(var(--card-foreground))] shadow" : "text-white/85 hover:text-white"}`} onClick={() => setMode("login")} type="button">Вхід</button>
-        <button className={`min-h-10 rounded-md text-sm ${mode === "register" ? "bg-card text-[hsl(var(--card-foreground))] shadow" : "text-white/85 hover:text-white"}`} onClick={() => setMode("register")} type="button">Реєстрація</button>
+        <button className={`min-h-10 rounded-md text-sm ${mode === "login" ? "bg-card text-[hsl(var(--card-foreground))] shadow" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setMode("login")} type="button">Вхід</button>
+        <button className={`min-h-10 rounded-md text-sm ${mode === "register" ? "bg-card text-[hsl(var(--card-foreground))] shadow" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setMode("register")} type="button">Реєстрація</button>
       </div>
       <form action={submit} className="grid gap-3">
         {mode === "register" && <label>Ім&apos;я<input name="name" autoComplete="name" /></label>}
@@ -52,7 +52,7 @@ export function SignInForm() {
         <label>Пароль<input name="password" type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={8} /></label>
         {message && <div className="rounded-lg bg-muted p-3 text-sm">{message}</div>}
         <Button disabled={loading}>{loading ? "Зачекайте..." : mode === "register" ? "Створити і увійти" : "Увійти"}</Button>
-        <Button type="button" variant="secondary" className="text-white hover:text-white" onClick={() => signIn("google", { callbackUrl: "/overview" })}>
+        <Button type="button" variant="secondary" onClick={() => signIn("google", { callbackUrl: "/overview" })}>
           Увійти через Google
         </Button>
       </form>

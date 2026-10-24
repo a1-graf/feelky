@@ -50,7 +50,7 @@ export function SettingsForm({ settings }: { settings: SettingsPayload | null })
         </label>
         <label>Ручний курс UAH/USDT<input name="manualUahUsdtRate" inputMode="decimal" defaultValue={settings?.manualUahUsdtRate || ""} /></label>
         <label>Ліміт витрат на місяць UAH<input name="monthlyExpenseLimit" inputMode="decimal" defaultValue={settings?.monthlyExpenseLimit || "40000"} /></label>
-        <label>Тема
+        <label>Світла/темна (для теми «Стандарт»)
           <select name="theme" defaultValue={settings?.theme === "dark" ? "dark" : "light"}>
             <option value="light">Світла</option>
             <option value="dark">Темна</option>

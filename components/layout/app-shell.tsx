@@ -3,6 +3,7 @@ import { QuickAdd } from "@/components/forms/quick-add";
 import { DesktopNav, type NavSection } from "@/components/layout/app-nav";
 import { MobileLogout } from "@/components/layout/mobile-logout";
 import { MobileNavBar, MobileQuickAddButton } from "@/components/layout/mobile-nav-bar";
+import { ThemeMenuButton, ThemeSwitcher } from "@/components/layout/theme-switcher";
 import { getCurrentSession } from "@/lib/session";
 
 const navSections: readonly NavSection[] = [
@@ -65,7 +66,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mt-1 truncate text-xs text-muted-foreground">{session?.user?.email}</div>
           </div>
           <DesktopNav sections={navSections} />
-          <div className="mt-auto pt-4">
+          <div className="mt-auto grid gap-3 pt-4">
+            <div className="px-1">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Тема</div>
+              <ThemeSwitcher compact />
+            </div>
             <MobileLogout />
           </div>
         </div>
@@ -76,7 +81,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <img src="/icons/icon.svg" alt="" className="h-7 w-7 rounded-lg shadow-sm" />
             <span className="text-base font-bold tracking-tight">Feelky</span>
           </div>
-          <MobileQuickAddButton />
+          <div className="flex items-center gap-2">
+            <ThemeMenuButton />
+            <MobileQuickAddButton />
+          </div>
         </header>
         <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 lg:px-8">{children}</div>
       </main>

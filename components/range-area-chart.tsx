@@ -4,12 +4,11 @@ import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { niceRange, shortAxisValue, timeTicks, zeroOffset } from "@/lib/chart-scale";
 import { formatMoney } from "@/lib/money";
+import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 /** One running-total series: `total` is the cumulative value at time `t`, `delta` what that event added. */
 export type RangePoint = { t: number; total: number; delta: number; label?: string };
 
-const PROFIT_COLOR = "#16a34a";
-const LOSS_COLOR = "#e04d65";
 const DAY = 86_400_000;
 const AXIS_TICK = { fill: "hsl(var(--card-muted-foreground))", fontSize: 11 };
 const KYIV = "Europe/Kyiv";

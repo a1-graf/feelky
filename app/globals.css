@@ -20,6 +20,28 @@
   --danger: 352 70% 52%;
   --success: 160 60% 32%;
   --warning: 32 90% 46%;
+  --profit: 142 76% 36%;
+  --loss: 350 70% 59%;
+  --hero-fg: 0 0% 100%;
+  --hero-accent: 48 97% 77%;
+  --hero-accent-soft: 48 96% 89%;
+  --hero-pos: 152 76% 80%;
+  --hero-neg: 353 96% 90%;
+  --chart-1: 221 83% 53%;
+  --chart-2: 11 75% 64%;
+  --chart-3: 142 76% 36%;
+  --chart-4: 35 67% 55%;
+  --chart-5: 258 90% 66%;
+  --chart-6: 199 89% 48%;
+  --chart-7: 330 81% 60%;
+  --chart-8: 215 16% 47%;
+  --lose-2: 11 75% 64%;
+  --lose-3: 35 67% 55%;
+  --lose-4: 27 39% 54%;
+  --lose-5: 258 90% 66%;
+  --lose-6: 204 30% 51%;
+  --lose-7: 154 33% 45%;
+  --lose-8: 215 17% 51%;
 }
 
 .dark {
@@ -36,6 +58,8 @@
   --danger: 352 78% 64%;
   --success: 158 64% 52%;
   --warning: 35 92% 60%;
+  --profit: 142 76% 36%;
+  --loss: 350 70% 59%;
 }
 
 * {
@@ -153,6 +177,221 @@ label {
 }
 .dark .hero-gradient {
   background: linear-gradient(135deg, hsl(160 70% 16%), hsl(172 65% 20%) 55%, hsl(200 60% 20%));
+}
+
+/* Colour themes. The default look is :root/.dark above; every other theme overrides the same variables on <html data-theme>.
+   `.dark` is repeated in the selectors because the app shell sets it on an inner element, which would otherwise win. */
+html[data-theme="graphite"],
+html[data-theme="graphite"] .dark {
+  --background: 220 10% 6%;
+  --foreground: 204 12% 92%;
+  --muted: 210 9% 13%;
+  --muted-foreground: 215 8% 62%;
+  --card: 210 8% 9%;
+  --card-foreground: 204 12% 92%;
+  --card-muted-foreground: 215 8% 62%;
+  --border: 220 7% 16%;
+  --primary: 158 66% 62%;
+  --primary-foreground: 220 10% 6%;
+  --danger: 355 42% 60%;
+  --success: 158 58% 54%;
+  --warning: 40 77% 60%;
+  --profit: 158 58% 54%;
+  --loss: 355 42% 60%;
+  --hero-from: 160 14% 11%;
+  --hero-to: 210 8% 9%;
+  --hero-ring: 220 7% 18%;
+  --hero-fg: 204 12% 92%;
+  --hero-accent: 158 66% 62%;
+  --hero-accent-soft: 158 66% 72%;
+  --hero-pos: 158 58% 64%;
+  --hero-neg: 355 50% 72%;
+  --chart-1: 158 66% 62%;
+  --chart-2: 41 56% 64%;
+  --chart-3: 215 8% 63%;
+  --chart-4: 210 70% 70%;
+  --chart-5: 270 40% 72%;
+  --chart-6: 190 50% 60%;
+  --chart-7: 330 45% 68%;
+  --chart-8: 215 10% 45%;
+  color-scheme: dark;
+}
+
+html[data-theme="gold"],
+html[data-theme="gold"] .dark {
+  --background: 0 0% 4%;
+  --foreground: 36 10% 90%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 0 0% 60%;
+  --card: 0 0% 8%;
+  --card-foreground: 36 10% 90%;
+  --card-muted-foreground: 0 0% 60%;
+  --border: 0 0% 16%;
+  --primary: 41 56% 64%;
+  --primary-foreground: 0 0% 5%;
+  --danger: 6 48% 60%;
+  --success: 140 30% 58%;
+  --warning: 41 56% 64%;
+  --profit: 140 30% 58%;
+  --loss: 6 48% 60%;
+  --hero-from: 40 12% 11%;
+  --hero-to: 0 0% 7%;
+  --hero-ring: 0 0% 18%;
+  --hero-fg: 36 10% 90%;
+  --hero-accent: 41 56% 64%;
+  --hero-accent-soft: 41 56% 74%;
+  --hero-pos: 140 32% 66%;
+  --hero-neg: 6 56% 72%;
+  --chart-1: 41 56% 64%;
+  --chart-2: 140 30% 58%;
+  --chart-3: 0 0% 62%;
+  --chart-4: 6 48% 60%;
+  --chart-5: 210 30% 65%;
+  --chart-6: 28 40% 50%;
+  --chart-7: 280 25% 65%;
+  --chart-8: 0 0% 40%;
+  color-scheme: dark;
+}
+
+html[data-theme="matrix"],
+html[data-theme="matrix"] .dark {
+  --background: 160 33% 5%;
+  --foreground: 150 22% 80%;
+  --muted: 161 29% 11%;
+  --muted-foreground: 155 14% 58%;
+  --card: 165 29% 8%;
+  --card-foreground: 150 22% 80%;
+  --card-muted-foreground: 155 14% 58%;
+  --border: 156 24% 16%;
+  --primary: 144 100% 61%;
+  --primary-foreground: 146 67% 5%;
+  --danger: 2 58% 64%;
+  --success: 144 78% 58%;
+  --warning: 45 90% 60%;
+  --profit: 144 78% 58%;
+  --loss: 2 58% 64%;
+  --hero-from: 165 29% 10%;
+  --hero-to: 160 33% 6%;
+  --hero-ring: 156 30% 20%;
+  --hero-fg: 150 22% 80%;
+  --hero-accent: 144 100% 61%;
+  --hero-accent-soft: 144 100% 72%;
+  --hero-pos: 144 78% 66%;
+  --hero-neg: 2 62% 74%;
+  --chart-1: 144 100% 61%;
+  --chart-2: 175 70% 55%;
+  --chart-3: 90 60% 60%;
+  --chart-4: 45 80% 60%;
+  --chart-5: 155 14% 58%;
+  --chart-6: 190 70% 60%;
+  --chart-7: 120 40% 45%;
+  --chart-8: 160 25% 35%;
+  color-scheme: dark;
+}
+
+html[data-theme="mono"],
+html[data-theme="mono"] .dark {
+  --background: 0 0% 96%;
+  --foreground: 0 0% 7%;
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 38%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 7%;
+  --card-muted-foreground: 0 0% 38%;
+  --border: 0 0% 82%;
+  --primary: 0 0% 7%;
+  --primary-foreground: 0 0% 100%;
+  --danger: 0 0% 38%;
+  --success: 0 0% 4%;
+  --warning: 0 0% 38%;
+  --profit: 0 0% 4%;
+  --loss: 0 0% 38%;
+  --hero-from: 0 0% 4%;
+  --hero-to: 0 0% 12%;
+  --hero-ring: 0 0% 4%;
+  --hero-fg: 0 0% 100%;
+  --hero-accent: 0 0% 100%;
+  --hero-accent-soft: 0 0% 100%;
+  --hero-pos: 0 0% 100%;
+  --hero-neg: 0 0% 72%;
+  --chart-1: 0 0% 7%;
+  --chart-2: 0 0% 38%;
+  --chart-3: 0 0% 58%;
+  --chart-4: 0 0% 22%;
+  --chart-5: 0 0% 72%;
+  --chart-6: 0 0% 47%;
+  --chart-7: 0 0% 30%;
+  --chart-8: 0 0% 82%;
+  color-scheme: light;
+}
+
+html[data-theme="graphite"],
+html[data-theme="graphite"] .dark,
+html[data-theme="gold"],
+html[data-theme="gold"] .dark,
+html[data-theme="matrix"],
+html[data-theme="matrix"] .dark {
+  --lose-2: 11 55% 62%;
+  --lose-3: 35 55% 58%;
+  --lose-4: 27 35% 52%;
+  --lose-5: 270 30% 62%;
+  --lose-6: 204 30% 51%;
+  --lose-7: 154 33% 45%;
+  --lose-8: 215 17% 51%;
+}
+
+html[data-theme="mono"],
+html[data-theme="mono"] .dark {
+  --lose-2: 0 0% 7%;
+  --lose-3: 0 0% 58%;
+  --lose-4: 0 0% 22%;
+  --lose-5: 0 0% 72%;
+  --lose-6: 0 0% 47%;
+  --lose-7: 0 0% 30%;
+  --lose-8: 0 0% 82%;
+}
+
+html[data-theme] .hero-gradient {
+  background: linear-gradient(135deg, hsl(var(--hero-from)), hsl(var(--hero-to)));
+  outline: 1px solid hsl(var(--hero-ring));
+  outline-offset: -1px;
+}
+
+html[data-theme] .hero-blob {
+  display: none;
+}
+
+/* Black-and-white: no colour, so plus is bold and minus is grey italic. */
+html[data-theme="mono"] .text-success {
+  font-weight: 700;
+}
+html[data-theme="mono"] .text-danger,
+html[data-theme="mono"] .tone-neg {
+  font-style: italic;
+}
+
+/* Terminal: monospace figures, caps captions with > and // prefixes. */
+html[data-theme="matrix"] .tabular-nums,
+html[data-theme="matrix"] [class*="font-semibold"],
+html[data-theme="matrix"] [class*="font-bold"],
+html[data-theme="matrix"] [class*="font-extrabold"] {
+  font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+html[data-theme="matrix"] .hero-label,
+html[data-theme="matrix"] [class*="bg-card"] > .font-semibold:first-child:not([class*="text-"]) {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color: hsl(var(--card-muted-foreground));
+}
+html[data-theme="matrix"] .hero-label::before {
+  content: "> ";
+  color: hsl(var(--primary));
+}
+html[data-theme="matrix"] [class*="bg-card"] > .font-semibold:first-child:not([class*="text-"])::before {
+  content: "// ";
+  color: hsl(var(--primary));
 }
 
 /* Recharts polish: softer grid that matches the theme. */

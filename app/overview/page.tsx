@@ -31,7 +31,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
   const netPnl = Number(data.totals.netPnlUsdt);
   const periodPnl = Number(data.totals.periodNetPnlUsdt);
   const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
-  const tone = (value: number) => (value >= 0 ? "text-emerald-200" : "text-rose-200");
+  const tone = (value: number) => (value >= 0 ? "text-[hsl(var(--hero-pos))]" : "tone-neg text-[hsl(var(--hero-neg))]");
   const signedUsdt = (value: string) => `${Number(value) > 0 ? "+" : ""}${formatMoney(Number(value).toFixed(2), "USDT", hidden)}`;
   const moveTone = (value: string) => (Number(value) > 0 ? "ok" : Number(value) < 0 ? "danger" : undefined);
   const turnover = [
@@ -49,12 +49,12 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
 
   return (
     <>
-      <div className="hero-gradient relative overflow-hidden rounded-3xl p-5 text-white shadow-soft sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-28 right-16 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
+      <div className="hero-gradient relative overflow-hidden rounded-3xl p-5 text-[hsl(var(--hero-fg))] shadow-soft sm:p-7">
+        <div className="hero-blob pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="hero-blob pointer-events-none absolute -bottom-28 right-16 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
         <div className="relative">
           <div className="flex items-start justify-between gap-3">
-            <div className="text-sm font-medium text-white/75">Доступний банк</div>
+            <div className="hero-label text-sm font-medium text-white/75">Доступний банк</div>
             <div className="rounded-lg bg-white/20 px-2.5 py-1 text-sm font-bold tabular-nums text-white ring-1 ring-white/30">
               курс {formatPlain(data.rate)} <span className="text-[11px] font-medium text-white/70">UAH/USDT</span>
             </div>
@@ -68,9 +68,9 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
             </div>
             <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
             <div>
-              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-amber-200 sm:text-5xl">
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-[hsl(var(--hero-accent))] sm:text-5xl">
                 {formatPlain(data.totals.potentialBankUsdt, hidden)}
-                <span className="ml-2 text-base font-semibold text-amber-200/60">USDT</span>
+                <span className="ml-2 text-base font-semibold text-[hsl(var(--hero-accent)/0.6)]">USDT</span>
               </div>
               <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
             </div>
@@ -78,8 +78,8 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-200">В обороті</div>
-              <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-100">{formatMoney(data.turnover.totalUsdt, "USDT", hidden)}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-[hsl(var(--hero-accent))]">В обороті</div>
+              <div className="mt-0.5 text-base font-extrabold tabular-nums text-[hsl(var(--hero-accent-soft))]">{formatMoney(data.turnover.totalUsdt, "USDT", hidden)}</div>
               <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.turnover.totalUsdt)}</div>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {turnover.map((item) => (

@@ -5,6 +5,7 @@ import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { bankSeries, type BankPoint } from "@/lib/bank-history";
 import { formatPlain } from "@/lib/money";
+import { CHART_COLORS, PROFIT_COLOR } from "@/lib/chart-colors";
 
 type DashboardStatsData = {
   period: { key: string; month: string | null; label: string; phrase: string; rangeLabel: string; fromMs: number; toMs: number };
@@ -28,7 +29,7 @@ type DashboardStatsData = {
 };
 
 // Steam grey, Aurum gold, Polymarket deep blue: the same colours as the chips in the bank header.
-const STRUCTURE_COLORS = ["#16a34a", "#94a3b8", "#eab308", "#1d4ed8", "#8b5cf6", "#ec4899", "#0ea5e9"];
+const STRUCTURE_COLORS = [PROFIT_COLOR, "#94a3b8", "#eab308", "#1d4ed8", CHART_COLORS[4], CHART_COLORS[6], CHART_COLORS[5]];
 
 /** Everything about the chosen period, under the bank on the home page. */
 export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
@@ -71,7 +72,7 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
           Гроші, якими можна розпоряджатися: Мейн гаманець {formatPlain(data.totals.availableCrypto, hidden)} USDT + картка {formatPlain(data.totals.cardUah, hidden)} ₴ + готівка {formatPlain(data.totals.cashUah, hidden)} ₴
           {Number(data.totals.cashUsd) > 0 ? ` + ${formatPlain(data.totals.cashUsd, hidden)} $` : ""}. Без відкладень, заморожених і грошей в обороті.
         </div>
-        <RangeAreaChart key={`avail-${data.period.key}-${data.period.month}`} data={bankSeries(data.bankHistory, "available")} hidden={hidden} totalLabel="Доступно" emptyLabel="Поки немає історії" defaultPreset="period" periodStart={data.period.fromMs} periodEnd={data.period.toMs} periodPhrase={data.period.phrase} color="#16a34a" />
+        <RangeAreaChart key={`avail-${data.period.key}-${data.period.month}`} data={bankSeries(data.bankHistory, "available")} hidden={hidden} totalLabel="Доступно" emptyLabel="Поки немає історії" defaultPreset="period" periodStart={data.period.fromMs} periodEnd={data.period.toMs} periodPhrase={data.period.phrase} color={PROFIT_COLOR} />
       </Card>
 
       <Card className="mt-4">
