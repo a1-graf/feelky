@@ -4,7 +4,7 @@ import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { resolveUahUsdtRate } from "@/lib/dashboard";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPlain } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 import { SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
 
@@ -43,7 +43,7 @@ export default async function SavingsPage() {
         <div className="text-sm text-[hsl(var(--card-muted-foreground))]">Накопичено</div>
         <div className="mt-2 text-3xl font-semibold text-success">{formatMoney(balance, "UAH", hidden)}</div>
         <div className="mt-2 text-sm font-medium text-[hsl(var(--card-muted-foreground))]">
-          {formatMoney(balanceUsdt, "USDT", hidden)} за курсом {rateData.rate.toString()} UAH/USDT
+          {formatMoney(balanceUsdt, "USDT", hidden)} за курсом {formatPlain(rateData.rate)} UAH/USDT
         </div>
       </Card>
       <div className="mb-2 text-sm font-semibold text-muted-foreground">Історія відкладень</div>

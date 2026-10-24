@@ -1,7 +1,7 @@
 import { NetPnlChart } from "@/components/income-line-chart";
 import { PolyTradesTable } from "@/components/poly-trades-table";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPercent, formatPlain } from "@/lib/money";
 import type { getPolyOverview } from "@/lib/poly";
 import { POLY_SECTION_LABELS } from "@/lib/poly-stats";
 import type { PolySectionKey } from "@/lib/poly-stats";
@@ -35,7 +35,7 @@ function Breakdown({ title, rows, hidden, empty = "Поки порожньо" }:
               <div className="min-w-0">
                 <div className="truncate font-medium">{row.name}</div>
                 <div className={`text-xs ${muted}`}>
-                  {row.count} угод · winrate {hidden ? "****" : `${row.winRate}%`} · ROI {hidden ? "****" : `${row.roi}%`}
+                  {row.count} угод · winrate {hidden ? "****" : formatPercent(row.winRate)} · ROI {hidden ? "****" : formatPercent(row.roi)}
                 </div>
               </div>
               <div className={`shrink-0 font-semibold ${tone(row.pnl)}`}>{formatMoney(row.pnl, CUR, hidden)}</div>
@@ -62,8 +62,8 @@ function SectionCard({ section, stats, hidden }: { section: PolySectionKey; stat
         <div className={`text-xl font-semibold ${tone(stats.totalPnl)}`}>{formatMoney(stats.totalPnl, CUR, hidden)}</div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-        <Metric label="Winrate" value={hidden ? "****" : `${stats.winRate}%`} />
-        <Metric label="ROI" value={hidden ? "****" : `${stats.roi}%`} />
+        <Metric label="Winrate" value={hidden ? "****" : formatPercent(stats.winRate)} />
+        <Metric label="ROI" value={hidden ? "****" : formatPercent(stats.roi)} />
         <Metric label="Місяць" value={formatMoney(stats.monthPnl, CUR, hidden)} className={tone(stats.monthPnl)} />
       </div>
     </Card>
@@ -104,9 +104,9 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
           <Metric label="PnL місяця" value={formatMoney(all.monthPnl, CUR, hidden)} className={tone(all.monthPnl)} />
           <Metric label="PnL сьогодні" value={formatMoney(all.todayPnl, CUR, hidden)} className={tone(all.todayPnl)} />
           <Metric label="У відкритих угодах" value={formatMoney(all.openExposure, CUR, hidden)} />
-          <Metric label="Winrate" value={hidden ? "****" : `${all.winRate}%`} />
-          <Metric label="Profit factor" value={hidden ? "****" : (all.profitFactor ?? "—")} />
-          <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(all.turnover, CUR, false)} · ${all.roi}%`} />
+          <Metric label="Winrate" value={hidden ? "****" : formatPercent(all.winRate)} />
+          <Metric label="Profit factor" value={hidden ? "****" : (all.profitFactor == null ? "—" : formatPlain(all.profitFactor))} />
+          <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(all.turnover, CUR, false)} · ${formatPercent(all.roi)}`} />
           <Metric label="Комісії" value={formatMoney(all.fees, CUR, hidden)} />
         </div>
         {reconcile && !reconcile.ok ? (
@@ -149,7 +149,7 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
                   <div className={`shrink-0 font-semibold ${tone(stats?.pnl ?? "0")}`}>{formatMoney(stats?.pnl ?? "0", CUR, hidden)}</div>
                 </div>
                 <div className={`mt-1 text-xs ${muted}`}>
-                  {stats?.count ?? 0} угод · winrate {hidden ? "****" : `${stats?.winRate ?? 0}%`} · аналітичний PnL
+                  {stats?.count ?? 0} угод · winrate {hidden ? "****" : formatPercent(stats?.winRate ?? 0)} · аналітичний PnL
                 </div>
                 {lock ? (
                   <div className="mt-3 rounded-md bg-background/60 p-2">
@@ -163,7 +163,7 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
                 )}
                 {released.length ? (
                   <div className="mt-2 text-xs">
-                    Знято блокувань: {released.length} · результат <span className={tone(String(realized))}>{formatMoney(realized.toFixed(2), CUR, hidden)}</span>
+                    Знято блокувань: {released.length} · результат <span className={tone(String(realized))}>{formatMoney(realized, CUR, hidden)}</span>
                   </div>
                 ) : null}
               </div>
@@ -189,7 +189,7 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
             <div className="mb-2 text-sm font-semibold">Slippage копітрейду</div>
             {slippage.count ? (
               <div className="grid gap-2 text-sm">
-                <Metric label="Середня різниця до сигналу" value={hidden ? "****" : `${slippage.avgPoints} (${slippage.avgPercent}%)`} />
+                <Metric label="Середня різниця до сигналу" value={hidden ? "****" : `${formatPlain(slippage.avgPoints)} (${formatPercent(slippage.avgPercent)})`} />
                 <Metric label="Втрачено на slippage" value={formatMoney(`-${slippage.costUsd}`, CUR, hidden)} className="text-danger" />
                 <Metric label="Гірша ціна, ніж у лідера" value={hidden ? "****" : `${slippage.worseCount} з ${slippage.count}`} />
               </div>

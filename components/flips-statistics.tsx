@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPercent } from "@/lib/money";
 
 type FlipSetup = {
   setup: string;
@@ -56,7 +56,7 @@ export function FlipsStatistics({ data, hidden = false }: { data: FlipsData; hid
         </div>
         <div className="rounded-lg bg-muted p-3">
           <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Winrate</div>
-          <div className="mt-1 font-semibold">{hidden ? "****" : `${data.winRate}%`}</div>
+          <div className="mt-1 font-semibold">{hidden ? "****" : formatPercent(data.winRate)}</div>
         </div>
         <div className="rounded-lg bg-muted p-3">
           <div className="text-xs text-[hsl(var(--card-muted-foreground))]">Плюсових</div>
@@ -87,7 +87,7 @@ export function FlipsStatistics({ data, hidden = false }: { data: FlipsData; hid
                 {setup ? (
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[hsl(var(--card-muted-foreground))]">
                     <span>{setup.count} записів</span>
-                    <span>winrate {setup.winRate}%</span>
+                    <span>winrate {formatPercent(setup.winRate)}</span>
                     <span>сетап PnL: <b className={Number(setup.pnl) >= 0 ? "text-success" : "text-danger"}>{formatMoney(setup.pnl, "USDT", hidden)}</b></span>
                   </div>
                 ) : null}

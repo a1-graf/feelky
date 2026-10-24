@@ -36,7 +36,7 @@ type LossBreakdownItem = {
 const SOURCE_COLORS = CHART_COLORS.slice(0, 6);
 function axisValue(value: number, hidden: boolean) {
   if (hidden) return "****";
-  return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return shortAxisValue(value);
 }
 
 type TipRow = { name?: string | number; value?: number | string; color?: string };
@@ -58,7 +58,7 @@ function LinesTip({ active, payload, label, hidden, signed = false, hiddenSeries
             {row.name}
           </span>
           <span className={`font-semibold tabular-nums ${signed ? (row.value > 0 ? "text-success" : row.value < 0 ? "text-danger" : "") : ""}`}>
-            {hidden ? "••••" : `${signed && row.value > 0 ? "+" : ""}${formatMoney(row.value.toFixed(2), "USDT")}`}
+            {hidden ? "••••" : `${signed && row.value > 0 ? "+" : ""}${formatMoney(row.value, "USDT")}`}
           </span>
         </div>
       ))}
@@ -146,7 +146,7 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
   }, [data]);
 
   if (!prepared.series.length) return null;
-  const signed = (value: number) => (hidden ? "••••" : `${value > 0 ? "+" : ""}${formatMoney(value.toFixed(2), "USDT")}`);
+  const signed = (value: number) => (hidden ? "••••" : `${value > 0 ? "+" : ""}${formatMoney(value, "USDT")}`);
   return (
     <div>
       <ul className="mb-4 space-y-2">
@@ -175,7 +175,7 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
           <LineChart data={prepared.points} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
-            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "••" : shortAxisValue(Number(value)))} domain={prepared.scale.domain} ticks={prepared.scale.ticks} interval={0} width={48} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "••" : shortAxisValue(Number(value)))} domain={prepared.scale.domain} ticks={prepared.scale.ticks} interval={0} width={56} />
             <Tooltip content={<LinesTip hidden={hidden} signed />} cursor={HOVER_CURSOR} isAnimationActive={false} />
             <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
             {prepared.series.map((item) => (
@@ -192,7 +192,7 @@ type PnlDay = PnlTimelinePoint & { dayNet: number; active: boolean };
 
 // Both PnL charts share these, so a day's bar sits exactly above its point on the running total.
 const PNL_MARGIN = { left: 0, right: 4, top: 8, bottom: 0 };
-const PNL_AXIS_WIDTH = 48;
+const PNL_AXIS_WIDTH = 56;
 const PNL_AXIS_TICK = { fill: "hsl(var(--card-muted-foreground))", fontSize: 12 };
 
 function PnlTooltip({ active, payload, hidden, currency = "USDT" }: { active?: boolean; payload?: Array<{ payload: PnlDay }>; hidden: boolean; currency?: string }) {
@@ -213,7 +213,7 @@ function PnlTooltip({ active, payload, hidden, currency = "USDT" }: { active?: b
       {rows.map(([label, value, color]) => (
         <div key={label} className="flex items-center justify-between gap-4">
           <span className="text-[hsl(var(--card-muted-foreground))]">{label}</span>
-          <span className="tabular-nums" style={{ color }}>{formatMoney(value.toFixed(2), currency, hidden)}</span>
+          <span className="tabular-nums" style={{ color }}>{formatMoney(value, currency, hidden)}</span>
         </div>
       ))}
     </div>
@@ -288,9 +288,9 @@ export function NetPnlChart({
       {!cumulativeOnly && (
         <>
           <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
-            <PnlChip label="Плюси" value={formatMoney(totalProfit.toFixed(2), currency, hidden)} className="text-success" />
-            <PnlChip label="Мінуси" value={formatMoney((-totalLoss).toFixed(2), currency, hidden)} className="text-danger" />
-            <PnlChip label="Чистий PnL" value={formatMoney(latestNet.toFixed(2), currency, hidden)} className={latestNet >= 0 ? "text-success" : "text-danger"} />
+            <PnlChip label="Плюси" value={formatMoney(totalProfit, currency, hidden)} className="text-success" />
+            <PnlChip label="Мінуси" value={formatMoney(-totalLoss, currency, hidden)} className="text-danger" />
+            <PnlChip label="Чистий PnL" value={formatMoney(latestNet, currency, hidden)} className={latestNet >= 0 ? "text-success" : "text-danger"} />
           </div>
 
           <div className="mb-2 flex items-center justify-between gap-3">

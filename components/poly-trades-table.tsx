@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPlain } from "@/lib/money";
 
 export type PolyTradeRow = {
   id: string;
@@ -123,7 +123,7 @@ export function PolyTradesTable({ trades, hidden }: { trades: PolyTradeRow[]; hi
       </div>
 
       <div className="mb-2 text-xs text-[hsl(var(--card-muted-foreground))]">
-        {filtered.length} угод · PnL вибірки <span className={tone(String(filteredPnl))}>{formatMoney(filteredPnl.toFixed(2), "USDT", hidden)}</span>
+        {filtered.length} угод · PnL вибірки <span className={tone(String(filteredPnl))}>{formatMoney(filteredPnl, "USDT", hidden)}</span>
       </div>
 
       {visible.length ? (
@@ -154,10 +154,10 @@ export function PolyTradesTable({ trades, hidden }: { trades: PolyTradeRow[]; hi
                     <div className="truncate font-medium">{trade.title}</div>
                     <div className="text-xs text-[hsl(var(--card-muted-foreground))]">
                       {trade.marketKind} · {trade.outcome}
-                      {trade.signalPrice ? ` · сигнал ${Number(trade.signalPrice).toFixed(3)}` : ""}
+                      {trade.signalPrice ? ` · сигнал ${formatPlain(trade.signalPrice)}` : ""}
                     </div>
                   </td>
-                  <td className="py-2 pr-3 text-right">{Number(trade.entryPrice).toFixed(3)}</td>
+                  <td className="py-2 pr-3 text-right">{formatPlain(trade.entryPrice)}</td>
                   <td className="py-2 pr-3 text-right">{formatMoney(trade.sizeUsd, "USDT", hidden)}</td>
                   <td className="py-2 pr-3 text-xs">
                     {STATUS_LABELS[trade.status]}

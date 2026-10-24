@@ -4,7 +4,7 @@ import { MetricGrid } from "@/components/metric-grid";
 import { SteamWallets } from "@/components/steam-wallets";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPercent, formatPlain, formatSigned, formatSignedPercent } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 import { steamAnalytics } from "@/lib/steam";
 import { steamWallets } from "@/lib/steam-wallets";
@@ -34,7 +34,7 @@ function Submit({ children }: { children: React.ReactNode }) {
 }
 
 function formatDollarBadge(value: string) {
-  return `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 0 })}`;
+  return `$${formatPlain(value)}`;
 }
 
 function bonusLabel(externalAmount: unknown, receivedSteamAmount: unknown) {
@@ -43,7 +43,7 @@ function bonusLabel(externalAmount: unknown, receivedSteamAmount: unknown) {
   if (!external || !received) return "очікує доповнення";
   const bonus = received - external;
   const percent = (bonus / external) * 100;
-  return `${bonus >= 0 ? "+" : ""}${bonus.toFixed(2)} USDT · ${percent >= 0 ? "+" : ""}${percent.toFixed(1)}%`;
+  return `${formatSigned(bonus)} USDT · ${formatSignedPercent(percent)}`;
 }
 
 export default async function SteamPage({ searchParams }: { searchParams?: Promise<{ tab?: string }> }) {
@@ -136,8 +136,8 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
           { label: "Виведено чистими", value: formatMoney(data.totals.withdrawnClean, "USDT"), tone: "ok" },
           { label: "Steam прибуток", value: formatMoney(data.totals.steamProfit, "USDT"), tone: "ok" },
           { label: "Steam витрати", value: formatMoney(data.totals.steamExpenses, "USDT"), tone: "danger" },
-          { label: "Середній ROI", value: `${Number(data.totals.avgRoi).toFixed(1)}%` },
-          { label: "Середня тривалість", value: `${data.totals.avgDurationDays} дн.` }
+          { label: "Середній ROI", value: formatPercent(data.totals.avgRoi) },
+          { label: "Середня тривалість", value: `${formatPlain(data.totals.avgDurationDays)} дн.` }
         ]}
       />
 
@@ -349,7 +349,7 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
                 <div key={round.id} className="grid gap-1 border-b border-border py-2 last:border-b-0 sm:grid-cols-[1fr_auto_auto] sm:items-center">
                   <span>{round.scheme.name}{round.siteName ? ` · ${round.siteName}` : ""}</span>
                   <span>{formatMoney(round.finalAmountReceived?.toString() || "0", "USDT")}</span>
-                  <span className="text-sm text-[hsl(var(--card-muted-foreground))]">ROI {Number((Number(round.finalAmountReceived || 0) - Number(round.investedAmount)) / Number(round.investedAmount || 1) * 100).toFixed(1)}%</span>
+                  <span className="text-sm text-[hsl(var(--card-muted-foreground))]">ROI {formatPercent((Number(round.finalAmountReceived || 0) - Number(round.investedAmount)) / Number(round.investedAmount || 1) * 100)}</span>
                 </div>
               ))}
               {openResiduals.map((residual) => (

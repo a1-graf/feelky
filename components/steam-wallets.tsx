@@ -1,7 +1,7 @@
 "use client";
 
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatSignedPercent } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 export type SteamWalletView = {
@@ -36,7 +36,7 @@ function signed(value: string, currency: string) {
 function percent(value: string | null) {
   if (value === null) return null;
   const number = Number(value);
-  return `${number > 0 ? "+" : ""}${number.toLocaleString("uk-UA", { maximumFractionDigits: 1 })}%`;
+  return formatSignedPercent(number);
 }
 
 function Row({ label, value, detail, tone }: { label: string; value: string; detail?: string | null; tone?: "ok" | "danger" }) {

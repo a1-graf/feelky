@@ -2,7 +2,7 @@ import { FxBalanceChart } from "@/components/fx-balance-chart";
 import { NetPnlChart } from "@/components/income-line-chart";
 import { FxPositions } from "@/components/fx-positions";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPercent, formatPlain, formatSigned } from "@/lib/money";
 import type { FxBalancePoint, summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
 
 type FxData = ReturnType<typeof summarizeFx>;
@@ -12,7 +12,7 @@ type Row = FxData["byInstrument"][number];
 type Period = FxData["allTime"];
 
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
-const signed = (value: string) => (Number(value) > 0 ? `+${value}` : value);
+const signed = (value: string) => formatSigned(value);
 const signedMoney = (value: string, currency: string, hidden: boolean) => `${Number(value) > 0 && !hidden ? "+" : ""}${formatMoney(value, currency, hidden)}`;
 const formatR = (r: string | null, hidden: boolean) => (hidden ? "****" : r == null ? "—" : `${signed(r)}R`);
 const formatDate = (iso: string) => new Date(iso).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" });
@@ -31,7 +31,7 @@ function PeriodRow({ period, currency, hidden, total = false, current = false }:
     <tr className={total ? "border-t-4 border-t-border bg-primary/10 font-semibold" : "border-t border-border/60"}>
       <td className={`${td} relative pl-5 sm:pl-6 ${total ? "border-l-4 border-l-primary" : ""}`}>{current && <span aria-label="Поточний місяць" title="Поточний місяць" className="absolute left-2 top-1/2 sm:left-2.5 h-2 w-2 -translate-y-1/2 animate-pulse rounded-full bg-success" />}{formatMonth(period.key)}</td>
       <td className={`${td} text-center`}>{period.count}</td>
-      <td className={`${td} text-center`}>{hidden ? "****" : `${period.winRate}%`}</td>
+      <td className={`${td} text-center`}>{hidden ? "****" : formatPercent(period.winRate)}</td>
       <td className={`${td} text-center ${tone(period.pnl)}`}>{formatMoney(period.pnl, currency, hidden)}</td>
     </tr>
   );
@@ -76,7 +76,7 @@ function Breakdown({ title, rows, currency, hidden }: { title: string; rows: Row
               <div className="min-w-0">
                 <div className="truncate font-medium">{row.name}</div>
                 <div className="text-xs text-[hsl(var(--card-muted-foreground))]">
-                  {row.count} угод · winrate {hidden ? "****" : `${row.winRate}%`}
+                  {row.count} угод · winrate {hidden ? "****" : formatPercent(row.winRate)}
                 </div>
               </div>
               <div className={`shrink-0 font-semibold ${tone(row.pnl)}`}>{formatMoney(row.pnl, currency, hidden)}</div>
@@ -126,7 +126,7 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
           <FxBalanceChart data={balanceSeries} currency={currency} hidden={hidden} />
           <SplitTile>
             <Half label="Плюсових / мінусових" main={hidden ? "****" : <><span className="text-success">{data.wins}</span> / <span className="text-danger">{data.losses}</span></>} />
-            <Half label="Winrate" main={hidden ? "****" : `${data.winRate}%`} divider />
+            <Half label="Winrate" main={hidden ? "****" : formatPercent(data.winRate)} divider />
           </SplitTile>
         </div>
       </Card>
@@ -134,7 +134,7 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Місяці та весь час</div>
         <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
-          1R = {data.oneRUsd} {currency} (1%)
+          1R = {formatPlain(data.oneRUsd)} {currency} (1%)
         </div>
         {data.count ? (
           <PeriodTable months={data.byMonth} allTime={data.allTime} currency={currency} hidden={hidden} currentMonthKey={data.currentMonthKey} />

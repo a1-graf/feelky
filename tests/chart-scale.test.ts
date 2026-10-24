@@ -32,8 +32,8 @@ describe("calendarDays", () => {
 describe("labels", () => {
   it("formats days and axis values briefly", () => {
     expect(dayLabel("2026-10-09")).toBe("09.10");
-    expect(shortAxisValue(150)).toBe("150");
-    expect(shortAxisValue(-1500)).toBe("-1,5k");
+    expect(shortAxisValue(150)).toBe("150,00");
+    expect(shortAxisValue(-1500)).toBe("-1,50k");
   });
 });
 
