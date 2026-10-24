@@ -4,10 +4,10 @@ import { RangeAreaChart, type RangePoint } from "@/components/range-area-chart";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { bankSeries, type BankPoint } from "@/lib/bank-history";
-import { chartPresetFor } from "@/lib/period";
+import { formatPlain } from "@/lib/money";
 
 type DashboardStatsData = {
-  period: { key: string; label: string; rangeLabel: string };
+  period: { key: string; month: string | null; label: string; phrase: string; rangeLabel: string; fromMs: number; toMs: number };
   rate: string;
   settings: { hideAmounts: boolean } | null;
   incomeTimeline: { date: string; label: string; usdt: number; uah: number }[];
@@ -23,10 +23,12 @@ type DashboardStatsData = {
     cashUah: string;
     cashUsd: string;
     savingsUah: string;
+    periodNetPnlUsdt: string;
   };
 };
 
-const STRUCTURE_COLORS = ["#2563eb", "#16a34a", "#8b5cf6", "#d99b42", "#e8795f", "#0ea5e9", "#64748b", "#ec4899"];
+// Steam grey, Aurum gold, Polymarket deep blue: the same colours as the chips in the bank header.
+const STRUCTURE_COLORS = ["#16a34a", "#94a3b8", "#eab308", "#1d4ed8", "#8b5cf6", "#ec4899", "#0ea5e9"];
 
 /** Everything about the chosen period, under the bank on the home page. */
 export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
@@ -37,8 +39,20 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
     <section>
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Підсумковий результат</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючим підсумком: доходи, Aurum, Polymarket, фліпи мінус витрати</div>
-        <RangeAreaChart key={data.period.key} data={data.pnlTimeline} defaultPreset={chartPresetFor(data.period.key)} hidden={hidden} totalLabel="Підсумок" emptyLabel="Немає подій за період" signed />
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючим підсумком з початку обліку: доходи, Aurum, Polymarket, фліпи мінус витрати. Зелене/червоне число під сумою — скільки додалось саме за обраний період</div>
+        <RangeAreaChart
+          key={`pnl-${data.period.key}-${data.period.month}`}
+          data={data.pnlTimeline}
+          defaultPreset="period"
+          periodStart={data.period.fromMs}
+          periodEnd={data.period.toMs}
+          periodPhrase={data.period.phrase}
+          valueCaption="Накопичено з початку обліку"
+          hidden={hidden}
+          totalLabel="Підсумок"
+          emptyLabel="Немає подій за період"
+          signed
+        />
       </Card>
 
       <Card className="mt-4">
@@ -53,14 +67,19 @@ export function DashboardStatistics({ data }: { data: DashboardStatsData }) {
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Доступний банк</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Гроші, якими можна розпоряджатися: гаманці, картка, готівка</div>
-        <RangeAreaChart data={bankSeries(data.bankHistory, "available")} hidden={hidden} totalLabel="Доступно" emptyLabel="Поки немає історії" defaultPreset="1m" color="#16a34a" />
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
+          Гроші, якими можна розпоряджатися: Мейн гаманець {formatPlain(data.totals.availableCrypto, hidden)} USDT + картка {formatPlain(data.totals.cardUah, hidden)} ₴ + готівка {formatPlain(data.totals.cashUah, hidden)} ₴
+          {Number(data.totals.cashUsd) > 0 ? ` + ${formatPlain(data.totals.cashUsd, hidden)} $` : ""}. Без відкладень, заморожених і грошей в обороті.
+        </div>
+        <RangeAreaChart key={`avail-${data.period.key}-${data.period.month}`} data={bankSeries(data.bankHistory, "available")} hidden={hidden} totalLabel="Доступно" emptyLabel="Поки немає історії" defaultPreset="period" periodStart={data.period.fromMs} periodEnd={data.period.toMs} periodPhrase={data.period.phrase} color="#16a34a" />
       </Card>
 
       <Card className="mt-4">
         <div className="mb-1 font-semibold">Банк в обороті</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Гроші, що працюють у Steam, Aurum і Polymarket</div>
-        <RangeAreaChart data={bankSeries(data.bankHistory, "turnover")} hidden={hidden} totalLabel="В обороті" emptyLabel="Поки немає історії" defaultPreset="1m" color="#d99b42" />
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">
+          Гроші, що працюють: Steam {formatPlain(data.turnover.steamUsdt, hidden)} (завезені реальні USDT) + Aurum {formatPlain(data.turnover.aurumUsdt, hidden)} (баланс брокера) + Polymarket {formatPlain(data.turnover.polyUsdt, hidden)} (пул і суми в AI-агентах), USDT
+        </div>
+        <RangeAreaChart key={`turn-${data.period.key}-${data.period.month}`} data={bankSeries(data.bankHistory, "turnover")} hidden={hidden} totalLabel="В обороті" emptyLabel="Поки немає історії" defaultPreset="period" periodStart={data.period.fromMs} periodEnd={data.period.toMs} periodPhrase={data.period.phrase} color="#d99b42" />
       </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

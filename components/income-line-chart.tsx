@@ -38,6 +38,36 @@ function axisValue(value: number, hidden: boolean) {
   return new Intl.NumberFormat("uk-UA", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+type TipRow = { name?: string | number; value?: number | string; color?: string };
+
+/** Hover tooltip shared by the line charts: date, then every series with its value, biggest first. */
+function LinesTip({ active, payload, label, hidden, signed = false, hiddenSeries = [] }: { active?: boolean; payload?: readonly TipRow[]; label?: string | number; hidden: boolean; signed?: boolean; hiddenSeries?: string[] }) {
+  if (!active || !payload?.length) return null;
+  const rows = payload
+    .filter((row) => row.name != null && !hiddenSeries.includes(String(row.name)))
+    .map((row) => ({ name: String(row.name), value: Number(row.value), color: row.color }))
+    .sort((a, b) => b.value - a.value);
+  return (
+    <div className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs shadow">
+      <div className="mb-0.5 text-[hsl(var(--card-muted-foreground))]">{label}</div>
+      {rows.map((row) => (
+        <div key={row.name} className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />
+            {row.name}
+          </span>
+          <span className={`font-semibold tabular-nums ${signed ? (row.value > 0 ? "text-success" : row.value < 0 ? "text-danger" : "") : ""}`}>
+            {hidden ? "••••" : `${signed && row.value > 0 ? "+" : ""}${formatMoney(row.value.toFixed(2), "USDT")}`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const HOVER_CURSOR = { stroke: "hsl(var(--foreground) / 0.3)" };
+const hoverDot = (color: string, radius: number) => ({ r: radius, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 });
+
 export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTimelinePoint[]; rate: string; hidden?: boolean }) {
   const uahRate = Number(rate);
   const cumulativeData = useMemo(() => {
@@ -57,7 +87,6 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
     return <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-[hsl(var(--card-muted-foreground))]">Поки немає доходів</div>;
   }
 
-  const showDots = cumulativeData.length <= 100;
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[hsl(var(--card-muted-foreground))]">
@@ -78,16 +107,10 @@ export function IncomeLineChart({ data, rate, hidden = false }: { data: IncomeTi
               tickFormatter={(value) => axisValue(Number(value), hidden)}
               width={62}
             />
-            <Tooltip
-              formatter={(value, name) => [
-                formatMoney(Number(value), "USDT", hidden),
-                name === "TOTAL" ? "Загальний дохід" : name
-              ]}
-              labelFormatter={(label) => `Дата: ${label}`}
-            />
-            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
-            <Line yAxisId="usdt" type="monotone" dataKey="uahUsdt" name="UAH → USDT" stroke="#e8795f" strokeWidth={2.5} dot={showDots ? { r: 3 } : false} activeDot={{ r: 5 }} />
-            <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="TOTAL" stroke="#16a34a" strokeWidth={3.5} dot={showDots ? { r: 3.5 } : false} activeDot={{ r: 6 }} />
+            <Tooltip content={<LinesTip hidden={hidden} />} cursor={HOVER_CURSOR} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="usdt" name="USDT" stroke="#2563eb" strokeWidth={2.5} dot={false} activeDot={hoverDot("#2563eb", 4)} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="uahUsdt" name="UAH → USDT" stroke="#e8795f" strokeWidth={2.5} dot={false} activeDot={hoverDot("#e8795f", 4)} isAnimationActive={false} />
+            <Line yAxisId="usdt" type="monotone" dataKey="totalUsdt" name="Загальний" stroke="#16a34a" strokeWidth={3.5} dot={false} activeDot={hoverDot("#16a34a", 5)} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -101,10 +124,12 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
     for (const point of data) {
       for (const source of point.sources) totals.set(source.name, (totals.get(source.name) || 0) + source.value);
     }
-    // Biggest by size, not by sign: a losing source matters as much as a winning one.
+    // The biggest by size make the cut (a big loser matters as much as a big winner), then they are listed
+    // from the most profitable down to the losing ones.
     const series = Array.from(totals.entries())
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
       .slice(0, SOURCE_COLORS.length)
+      .sort((a, b) => b[1] - a[1])
       .map(([name, total], index) => ({ name, total, key: `source${index}`, color: SOURCE_COLORS[index] }));
     const running = new Map<string, number>();
     const points = [...data]
@@ -120,7 +145,6 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
   }, [data]);
 
   if (!prepared.series.length) return null;
-  const showDots = prepared.points.length <= 100;
   const signed = (value: number) => (hidden ? "••••" : `${value > 0 ? "+" : ""}${formatMoney(value.toFixed(2), "USDT")}`);
   return (
     <div>
@@ -151,10 +175,10 @@ export function IncomeSourceGrowthChart({ data, hidden = false }: { data: Income
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--card-muted-foreground))", fontSize: 12 }} tickFormatter={(value) => (hidden ? "••" : shortAxisValue(Number(value)))} domain={prepared.scale.domain} ticks={prepared.scale.ticks} interval={0} width={48} />
-            <Tooltip formatter={(value, name) => [signed(Number(value)), name]} labelFormatter={(label) => `Дата: ${label}`} />
+            <Tooltip content={<LinesTip hidden={hidden} signed />} cursor={HOVER_CURSOR} isAnimationActive={false} />
             <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />
             {prepared.series.map((item) => (
-              <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={showDots ? { r: 2.5 } : false} activeDot={{ r: 5 }} />
+              <Line key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={2.5} dot={false} activeDot={hoverDot(item.color, 4)} isAnimationActive={false} />
             ))}
           </LineChart>
         </ResponsiveContainer>

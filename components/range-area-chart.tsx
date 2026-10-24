@@ -22,22 +22,24 @@ const PRESETS = [
   { key: "1y", label: "1Y", span: 365 * DAY },
   { key: "all", label: "ALL", span: 0 }
 ] as const;
-type PresetKey = (typeof PRESETS)[number]["key"];
+type PresetKey = (typeof PRESETS)[number]["key"] | "period";
+const PRESET_PHRASE: Record<string, string> = { "1w": "за 7 днів", "1m": "за 30 днів", "3m": "за 90 днів", "6m": "за 180 днів", "1y": "за рік", all: "за весь час" };
 
 function formatTick(t: number, span: number) {
   const options: Intl.DateTimeFormatOptions = span <= 2 * DAY ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" };
   return new Date(t).toLocaleString("uk-UA", { timeZone: KYIV, ...options });
 }
 
-function Tip({ active, payload, hidden, currency, totalLabel }: { active?: boolean; payload?: Array<{ payload: RangePoint }>; hidden: boolean; currency: string; totalLabel: string }) {
+function Tip({ active, payload, hidden, currency, totalLabel, signed }: { active?: boolean; payload?: Array<{ payload: RangePoint }>; hidden: boolean; currency: string; totalLabel: string; signed: boolean }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
   const sign = (value: number) => (value > 0 ? "+" : "");
+  const levelSign = (value: number) => (signed ? sign(value) : "");
   return (
     <div className="rounded-md border border-border bg-card px-2 py-1 text-xs shadow">
       <div className="text-[hsl(var(--card-muted-foreground))]">{new Date(point.t).toLocaleString("uk-UA", { timeZone: KYIV, dateStyle: "short", timeStyle: "short" })}</div>
       <div className="font-semibold tabular-nums">
-        {totalLabel} <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${sign(point.total)}${formatMoney(point.total.toFixed(2), currency)}`}</span>
+        {totalLabel} <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${levelSign(point.total)}${formatMoney(point.total.toFixed(2), currency)}`}</span>
       </div>
       {point.delta !== 0 && (
         <div className="text-[hsl(var(--card-muted-foreground))]">
@@ -64,7 +66,11 @@ export function RangeAreaChart({
   signed = false,
   color,
   showChange = true,
-  minimal = false
+  minimal = false,
+  periodStart,
+  periodEnd,
+  periodPhrase,
+  valueCaption
 }: {
   data: RangePoint[];
   currency?: string;
@@ -76,16 +82,28 @@ export function RangeAreaChart({
   color?: string;
   showChange?: boolean;
   minimal?: boolean;
+  /** The page period as a window button («Період»): the header change then equals the figure the page shows for that period. */
+  periodStart?: number;
+  periodEnd?: number;
+  periodPhrase?: string;
+  /** Small grey caption above the big value, e.g. what the level means. */
+  valueCaption?: string;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>(defaultPreset);
   const [now] = useState(() => Date.now());
 
+  const hasPeriod = periodStart != null;
+  const presets = hasPeriod ? [{ key: "period" as const, label: "Період" }, ...PRESETS] : PRESETS;
+  const activePreset: PresetKey = preset === "period" && !hasPeriod ? "1m" : preset;
+
   const points = useMemo<RangePoint[]>(() => {
     if (!data.length) return [];
-    const start = preset === "all" ? data[0].t : now - PRESETS.find((item) => item.key === preset)!.span;
+    const isPeriod = activePreset === "period" && periodStart != null;
+    const start = isPeriod ? periodStart : activePreset === "all" ? data[0].t : now - PRESETS.find((item) => item.key === activePreset)!.span;
+    const end = isPeriod ? Math.min(periodEnd ?? now, now) : now;
     const before = [...data].reverse().find((point) => point.t < start);
-    const inside = data.filter((point) => point.t >= start);
+    const inside = data.filter((point) => point.t >= start && point.t <= end);
     if (!before && !inside.length) return [];
     const windowStart = before ? start : Math.max(start, inside[0].t);
     const startTotal = before ? before.total : (inside[0].total - inside[0].delta);
@@ -93,9 +111,9 @@ export function RangeAreaChart({
     return [
       { t: windowStart, total: startTotal, delta: 0 },
       ...inside,
-      { t: Math.max(now, inside[inside.length - 1]?.t ?? windowStart), total: lastTotal, delta: 0 }
+      { t: Math.max(end, inside[inside.length - 1]?.t ?? windowStart), total: lastTotal, delta: 0 }
     ];
-  }, [data, preset, now]);
+  }, [data, activePreset, now, periodStart, periodEnd]);
 
   const values = points.map((point) => point.total);
   const low = values.length ? Math.min(...values) : 0;
@@ -104,6 +122,11 @@ export function RangeAreaChart({
   const last = points[points.length - 1];
   const change = first && last ? last.total - first.total : 0;
   const crossesZero = signed && low < 0;
+  // A perfectly flat line has a zero-height box, and a gradient stroke on it would not paint at all.
+  const flat = high - low < 1e-9;
+  const gradientStroke = crossesZero && !flat;
+  const levelSign = (value: number) => (signed ? sign(value) : "");
+  const changePhrase = activePreset === "period" ? periodPhrase ?? "за період" : PRESET_PHRASE[activePreset];
   const lineColor = color ?? (signed ? (last && last.total < 0 ? LOSS_COLOR : PROFIT_COLOR) : change < 0 ? LOSS_COLOR : PROFIT_COLOR);
   const scale = niceRange(signed ? Math.min(low, 0) : low, signed ? Math.max(high, 0) : high);
   const xTicks = first && last ? timeTicks(first.t, last.t, 4) : [];
@@ -121,23 +144,25 @@ export function RangeAreaChart({
         <div className="min-w-0">
           {last && (
             <>
-              <div className="whitespace-nowrap text-xl font-bold leading-tight tabular-nums sm:text-2xl">{hidden ? "••••" : `${sign(last.total)}${formatMoney(last.total.toFixed(2), currency)}`}</div>
+              {valueCaption && <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{valueCaption}</div>}
+              <div className="whitespace-nowrap text-xl font-bold leading-tight tabular-nums sm:text-2xl">{hidden ? "••••" : `${levelSign(last.total)}${formatMoney(last.total.toFixed(2), currency)}`}</div>
               {showChange && (
                 <div className={`text-xs font-medium tabular-nums ${change > 0 ? "text-success" : change < 0 ? "text-danger" : "text-[hsl(var(--card-muted-foreground))]"}`}>
                   {changeText}
                   {percent != null && !hidden && ` (${sign(percent)}${percent.toFixed(1)}%)`}
+                  <span className="font-normal text-[hsl(var(--card-muted-foreground))]"> {changePhrase}</span>
                 </div>
               )}
             </>
           )}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-0.5 sm:gap-1">
-          {PRESETS.map((item) => (
+          {presets.map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => setPreset(item.key)}
-              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 transition-colors ${preset === item.key ? "bg-foreground text-background" : "text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
+              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 transition-colors ${activePreset === item.key ? "bg-foreground text-background" : "text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
             >
               {item.label}
             </button>
@@ -167,7 +192,7 @@ export function RangeAreaChart({
                       </>
                     )}
                   </linearGradient>
-                  {crossesZero && (
+                  {gradientStroke && (
                     <linearGradient id={`${gradientId}-stroke`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset={strokeSplit} stopColor={PROFIT_COLOR} />
                       <stop offset={strokeSplit} stopColor={LOSS_COLOR} />
@@ -201,13 +226,13 @@ export function RangeAreaChart({
                   interval={0}
                   width={44}
                 />
-                <Tooltip content={<Tip hidden={hidden} currency={currency} totalLabel={totalLabel} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
+                <Tooltip content={<Tip hidden={hidden} currency={currency} totalLabel={totalLabel} signed={signed} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
                 {signed && scale.domain[0] < 0 && <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />}
                 <Area
                   type="monotone"
                   dataKey="total"
                   baseValue={signed ? 0 : minimal ? low - minimalPad : scale.domain[0]}
-                  stroke={crossesZero ? `url(#${gradientId}-stroke)` : lineColor}
+                  stroke={gradientStroke ? `url(#${gradientId}-stroke)` : lineColor}
                   strokeWidth={2.5}
                   fill={`url(#${gradientId}-fill)`}
                   isAnimationActive={false}
