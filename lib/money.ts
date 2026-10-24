@@ -41,17 +41,32 @@ export function sumDecimals(values: MoneyInput[]) {
   return values.reduce<Decimal>((total, value) => total.plus(value), new Decimal(0));
 }
 
-export function formatMoney(value: MoneyInput, currency: string, hidden = false) {
-  if (hidden) return "••••";
-  const amount = D(value).toNumber();
-  return new Intl.NumberFormat("uk-UA", {
-    minimumFractionDigits: currency === "USDT" ? 2 : 2,
-    maximumFractionDigits: currency === "USDT" ? 4 : 2
-  }).format(amount) + ` ${currency}`;
-}
+const twoDigits = new Intl.NumberFormat("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Plain number with exactly 2 decimals (uk-UA grouping), no currency suffix. */
+/** Single source of truth for displayed numbers: always exactly 2 decimals (uk-UA grouping). */
 export function formatPlain(value: MoneyInput, hidden = false) {
   if (hidden) return "••••";
-  return new Intl.NumberFormat("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(D(value).toNumber());
+  return twoDigits.format(D(value).toNumber());
+}
+
+export function formatMoney(value: MoneyInput, currency: string, hidden = false) {
+  if (hidden) return "••••";
+  return `${formatPlain(value)} ${currency}`;
+}
+
+/** Explicit "+" for positive values, 2 decimals. */
+export function formatSigned(value: MoneyInput, hidden = false) {
+  if (hidden) return "••••";
+  const amount = D(value);
+  return `${amount.gt(0) ? "+" : ""}${formatPlain(amount)}`;
+}
+
+export function formatPercent(value: MoneyInput, hidden = false) {
+  if (hidden) return "••••";
+  return `${formatPlain(value)}%`;
+}
+
+export function formatSignedPercent(value: MoneyInput, hidden = false) {
+  if (hidden) return "••••";
+  return `${formatSigned(value)}%`;
 }

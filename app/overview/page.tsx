@@ -6,7 +6,7 @@ import { RangeAreaChart } from "@/components/range-area-chart";
 import { Card } from "@/components/ui/card";
 import { bankSeries } from "@/lib/bank-history";
 import { getDashboard } from "@/lib/dashboard";
-import { formatMoney, formatPlain } from "@/lib/money";
+import { formatMoney, formatPercent, formatPlain } from "@/lib/money";
 import { requireUserId } from "@/lib/session";
 
 const mobileLinks = [
@@ -32,7 +32,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
   const periodPnl = Number(data.totals.periodNetPnlUsdt);
   const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
   const tone = (value: number) => (value >= 0 ? "text-[hsl(var(--hero-pos))]" : "tone-neg text-[hsl(var(--hero-neg))]");
-  const signedUsdt = (value: string) => `${Number(value) > 0 ? "+" : ""}${formatMoney(Number(value).toFixed(2), "USDT", hidden)}`;
+  const signedUsdt = (value: string) => `${Number(value) > 0 ? "+" : ""}${formatMoney(value, "USDT", hidden)}`;
   const moveTone = (value: string) => (Number(value) > 0 ? "ok" : Number(value) < 0 ? "danger" : undefined);
   const turnover = [
     { label: "Steam", value: data.turnover.steamUsdt },
@@ -149,7 +149,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="font-medium">Ліміт витрат на місяць</span>
             <span className={overLimit ? "font-semibold text-danger" : "text-[hsl(var(--card-muted-foreground))]"}>
-              {Math.round((monthExpense / limit) * 100)}%
+              {formatPercent((monthExpense / limit) * 100)}
             </span>
           </div>
           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">

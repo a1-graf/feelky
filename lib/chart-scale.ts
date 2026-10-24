@@ -53,11 +53,11 @@ export function dayLabel(dateKey: string) {
   return `${dateKey.slice(8, 10)}.${dateKey.slice(5, 7)}`;
 }
 
-/** Short axis label: 150, -1,5k, 12k. */
+/** Short axis label, always 2 decimals: 150,00, -1,50k, 12,00k. */
 export function shortAxisValue(value: number) {
-  const abs = Math.abs(value);
-  if (abs >= 1000) return `${new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 1 }).format(value / 1000)}k`;
-  return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: abs < 10 ? 1 : 0 }).format(value);
+  const format = (n: number) => new Intl.NumberFormat("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  if (Math.abs(value) >= 1000) return `${format(value / 1000)}k`;
+  return format(value);
 }
 
 /** Round ticks around a value range that need not include zero (balances): e.g. 1 180..1 420 -> 1 150, 1 200, ... 1 450. */

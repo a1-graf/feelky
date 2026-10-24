@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatSigned } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 type Point = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
@@ -26,16 +26,16 @@ function BalanceTooltip({ active, payload, hidden, currency }: { active?: boolea
   return (
     <div className="rounded-md border border-border bg-card px-2 py-1 text-xs shadow">
       <div className="text-[hsl(var(--card-muted-foreground))]">{new Date(point.t).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" })}</div>
-      <div className="font-semibold tabular-nums">{formatMoney(point.balance.toFixed(2), currency, hidden)}</div>
+      <div className="font-semibold tabular-nums">{formatMoney(point.balance, currency, hidden)}</div>
       {point.label && (
         <div className="text-[hsl(var(--card-muted-foreground))]">
           {point.label}{" "}
-          {point.delta !== 0 && <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : `${point.delta > 0 ? "+" : ""}${point.delta.toFixed(2)}`}</span>}
+          {point.delta !== 0 && <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : formatSigned(point.delta)}</span>}
         </div>
       )}
       <div className="text-[hsl(var(--card-muted-foreground))]">
         Total{" "}
-        <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${point.total > 0 ? "+" : ""}${point.total.toFixed(2)}`}</span>
+        <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
       </div>
     </div>
   );

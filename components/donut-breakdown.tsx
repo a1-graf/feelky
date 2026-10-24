@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMoney, formatPercent } from "@/lib/money";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
@@ -12,14 +13,13 @@ const REST_COLOR = "#9aa1ad";
 
 function amountText(value: number, currency: string, hidden: boolean) {
   if (hidden) return "••••";
-  const digits = currency === "UAH" ? 0 : 2;
-  return `${new Intl.NumberFormat("uk-UA", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)} ${currency}`;
+  return formatMoney(value, currency);
 }
 
 function shareText(share: number, hidden: boolean) {
   if (hidden) return "••";
   const percent = share * 100;
-  return percent > 0 && percent < 1 ? "<1%" : `${Math.round(percent)}%`;
+  return formatPercent(percent);
 }
 
 // "Витрати · Машина" reads better with the group muted and the name in front.
@@ -137,7 +137,7 @@ export function DonutBreakdown({
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
               <span className="min-w-0 flex-1 truncate"><SliceName name={slice.name} /></span>
               <span className="shrink-0 font-medium tabular-nums">{amountText(slice.value, currency, hidden)}</span>
-              <span className="w-10 shrink-0 text-right tabular-nums text-[hsl(var(--card-muted-foreground))]">{shareText(slice.share, hidden)}</span>
+              <span className="w-14 shrink-0 text-right tabular-nums text-[hsl(var(--card-muted-foreground))]">{shareText(slice.share, hidden)}</span>
             </div>
             <div className={`ml-[18px] mt-1 h-1 overflow-hidden rounded-full bg-[hsl(var(--muted))] ${compact ? "hidden" : ""}`}>
               <div className="h-full rounded-full" style={{ width: `${Math.max(slice.scale * 100, 2)}%`, backgroundColor: slice.color }} />

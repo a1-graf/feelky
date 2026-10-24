@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { niceRange, shortAxisValue, timeTicks, zeroOffset } from "@/lib/chart-scale";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatSigned, formatSignedPercent } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
 /** One running-total series: `total` is the cumulative value at time `t`, `delta` what that event added. */
@@ -38,12 +38,12 @@ function Tip({ active, payload, hidden, currency, totalLabel, signed }: { active
     <div className="rounded-md border border-border bg-card px-2 py-1 text-xs shadow">
       <div className="text-[hsl(var(--card-muted-foreground))]">{new Date(point.t).toLocaleString("uk-UA", { timeZone: KYIV, dateStyle: "short", timeStyle: "short" })}</div>
       <div className="font-semibold tabular-nums">
-        {totalLabel} <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${levelSign(point.total)}${formatMoney(point.total.toFixed(2), currency)}`}</span>
+        {totalLabel} <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : `${levelSign(point.total)}${formatMoney(point.total, currency)}`}</span>
       </div>
       {point.delta !== 0 && (
         <div className="text-[hsl(var(--card-muted-foreground))]">
           {point.label ? `${point.label} ` : ""}
-          <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : `${sign(point.delta)}${point.delta.toFixed(2)}`}</span>
+          <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : formatSigned(point.delta)}</span>
         </div>
       )}
     </div>
@@ -134,7 +134,7 @@ export function RangeAreaChart({
   const strokeSplit = zeroOffset(low, high);
   const fillSplit = zeroOffset(Math.min(0, low), Math.max(0, high));
   const sign = (value: number) => (value > 0 ? "+" : "");
-  const changeText = hidden ? "••••" : `${sign(change)}${formatMoney(change.toFixed(2), currency)}`;
+  const changeText = hidden ? "••••" : `${sign(change)}${formatMoney(change, currency)}`;
   const percent = !signed && first && Math.abs(first.total) > 0.005 ? (change / Math.abs(first.total)) * 100 : null;
 
   return (
@@ -144,11 +144,11 @@ export function RangeAreaChart({
           {last && (
             <>
               {valueCaption && <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{valueCaption}</div>}
-              <div className="whitespace-nowrap text-xl font-bold leading-tight tabular-nums sm:text-2xl">{hidden ? "••••" : `${levelSign(last.total)}${formatMoney(last.total.toFixed(2), currency)}`}</div>
+              <div className="whitespace-nowrap text-xl font-bold leading-tight tabular-nums sm:text-2xl">{hidden ? "••••" : `${levelSign(last.total)}${formatMoney(last.total, currency)}`}</div>
               {showChange && (
                 <div className={`text-xs font-medium tabular-nums ${change > 0 ? "text-success" : change < 0 ? "text-danger" : "text-[hsl(var(--card-muted-foreground))]"}`}>
                   {changeText}
-                  {percent != null && !hidden && ` (${sign(percent)}${percent.toFixed(1)}%)`}
+                  {percent != null && !hidden && ` (${formatSignedPercent(percent)})`}
                   <span className="font-normal text-[hsl(var(--card-muted-foreground))]"> {changePhrase}</span>
                 </div>
               )}
@@ -223,7 +223,7 @@ export function RangeAreaChart({
                   domain={minimal ? [low - minimalPad, high + minimalPad] : scale.domain}
                   ticks={minimal ? undefined : scale.ticks}
                   interval={0}
-                  width={44}
+                  width={56}
                 />
                 <Tooltip content={<Tip hidden={hidden} currency={currency} totalLabel={totalLabel} signed={signed} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
                 {signed && scale.domain[0] < 0 && <ReferenceLine y={0} stroke="hsl(var(--foreground) / 0.3)" />}

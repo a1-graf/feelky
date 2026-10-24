@@ -8,7 +8,7 @@ import { RangeAreaChart } from "@/components/range-area-chart";
 import { TransactionList } from "@/components/transaction-list";
 import { Card } from "@/components/ui/card";
 import { getIncomePage } from "@/lib/income";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPlain } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/chart-colors";
 import { chartPresetFor } from "@/lib/period";
 import { requireUserId } from "@/lib/session";
@@ -30,7 +30,7 @@ export default async function IncomePage({ searchParams }: { searchParams?: Prom
         <Card className="col-span-2 border-success/30 bg-success/10 p-3.5 sm:p-4 md:col-span-1">
           <div className="text-[11px] font-medium text-success sm:text-[13px]">Всього доходу</div>
           <div className="mt-1 text-xl font-bold tabular-nums text-success sm:text-2xl">{formatMoney(totals.totalUsdt, "USDT", hidden)}</div>
-          <div className="mt-1 text-xs text-[hsl(var(--card-muted-foreground))]">UAH + USDT за курсом {Number(data.rate).toFixed(2)}</div>
+          <div className="mt-1 text-xs text-[hsl(var(--card-muted-foreground))]">UAH + USDT за курсом {formatPlain(data.rate)}</div>
         </Card>
         <Card className="p-3.5 sm:p-4">
           <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))] sm:text-[13px]">Прийшло в UAH</div>

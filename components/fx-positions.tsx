@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPlain, formatSigned } from "@/lib/money";
 import type { summarizeFx } from "@/lib/fx-stats";
 
 type Trade = ReturnType<typeof summarizeFx>["trades"][number];
@@ -10,7 +10,7 @@ type Trade = ReturnType<typeof summarizeFx>["trades"][number];
 const PREVIEW = 5;
 
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
-const signed = (value: string) => (Number(value) > 0 ? `+${value}` : value);
+const signed = (value: string) => formatSigned(value);
 const formatR = (r: string | null, hidden: boolean) => (hidden ? "****" : r == null ? "—" : `${signed(r)}R`);
 const formatDate = (iso: string) => new Date(iso).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" });
 
@@ -53,12 +53,12 @@ export function FxPositions({ trades, currency, hidden = false }: { trades: Trad
                     <td className={td}>
                       <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium">{trade.side === "BUY" ? "BUY" : "SELL"}</span>
                     </td>
-                    <td className={`${td} text-right`}>{trade.lots ?? "—"}</td>
+                    <td className={`${td} text-right`}>{trade.lots == null ? "—" : formatPlain(trade.lots)}</td>
                     <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>
-                      {trade.openPrice && trade.closePrice ? `${trade.openPrice} → ${trade.closePrice}` : "—"}
+                      {trade.openPrice && trade.closePrice ? `${formatPlain(trade.openPrice)} → ${formatPlain(trade.closePrice)}` : "—"}
                     </td>
                     <td className={`${td} text-right font-semibold ${trade.r == null ? "" : tone(trade.r)}`}>{formatR(trade.r, hidden)}</td>
-                    <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{hidden ? "****" : trade.riskR == null ? "—" : `${trade.riskR}R`}</td>
+                    <td className={`${td} text-right text-[hsl(var(--card-muted-foreground))]`}>{hidden ? "****" : trade.riskR == null ? "—" : `${formatPlain(trade.riskR)}R`}</td>
                     <td className={`${td} text-right font-semibold ${tone(trade.pnl)}`}>{formatMoney(trade.pnl, currency, hidden)}</td>
                   </tr>
                 ))}
