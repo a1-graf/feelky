@@ -1,7 +1,7 @@
 ﻿import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, RateMode, TransactionType } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
-import { buildBankHistory } from "@/lib/bank-history";
+import { bankChange, buildBankHistory } from "@/lib/bank-history";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
 import { D } from "@/lib/money";
@@ -316,9 +316,17 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     })),
     steamWithdrawals
   });
+  // The bank's growth over the chosen period vs. the period's result (income - expenses + Aurum, Poly, flips):
+  // the rest is money that moved without being earned - deposits, manual balance corrections, rate effects.
+  const periodBankChangeUsdt = D(bankChange(bankHistory, "total", period.from.getTime(), period.to.getTime()));
+  const periodOtherUsdt = periodBankChangeUsdt.minus(periodNetPnlUsdt);
+
   return {
     period: {
       label: period.label,
+      phrase: period.phrase,
+      fromMs: period.from.getTime(),
+      toMs: period.to.getTime(),
       rangeLabel: period.rangeLabel,
       key: period.key,
       month: period.month,
@@ -369,6 +377,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       monthExpenseUah: monthExpenseUah.toString(),
       netPnlUsdt: netPnlUsdt.toString(),
       periodNetPnlUsdt: periodNetPnlUsdt.toString(),
+      periodBankChangeUsdt: periodBankChangeUsdt.toFixed(2),
+      periodOtherUsdt: periodOtherUsdt.toFixed(2),
       periodGrossUsdt: periodGrossUsdt.toString(),
       periodFxUsdt: periodFxUsdt.toString(),
       periodPolyUsdt: periodPolyUsdt.toString(),

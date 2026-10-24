@@ -62,12 +62,15 @@ export function resolvePeriod(input: PeriodInput = {}, now = new Date()) {
     label = new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(from);
   }
 
+  const phrase = key === "all" ? "за весь час" : key === "month" || key === "custom" ? `за ${label}` : `за останні ${PERIOD_PRESETS.find((entry) => entry.key === key)!.days} дн.`;
+
   return {
     key,
     month,
     from,
     to,
     label,
+    phrase,
     rangeLabel: key === "all" ? "весь час" : `${dayFormatter.format(from)} - ${dayFormatter.format(to)}`,
     range: { gte: from, lte: to }
   };

@@ -28,6 +28,12 @@ describe("resolvePeriod", () => {
     expect(resolvePeriod({ month: "2026-13" }, now).key).toBe("month");
   });
 
+  it("words the period for captions", () => {
+    expect(resolvePeriod({}, now).phrase).toBe(`за ${resolvePeriod({}, now).label}`);
+    expect(resolvePeriod({ period: "3m" }, now).phrase).toBe("за останні 90 дн.");
+    expect(resolvePeriod({ period: "all" }, now).phrase).toBe("за весь час");
+  });
+
   it("maps periods to chart presets", () => {
     expect(chartPresetFor("12m")).toBe("1y");
     expect(chartPresetFor("custom")).toBe("all");

@@ -118,3 +118,19 @@ export function buildBankHistory(input: BankHistoryInput): BankPoint[] {
 export function bankSeries(points: BankPoint[], key: "total" | "available" | "turnover"): RangePoint[] {
   return points.map((point, index) => ({ t: point.t, total: point[key], delta: index ? point[key] - points[index - 1][key] : 0 }));
 }
+
+/** The bank series value at one moment: the last point at or before `t`; before the history starts, its first value. */
+export function bankValueAt(points: BankPoint[], key: "total" | "available" | "turnover", t: number): number {
+  if (!points.length) return 0;
+  let value = points[0][key];
+  for (const point of points) {
+    if (point.t > t) break;
+    value = point[key];
+  }
+  return value;
+}
+
+/** How much a bank series grew between two moments (the same window the chart's "Період" button shows). */
+export function bankChange(points: BankPoint[], key: "total" | "available" | "turnover", from: number, to: number): number {
+  return bankValueAt(points, key, to) - bankValueAt(points, key, from);
+}

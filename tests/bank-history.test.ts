@@ -67,3 +67,23 @@ describe("bankSeries", () => {
     expect(bankSeries(points, "available")).toEqual([{ t: 1, total: 4, delta: 0 }, { t: 2, total: 3, delta: -1 }]);
   });
 });
+
+describe("bankChange", () => {
+  const points = [
+    { t: 100, total: 50, available: 50, turnover: 0 },
+    { t: 200, total: 150, available: 100, turnover: 50 },
+    { t: 300, total: 130, available: 80, turnover: 50 }
+  ];
+
+  it("is the difference of the values at the window edges", async () => {
+    const { bankChange } = await import("@/lib/bank-history");
+    expect(bankChange(points, "total", 150, 400)).toBe(80);
+    expect(bankChange(points, "turnover", 150, 250)).toBe(50);
+  });
+
+  it("starts from the first known value when the window opens before the history", async () => {
+    const { bankChange } = await import("@/lib/bank-history");
+    expect(bankChange(points, "total", 0, 400)).toBe(80);
+    expect(bankChange([], "total", 0, 400)).toBe(0);
+  });
+});
