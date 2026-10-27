@@ -69,14 +69,20 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               курс {formatPlain(data.rate)} <span className="text-[11px] font-medium text-white/70">UAH/USDT</span>
             </div>
           </div>
-          <div className="mt-3 text-center">
-            <div className="break-words text-5xl font-extrabold leading-none tracking-tight tabular-nums sm:text-6xl">
-              {formatPlain(data.totals.availableBankUsdt, hidden)}
-              <span className="ml-2 text-lg font-bold tracking-wide text-white/70 sm:text-xl">USDT</span>
+          <div className="mt-2 flex flex-wrap items-start gap-x-3 gap-y-2">
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
+                {formatPlain(data.totals.availableBankUsdt, hidden)}
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
             </div>
-            <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
-            <div className="mt-1 text-xs tabular-nums text-white/55">
-              потенційно {formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)} · ≈ {asUah(data.totals.potentialBankUsdt)}
+            <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-[hsl(var(--hero-accent))] sm:text-5xl">
+                {formatPlain(data.totals.potentialBankUsdt, hidden)}
+                <span className="ml-2 text-base font-semibold text-[hsl(var(--hero-accent)/0.6)]">USDT</span>
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
             </div>
           </div>
 
