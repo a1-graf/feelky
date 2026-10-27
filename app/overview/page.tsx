@@ -125,7 +125,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
 
       <Card className="mt-3">
         <div className="mb-2 font-semibold">Загальний банк</div>
-        <RangeAreaChart data={bankSeries(data.bankHistory, "total")} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" minimal />
+        <RangeAreaChart data={bankSeries(data.bankHistory, "total")} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" minimal smooth />
       </Card>
 
       <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
