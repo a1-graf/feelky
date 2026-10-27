@@ -28,7 +28,6 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
   const limit = Number(data.settings?.monthlyExpenseLimit?.toString() || 0);
   const limitRatio = limit > 0 ? Math.min(1, monthExpense / limit) : 0;
   const overLimit = limit > 0 && monthExpense > limit;
-  const netPnl = Number(data.totals.netPnlUsdt);
   const periodPnl = Number(data.totals.periodNetPnlUsdt);
   const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
   const tone = (value: number) => (value >= 0 ? "text-[hsl(var(--hero-pos))]" : "tone-neg text-[hsl(var(--hero-neg))]");
@@ -49,6 +48,17 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
 
   return (
     <>
+      <div className="mb-3">
+        <PeriodPicker
+          basePath="/overview"
+          period={data.period}
+          presets={["week", "month", "3m", "all"]}
+        />
+        <div className="mt-1.5 px-1 text-xs text-[hsl(var(--card-muted-foreground))]">
+          Чистий PnL, прибутки й плашки нижче — за період: <span className="font-semibold text-[hsl(var(--card-foreground))]">{data.period.label}</span>. Банк, оборот і заморожене — на зараз.
+        </div>
+      </div>
+
       <div className="hero-gradient relative overflow-hidden rounded-3xl p-5 text-[hsl(var(--hero-fg))] shadow-soft sm:p-7">
         <div className="hero-blob pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
         <div className="hero-blob pointer-events-none absolute -bottom-28 right-16 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
@@ -59,48 +69,49 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               курс {formatPlain(data.rate)} <span className="text-[11px] font-medium text-white/70">UAH/USDT</span>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-start gap-x-3 gap-y-2">
-            <div>
-              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
-                {formatPlain(data.totals.availableBankUsdt, hidden)}
-              </div>
-              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
+          <div className="mt-3 text-center">
+            <div className="break-words text-5xl font-extrabold leading-none tracking-tight tabular-nums sm:text-6xl">
+              {formatPlain(data.totals.availableBankUsdt, hidden)}
+              <span className="ml-2 text-lg font-bold tracking-wide text-white/70 sm:text-xl">USDT</span>
             </div>
-            <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
-            <div>
-              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-[hsl(var(--hero-accent))] sm:text-5xl">
-                {formatPlain(data.totals.potentialBankUsdt, hidden)}
-                <span className="ml-2 text-base font-semibold text-[hsl(var(--hero-accent)/0.6)]">USDT</span>
-              </div>
-              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
+            <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
+            <div className="mt-1 text-xs tabular-nums text-white/55">
+              потенційно {formatMoney(data.totals.potentialBankUsdt, "USDT", hidden)} · ≈ {asUah(data.totals.potentialBankUsdt)}
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-[hsl(var(--hero-accent))]">В обороті</div>
-              <div className="mt-0.5 text-base font-extrabold tabular-nums text-[hsl(var(--hero-accent-soft))]">{formatMoney(data.turnover.totalUsdt, "USDT", hidden)}</div>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-2xl font-extrabold tabular-nums text-[hsl(var(--hero-accent-soft))]">{formatPlain(data.turnover.totalUsdt, hidden)}</span>
+                <span className="text-xs font-semibold text-white/60">USDT</span>
+              </div>
               <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.turnover.totalUsdt)}</div>
-              <div className="mt-1.5 flex flex-wrap gap-1">
+              <div className="mt-2 grid grid-cols-3 gap-1">
                 {turnover.map((item) => (
-                  <span key={item.label} className="rounded-md bg-black/15 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white/85">
-                    {item.label} {formatPlain(item.value, hidden)}
-                  </span>
+                  <div key={item.label} className="min-w-0 rounded-md bg-black/15 px-1.5 py-1 text-center">
+                    <div className="truncate text-[10px] font-medium text-white/65">{item.label}</div>
+                    <div className="text-[11px] font-semibold tabular-nums text-white/90">{formatPlain(item.value, hidden)}</div>
+                  </div>
                 ))}
               </div>
             </div>
-            <div className="px-1 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-white/60">❄️ Заморожено</div>
-              <div className="mt-0.5 text-base font-semibold tabular-nums text-white/90">{formatMoney(data.totals.frozenTotalUsdt, "USDT", hidden)}</div>
+            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">❄️ Заморожено</div>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-2xl font-extrabold tabular-nums text-white">{formatPlain(data.totals.frozenTotalUsdt, hidden)}</span>
+                <span className="text-xs font-semibold text-white/60">USDT</span>
+              </div>
               <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.totals.frozenTotalUsdt)}</div>
             </div>
-            <div className="px-1 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-white/60">Чистий PnL</div>
-              <div className={`mt-0.5 text-base font-semibold tabular-nums ${tone(netPnl)}`}>{signed(netPnl)} USDT</div>
-              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(String(netPnl))}</div>
-              <div className="mt-0.5 text-xs tabular-nums text-white/70">
-                за {data.period.label}: <span className={`font-semibold ${tone(periodPnl)}`}>{signed(periodPnl)}</span>
+            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">Чистий PnL · {data.period.label}</div>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className={`text-2xl font-extrabold tabular-nums ${tone(periodPnl)}`}>{signed(periodPnl)}</span>
+                <span className="text-xs font-semibold text-white/60">USDT</span>
               </div>
+              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(String(periodPnl))}</div>
             </div>
           </div>
         </div>
@@ -117,17 +128,6 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
             {link.label}
           </Link>
         ))}
-      </div>
-
-      <div className="mt-3">
-        <PeriodPicker
-          basePath="/overview"
-          period={data.period}
-          presets={["week", "month", "3m", "all"]}
-        />
-        <div className="mt-1.5 px-1 text-xs text-[hsl(var(--card-muted-foreground))]">
-          Банк зверху — на зараз, усе нижче — за період: <span className="font-semibold text-[hsl(var(--card-foreground))]">{data.period.label}</span>
-        </div>
       </div>
 
       <div className="mt-4">
