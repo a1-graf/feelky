@@ -15,6 +15,29 @@ const mobileLinks = [
   { href: "/steam", label: "Steam" }
 ];
 
+function HeroStat({ title, titleClass, valueClass, value, sub, children }: { title: string; titleClass: string; valueClass: string; value: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col rounded-xl bg-white/12 px-3 py-3 ring-1 ring-white/20">
+      <div className={`text-center text-[11px] font-semibold uppercase tracking-wide ${titleClass}`}>{title}</div>
+      <div className="mt-2 flex items-baseline justify-center gap-1.5">
+        <span className={`text-4xl font-extrabold leading-none tabular-nums ${valueClass}`}>{value}</span>
+        <span className="text-xs font-semibold text-white/60">USDT</span>
+      </div>
+      <div className="mt-1.5 text-center text-xs tabular-nums text-white/70">{sub}</div>
+      <div className="mt-3 grid grid-cols-3 gap-1">{children}</div>
+    </div>
+  );
+}
+
+function HeroTile({ label, value, style = "bg-black/15 text-white/90" }: { label: string; value: string; style?: string }) {
+  return (
+    <div className={`min-w-0 rounded-md px-1.5 py-1.5 text-center ${style}`}>
+      <div className="truncate text-[10px] font-medium opacity-80">{label}</div>
+      <div className="text-[11px] font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
 /** The one main page: the bank right now on top, then everything about the chosen period. */
 export default async function OverviewPage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
   const userId = await requireUserId();
@@ -38,6 +61,12 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
     { label: "Aurum", value: data.turnover.aurumUsdt },
     { label: "Polymarket", value: data.turnover.polyUsdt }
   ];
+
+  const turnoverStyle: Record<string, string> = {
+    Steam: "bg-[#1e3a8a] text-white",
+    Aurum: "bg-[#d4a62a] text-[#2a2008]",
+    Polymarket: "bg-[#38bdf8] text-[#06283d]"
+  };
 
   const accounts = [
     { icon: "💵", label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), sub: asUah(data.totals.cryptoTotal) },
@@ -87,38 +116,21 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[hsl(var(--hero-accent))]">В обороті</div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold tabular-nums text-[hsl(var(--hero-accent-soft))]">{formatPlain(data.turnover.totalUsdt, hidden)}</span>
-                <span className="text-xs font-semibold text-white/60">USDT</span>
-              </div>
-              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.turnover.totalUsdt)}</div>
-              <div className="mt-2 grid grid-cols-3 gap-1">
-                {turnover.map((item) => (
-                  <div key={item.label} className="min-w-0 rounded-md bg-black/15 px-1.5 py-1 text-center">
-                    <div className="truncate text-[10px] font-medium text-white/65">{item.label}</div>
-                    <div className="text-[11px] font-semibold tabular-nums text-white/90">{formatPlain(item.value, hidden)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">❄️ Заморожено</div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold tabular-nums text-white">{formatPlain(data.totals.frozenTotalUsdt, hidden)}</span>
-                <span className="text-xs font-semibold text-white/60">USDT</span>
-              </div>
-              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(data.totals.frozenTotalUsdt)}</div>
-            </div>
-            <div className="rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/75">Чистий PnL · {data.period.label}</div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className={`text-2xl font-extrabold tabular-nums ${tone(periodPnl)}`}>{signed(periodPnl)}</span>
-                <span className="text-xs font-semibold text-white/60">USDT</span>
-              </div>
-              <div className="mt-0.5 text-xs tabular-nums text-white/70">≈ {asUah(String(periodPnl))}</div>
-            </div>
+            <HeroStat title="В обороті" titleClass="text-[hsl(var(--hero-accent))]" valueClass="text-[hsl(var(--hero-accent-soft))]" value={formatPlain(data.turnover.totalUsdt, hidden)} sub={`≈ ${asUah(data.turnover.totalUsdt)}`}>
+              {turnover.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={formatPlain(item.value, hidden)} style={turnoverStyle[item.label]} />
+              ))}
+            </HeroStat>
+            <HeroStat title="❄️ Заморожено" titleClass="text-white/75" valueClass="text-white" value={formatPlain(data.totals.frozenTotalUsdt, hidden)} sub={`≈ ${asUah(data.totals.frozenTotalUsdt)}`}>
+              {data.totals.frozenBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Чистий PnL" titleClass="text-white/75" valueClass={tone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              {data.totals.pnlBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(Number(item.value))} />
+              ))}
+            </HeroStat>
           </div>
         </div>
       </div>
