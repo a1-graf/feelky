@@ -37,6 +37,17 @@ export async function resolveUahUsdtRate(userId: string) {
   return { rate: new Decimal(40), source: "Fallback market provider" };
 }
 
+// Three tiles that explain a headline number: the biggest parts, the rest folded into "Інше".
+function topThree(items: { label: string; value: Decimal }[], byAbs = false): { label: string; value: string }[] {
+  const weight = (value: Decimal) => (byAbs ? value.abs() : value);
+  const sorted = items.filter((item) => !item.value.isZero()).sort((a, b) => weight(b.value).comparedTo(weight(a.value)));
+  const shown = sorted.length > 3 ? sorted.slice(0, 2) : sorted;
+  const rest = sorted.length > 3 ? sorted.slice(2).reduce((sum, item) => sum.plus(item.value), new Decimal(0)) : null;
+  const result = shown.map((item) => ({ label: item.label, value: item.value.toString() }));
+  if (rest) result.push({ label: "Інше", value: rest.toString() });
+  return result;
+}
+
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
   const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
@@ -134,6 +145,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     return sum.plus(item.amount);
   }, new Decimal(0));
   const frozenTotalUsdt = frozenCrypto.plus(potentialExpected);
+  const frozenBreakdown = topThree([
+    ...frozenFunds.filter((fund) => fund.currency === "USDT").map((fund) => ({ label: fund.note?.trim() || "Заморожено", value: D(fund.amount) })),
+    ...expectedMoney.map((item) => ({ label: item.title, value: item.currency === "UAH" ? D(item.amount).div(rate) : D(item.amount) }))
+  ]);
   const steamFrozenCapital = D(steam.totals.frozenCapital);
   // Principal locked in Polymarket AI agents left the pool but is still the user's money, like Steam turnover.
   const polyLockedUsdt = polyLocks.filter((lock) => lock.status === "LOCKED").reduce((sum, lock) => sum.plus(lock.amountUsd), new Decimal(0));
@@ -260,6 +275,13 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const periodFxUsdt = sumResults(periodResults.filter((event) => event.kind === "fx"));
   const periodPolyUsdt = sumResults(periodResults.filter((event) => event.kind === "poly"));
   const periodSteamUsdt = sumResults(periodResults.filter((event) => /^steam/i.test(event.source)));
+  const pnlBySource = new Map<string, Decimal>();
+  for (const event of periodResults) {
+    if (event.kind === "expense" || !event.source) continue;
+    const label = /^steam/i.test(event.source) ? "Steam" : event.source;
+    pnlBySource.set(label, D(pnlBySource.get(label) || 0).plus(event.net));
+  }
+  const pnlBreakdown = topThree(Array.from(pnlBySource, ([label, value]) => ({ label, value })), true);
   let runningNet = new Decimal(0);
   const pnlTimeline = resultEvents.map((event) => {
     runningNet = runningNet.plus(event.net);
@@ -364,6 +386,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       availableCrypto: availableCrypto.toString(),
       frozenCrypto: frozenCrypto.toString(),
       frozenTotalUsdt: frozenTotalUsdt.toString(),
+      frozenBreakdown,
+      pnlBreakdown,
       cardUah: cardUah.toString(),
       cashUah: cashUah.toString(),
       cashUsd: cashUsd.toString(),
