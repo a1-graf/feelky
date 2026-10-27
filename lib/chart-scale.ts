@@ -92,3 +92,23 @@ export function zeroOffset(low: number, high: number) {
   if (low >= 0) return 1;
   return high / (high - low);
 }
+
+/**
+ * Turns an event-driven running series (steps at irregular moments) into an evenly spaced one, so the curve
+ * flows instead of spiking: each step becomes a short ramp. The first and last points keep their exact values.
+ */
+export function resampleSeries<T extends { t: number; total: number }>(points: T[], buckets = 80): { t: number; total: number; delta: number }[] {
+  if (points.length < 2 || buckets < 2) return points.map((point, index) => ({ t: point.t, total: point.total, delta: index ? point.total - points[index - 1].total : 0 }));
+  const start = points[0].t;
+  const end = points[points.length - 1].t;
+  if (end <= start) return points.map((point) => ({ t: point.t, total: point.total, delta: 0 }));
+  const result: { t: number; total: number; delta: number }[] = [];
+  let cursor = 0;
+  for (let index = 0; index <= buckets; index += 1) {
+    const t = index === buckets ? end : start + ((end - start) * index) / buckets;
+    while (cursor + 1 < points.length && points[cursor + 1].t <= t) cursor += 1;
+    const total = index === buckets ? points[points.length - 1].total : points[cursor].total;
+    result.push({ t, total, delta: index ? total - result[index - 1].total : 0 });
+  }
+  return result;
+}

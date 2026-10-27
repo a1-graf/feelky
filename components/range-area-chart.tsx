@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { niceRange, shortAxisValue, timeTicks, zeroOffset } from "@/lib/chart-scale";
+import { niceRange, resampleSeries, shortAxisValue, timeTicks, zeroOffset } from "@/lib/chart-scale";
 import { formatMoney, formatSigned, formatSignedPercent } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 
@@ -66,6 +66,7 @@ export function RangeAreaChart({
   color,
   showChange = true,
   minimal = false,
+  smooth = false,
   periodStart,
   periodEnd,
   periodPhrase,
@@ -81,6 +82,8 @@ export function RangeAreaChart({
   color?: string;
   showChange?: boolean;
   minimal?: boolean;
+  /** Resample into even time steps so the line flows like Polymarket instead of spiking at each event. */
+  smooth?: boolean;
   /** The page period as a window button («Період»): the header change then equals the figure the page shows for that period. */
   periodStart?: number;
   periodEnd?: number;
@@ -107,12 +110,13 @@ export function RangeAreaChart({
     const windowStart = before ? start : Math.max(start, inside[0].t);
     const startTotal = before ? before.total : (inside[0].total - inside[0].delta);
     const lastTotal = inside[inside.length - 1]?.total ?? startTotal;
-    return [
+    const raw = [
       { t: windowStart, total: startTotal, delta: 0 },
       ...inside,
       { t: Math.max(end, inside[inside.length - 1]?.t ?? windowStart), total: lastTotal, delta: 0 }
     ];
-  }, [data, activePreset, now, periodStart, periodEnd]);
+    return smooth ? resampleSeries(raw, 80) : raw;
+  }, [data, activePreset, now, periodStart, periodEnd, smooth]);
 
   const values = points.map((point) => point.total);
   const low = values.length ? Math.min(...values) : 0;

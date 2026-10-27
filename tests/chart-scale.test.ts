@@ -67,3 +67,15 @@ describe("zeroOffset", () => {
     expect(zeroOffset(-20, -10)).toBe(0);
   });
 });
+
+describe("resampleSeries", () => {
+  it("spreads steps over even time slots and keeps the end values", async () => {
+    const { resampleSeries } = await import("@/lib/chart-scale");
+    const result = resampleSeries([{ t: 0, total: 10 }, { t: 10, total: 10 }, { t: 11, total: 50 }, { t: 100, total: 50 }], 10);
+    expect(result).toHaveLength(11);
+    expect(result[0]).toMatchObject({ t: 0, total: 10 });
+    expect(result[10]).toMatchObject({ t: 100, total: 50 });
+    expect(result.map((point) => point.t)).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    expect(Math.max(...result.map((point) => point.delta))).toBe(40);
+  });
+});
