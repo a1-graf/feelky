@@ -14,6 +14,7 @@ import {
   PiggyBank,
   Settings,
   Snowflake,
+  Split,
   Target,
   TrendingUp,
   Wallet
@@ -31,6 +32,7 @@ export type NavIcon =
   | "savings"
   | "flips"
   | "fx"
+  | "forks"
   | "poly"
   | "steam"
   | "archive"
@@ -66,6 +68,7 @@ const icons: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
   savings: PiggyBank,
   flips: TrendingUp,
   fx: CandlestickChart,
+  forks: Split,
   poly: Target,
   steam: SteamIcon,
   archive: Archive,
@@ -127,7 +130,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
   const { isActive, onNavigate } = useOptimisticActive(pathname);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/90 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl md:hidden">
-      <div className="grid grid-cols-5">
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
         {items.map((slot) => {
           const active = isActive(slot.href);
           const Icon = icons[slot.icon];

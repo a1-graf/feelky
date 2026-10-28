@@ -11,6 +11,7 @@ import { requireUserId } from "@/lib/session";
 
 const mobileLinks = [
   { href: "/fx", label: "FX" },
+  { href: "/forks", label: "Вилки" },
   { href: "/poly", label: "Polymarket" },
   { href: "/steam", label: "Steam" }
 ];
@@ -140,7 +141,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
         <RangeAreaChart data={bankSeries(data.bankHistory, "total")} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" minimal smooth />
       </Card>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 md:hidden">
+      <div className="mt-3 grid grid-cols-4 gap-2 md:hidden">
         {mobileLinks.map((link) => (
           <Link key={link.href} href={link.href} className="flex min-h-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 px-2 py-2.5 text-center text-xs font-semibold text-primary shadow-card active:bg-muted">
             {link.label}

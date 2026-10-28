@@ -26,6 +26,7 @@ const TABLES: Record<string, Delegate> = {
   Transaction: delegate(prisma.transaction),
   Flip: delegate(prisma.flip),
   FxTrade: delegate(prisma.fxTrade),
+  ForkTrade: delegate(prisma.forkTrade),
   PolyTrade: delegate(prisma.polyTrade),
   PolyLock: delegate(prisma.polyLock),
   ExpectedMoney: delegate(prisma.expectedMoney),
