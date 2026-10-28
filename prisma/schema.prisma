@@ -26,6 +26,11 @@ enum AccountType {
   BROKER
 }
 
+enum ForkStatus {
+  OPEN
+  SETTLED
+}
+
 enum FxSide {
   BUY
   SELL
@@ -146,6 +151,7 @@ model User {
   flips                     Flip[]
   telegramSessions          TelegramSession[]
   fxTrades                  FxTrade[]
+  forkTrades                ForkTrade[]
   polyTrades                PolyTrade[]
   polyLocks                 PolyLock[]
 }
@@ -664,4 +670,40 @@ model PolyLock {
 
   @@index([userId, status])
   @@index([userId, agentName])
+}
+
+/// One arbitrage fork (1win <-> Polymarket, via Bagira). Standalone journal: it posts nothing to any account,
+/// the money lives at the bookmakers. `externalId` is the stable id from the vilky journal.
+model ForkTrade {
+  id         String     @id @default(cuid())
+  userId     String
+  externalId String
+  status     ForkStatus @default(SETTLED)
+  /// When the fork was placed (match time from Bagira).
+  placedAt   DateTime
+  sport      String?
+  match      String
+  tags       String[]
+  leg1Book   String
+  leg1Pick   String
+  leg1Odds   Decimal    @db.Decimal(10, 4)
+  leg1Stake  Decimal    @db.Decimal(18, 6)
+  leg2Book   String
+  leg2Pick   String
+  leg2Odds   Decimal    @db.Decimal(10, 4)
+  leg2Stake  Decimal    @db.Decimal(18, 6)
+  /// Both stakes together (USD).
+  total      Decimal    @db.Decimal(18, 6)
+  /// Gross result before Bagira's 40%; null while the fork is open.
+  pnl        Decimal?   @db.Decimal(18, 6)
+  /// Guaranteed minimum of an open fork.
+  guaranteed Decimal?   @db.Decimal(18, 6)
+  note       String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId, placedAt])
+  @@index([userId, status])
 }

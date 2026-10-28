@@ -29,6 +29,7 @@ const navSections: readonly NavSection[] = [
     items: [
       { href: "/flips", label: "Фліпи", icon: "flips" },
       { href: "/fx", label: "Форекс", icon: "fx" },
+      { href: "/forks", label: "Вилки", icon: "forks" },
       { href: "/poly", label: "Polymarket", icon: "poly" },
       { href: "/steam", label: "Steam", icon: "steam" }
     ]
