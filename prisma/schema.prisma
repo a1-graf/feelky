@@ -152,7 +152,6 @@ model User {
   telegramSessions          TelegramSession[]
   fxTrades                  FxTrade[]
   forkTrades                ForkTrade[]
-  forkBonuses               ForkBonus[]
   polyTrades                PolyTrade[]
   polyLocks                 PolyLock[]
 }
@@ -707,19 +706,4 @@ model ForkTrade {
   @@unique([userId, externalId])
   @@index([userId, placedAt])
   @@index([userId, status])
-}
-
-/// Extra income from the fork project (1win bonuses, promos, cashback...). Stated by the owner, 100% ours (no Bagira cut).
-/// `amount` is signed: a clawed-back bonus is a negative row.
-model ForkBonus {
-  id         String   @id @default(cuid())
-  userId     String
-  amount     Decimal  @db.Decimal(18, 6)
-  receivedAt DateTime
-  note       String?
-  createdAt  DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, receivedAt])
 }
