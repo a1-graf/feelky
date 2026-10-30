@@ -69,8 +69,8 @@ export function ForksStatistics({ stats, allTime, series, bonus, period, hidden 
           <Tile label="Весь час · нам чистими" value={signedMoney(allTime.net, hidden)} className={tone(allTime.net)} sub={`Багірі ${formatMoney(allTime.bagiraFee, "USD", hidden)}`} />
           {bonus.allTime.count > 0 && (
             <>
-              <Tile label="Весь час · бонуси" value={signedMoney(bonus.allTime.total, hidden)} className={tone(bonus.allTime.total)} sub={`${bonus.allTime.count} зап.`} />
-              <Tile label="Весь час · нам з бонусами" value={signedMoney(bonus.allTime.netWithBonus, hidden)} className={tone(bonus.allTime.netWithBonus)} />
+              <Tile label="Весь час · доп. дохід" value={signedMoney(bonus.allTime.total, hidden)} className={tone(bonus.allTime.total)} sub={`${bonus.allTime.count} зап.`} />
+              <Tile label="Весь час · нам з доп. доходом" value={signedMoney(bonus.allTime.netWithBonus, hidden)} className={tone(bonus.allTime.netWithBonus)} />
             </>
           )}
           <div className="col-span-2">
@@ -93,7 +93,7 @@ export function ForksStatistics({ stats, allTime, series, bonus, period, hidden 
             <Tile label="Прибуток" value={signedMoney(stats.pnl, hidden)} className={tone(stats.pnl)} />
             <Tile label="Нам чистими" value={signedMoney(stats.net, hidden)} className={tone(stats.net)} />
             <Tile label="Комісія Багіри 40%" value={formatMoney(stats.bagiraFee, "USD", hidden)} />
-            {bonus.period.count > 0 && <Tile label="Бонуси" value={signedMoney(bonus.period.total, hidden)} className={tone(bonus.period.total)} sub={`з бонусами ${signedMoney(bonus.period.netWithBonus, hidden)}`} />}
+            {bonus.period.count > 0 && <Tile label="Доп. дохід" value={signedMoney(bonus.period.total, hidden)} className={tone(bonus.period.total)} sub={`з доходом ${signedMoney(bonus.period.netWithBonus, hidden)}`} />}
             <Tile label="Вилок" value={String(stats.count)} sub={hidden ? undefined : `${stats.wins} плюс / ${stats.losses} мінус`} />
             <Tile label="Обіг" value={formatMoney(stats.turnover, "USD", hidden)} />
             <Tile label="Win-rate" value={hidden ? "••••" : formatPercent(stats.winRate)} />
@@ -119,12 +119,12 @@ export function ForksStatistics({ stats, allTime, series, bonus, period, hidden 
 
       {bonus.items.length > 0 && (
         <Card className="mt-4">
-          <div className="mb-3 font-semibold">Доп. дохід (бонуси)</div>
+          <div className="mb-3 font-semibold">Доп. дохід (джерело «Вилки»)</div>
           <div className="grid gap-2">
             {bonus.items.map((item) => (
               <div key={item.id} className="flex items-baseline justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
                 <div className="min-w-0">
-                  <div className="truncate">{item.note ?? "Бонус"}</div>
+                  <div className="truncate">{item.note ?? "Дохід"}</div>
                   <div className="text-xs text-[hsl(var(--card-muted-foreground))]">{new Date(item.receivedAt).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" })}</div>
                 </div>
                 <div className={`shrink-0 font-semibold tabular-nums ${tone(item.amount)}`}>{signedMoney(item.amount, hidden)}</div>

@@ -39,11 +39,3 @@ export const forkInputSchema = z
   });
 
 export type ForkInputParsed = z.infer<typeof forkInputSchema>;
-
-export const forkBonusInputSchema = z.object({
-  amount: decimalString.refine((value) => Number(value) !== 0, "Сума не може бути нульовою"),
-  receivedAt: z.preprocess((value) => (value === "" || value == null ? new Date() : value), z.coerce.date()),
-  note: optionalText(300)
-});
-
-export type ForkBonusInputParsed = z.infer<typeof forkBonusInputSchema>;
