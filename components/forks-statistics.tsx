@@ -4,9 +4,11 @@ import { NetPnlChart } from "@/components/income-line-chart";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatPercent, formatSigned } from "@/lib/money";
+import type { getForksPage } from "@/lib/forks";
 import type { ForkSeriesPoint, ForkSummary } from "@/lib/forks-stats";
 import type { ResolvedPeriod } from "@/lib/period";
 
+type BonusData = Awaited<ReturnType<typeof getForksPage>>["bonus"];
 type Dynamic = ForkSummary["byDay"][number];
 
 const tone = (value: string) => (Number(value) > 0 ? "text-success" : Number(value) < 0 ? "text-danger" : "");
@@ -58,13 +60,19 @@ function DynamicsTable({ title, rows, hidden }: { title: string; rows: Dynamic[]
   );
 }
 
-export function ForksStatistics({ stats, allTime, series, period, hidden = false }: { stats: ForkSummary; allTime: ForkSummary; series: ForkSeriesPoint[]; period: ResolvedPeriod; hidden?: boolean }) {
+export function ForksStatistics({ stats, allTime, series, bonus, period, hidden = false }: { stats: ForkSummary; allTime: ForkSummary; series: ForkSeriesPoint[]; bonus: BonusData; period: ResolvedPeriod; hidden?: boolean }) {
   return (
     <>
       <Card className="mt-0 md:mt-4">
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
           <Tile label="Весь час · прибуток" value={signedMoney(allTime.pnl, hidden)} className={tone(allTime.pnl)} sub={`${allTime.count} вилок`} />
           <Tile label="Весь час · нам чистими" value={signedMoney(allTime.net, hidden)} className={tone(allTime.net)} sub={`Багірі ${formatMoney(allTime.bagiraFee, "USD", hidden)}`} />
+          {bonus.allTime.count > 0 && (
+            <>
+              <Tile label="Весь час · бонуси" value={signedMoney(bonus.allTime.total, hidden)} className={tone(bonus.allTime.total)} sub={`${bonus.allTime.count} зап.`} />
+              <Tile label="Весь час · нам з бонусами" value={signedMoney(bonus.allTime.netWithBonus, hidden)} className={tone(bonus.allTime.netWithBonus)} />
+            </>
+          )}
           <div className="col-span-2">
             <ForksBalanceChart data={series} hidden={hidden} />
           </div>
@@ -85,6 +93,7 @@ export function ForksStatistics({ stats, allTime, series, period, hidden = false
             <Tile label="Прибуток" value={signedMoney(stats.pnl, hidden)} className={tone(stats.pnl)} />
             <Tile label="Нам чистими" value={signedMoney(stats.net, hidden)} className={tone(stats.net)} />
             <Tile label="Комісія Багіри 40%" value={formatMoney(stats.bagiraFee, "USD", hidden)} />
+            {bonus.period.count > 0 && <Tile label="Бонуси" value={signedMoney(bonus.period.total, hidden)} className={tone(bonus.period.total)} sub={`з бонусами ${signedMoney(bonus.period.netWithBonus, hidden)}`} />}
             <Tile label="Вилок" value={String(stats.count)} sub={hidden ? undefined : `${stats.wins} плюс / ${stats.losses} мінус`} />
             <Tile label="Обіг" value={formatMoney(stats.turnover, "USD", hidden)} />
             <Tile label="Win-rate" value={hidden ? "••••" : formatPercent(stats.winRate)} />
@@ -107,6 +116,23 @@ export function ForksStatistics({ stats, allTime, series, period, hidden = false
           <DynamicsTable title="По тижнях" rows={stats.byWeek} hidden={hidden} />
         </div>
       </Card>
+
+      {bonus.items.length > 0 && (
+        <Card className="mt-4">
+          <div className="mb-3 font-semibold">Доп. дохід (бонуси)</div>
+          <div className="grid gap-2">
+            {bonus.items.map((item) => (
+              <div key={item.id} className="flex items-baseline justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
+                <div className="min-w-0">
+                  <div className="truncate">{item.note ?? "Бонус"}</div>
+                  <div className="text-xs text-[hsl(var(--card-muted-foreground))]">{new Date(item.receivedAt).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" })}</div>
+                </div>
+                <div className={`shrink-0 font-semibold tabular-nums ${tone(item.amount)}`}>{signedMoney(item.amount, hidden)}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <ForksOpen items={allTime.open.items} stake={allTime.open.stake} guaranteed={allTime.open.guaranteed} hidden={hidden} />
       <ForksClosed items={stats.settled} hidden={hidden} />
