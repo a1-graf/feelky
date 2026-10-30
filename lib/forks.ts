@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { ForkTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { buildForkSeries, inRange, summarizeForks } from "@/lib/forks-stats";
-import type { ForkInputParsed } from "@/lib/forks-input";
+import type { ForkBonusInputParsed, ForkInputParsed } from "@/lib/forks-input";
 import { D, roundCurrency } from "@/lib/money";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
 
@@ -94,24 +94,59 @@ export async function listForks(userId: string, query: { from: Date; to: Date; l
   });
 }
 
+export async function addForkBonus(userId: string, input: ForkBonusInputParsed) {
+  return prisma.forkBonus.create({ data: { userId, amount: roundCurrency(input.amount, "USD").toString(), receivedAt: input.receivedAt, note: input.note } });
+}
+
+export async function deleteForkBonus(userId: string, id: string) {
+  const row = await prisma.forkBonus.findFirst({ where: { userId, id } });
+  if (!row) return null;
+  await prisma.forkBonus.delete({ where: { id } });
+  return row;
+}
+
+export async function listForkBonuses(userId: string, limit = 200) {
+  return prisma.forkBonus.findMany({ where: { userId }, orderBy: { receivedAt: "desc" }, take: limit });
+}
+
+export type ForkBonusRow = Awaited<ReturnType<typeof listForkBonuses>>[number];
+
+const sumBonus = (rows: { amount: Prisma.Decimal }[]) => rows.reduce((sum, row) => sum.plus(D(row.amount.toString())), D(0));
+
+/** Bonuses are ours in full: no Bagira cut. */
+export function bonusFigures(rows: ForkBonusRow[], range?: { gte: Date; lte: Date }) {
+  const inside = range ? rows.filter((row) => row.receivedAt >= range.gte && row.receivedAt <= range.lte) : rows;
+  return { total: roundCurrency(sumBonus(inside), "USD").toString(), count: inside.length };
+}
+
 async function loadForks(userId: string) {
   return prisma.forkTrade.findMany({ where: { userId }, orderBy: { placedAt: "desc" }, take: 2000 });
 }
 
 export async function getForksPage(userId: string, periodInput: PeriodInput) {
-  const [rows, settings] = await Promise.all([loadForks(userId), prisma.settings.findUnique({ where: { userId }, select: { hideAmounts: true } })]);
+  const [rows, settings, bonuses] = await Promise.all([loadForks(userId), prisma.settings.findUnique({ where: { userId }, select: { hideAmounts: true } }), listForkBonuses(userId)]);
   const period = resolvePeriod(periodInput);
+  const stats = summarizeForks(inRange(rows, period.range));
+  const allTime = summarizeForks(rows);
+  const withBonus = (net: string, bonus: string) => roundCurrency(D(net).plus(bonus), "USD").toString();
+  const periodBonus = bonusFigures(bonuses, period.range);
+  const allBonus = bonusFigures(bonuses);
   return {
     period,
-    stats: summarizeForks(inRange(rows, period.range)),
-    allTime: summarizeForks(rows),
+    bonus: {
+      period: { ...periodBonus, netWithBonus: withBonus(stats.net, periodBonus.total) },
+      allTime: { ...allBonus, netWithBonus: withBonus(allTime.net, allBonus.total) },
+      items: bonuses.slice(0, 50).map((row) => ({ id: row.id, amount: D(row.amount.toString()).toString(), receivedAt: row.receivedAt.toISOString(), note: row.note }))
+    },
+    stats,
+    allTime,
     series: buildForkSeries(rows),
     hidden: Boolean(settings?.hideAmounts)
   };
 }
 
 export async function getForksSummary(userId: string) {
-  const rows = await loadForks(userId);
+  const [rows, bonuses] = await Promise.all([loadForks(userId), listForkBonuses(userId)]);
   const month = resolvePeriod({});
   const brief = (stats: ReturnType<typeof summarizeForks>) => {
     const copy: Partial<ReturnType<typeof summarizeForks>> = { ...stats };
@@ -124,5 +159,11 @@ export async function getForksSummary(userId: string) {
   delete monthly.byDay;
   delete monthly.byWeek;
   delete monthly.open;
-  return { allTime: all, month: monthly };
+  const allBonus = bonusFigures(bonuses);
+  const monthBonus = bonusFigures(bonuses, month.range);
+  const plus = (net: unknown, bonus: string) => roundCurrency(D(String(net)).plus(bonus), "USD").toString();
+  return {
+    allTime: { ...all, bonus: allBonus.total, netWithBonus: plus(all.net, allBonus.total) },
+    month: { ...monthly, bonus: monthBonus.total, netWithBonus: plus(monthly.net, monthBonus.total) }
+  };
 }
