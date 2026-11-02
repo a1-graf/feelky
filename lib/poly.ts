@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { D, roundCurrency } from "@/lib/money";
 import { computePolyPnl, reconcilePool, summarizePoly } from "@/lib/poly-stats";
 import type { PolyMarketKindKey, PolySectionKey, PolyStatusKey, PolyTradeLike } from "@/lib/poly-stats";
+import { resolvePeriod, type PeriodInput } from "@/lib/period";
 
 type Tx = Prisma.TransactionClient;
 
@@ -470,7 +471,9 @@ export async function reconcilePolyPool(userId: string) {
   };
 }
 
-export async function getPolyOverview(userId: string, now: Date = new Date()) {
+export async function getPolyOverview(userId: string, inputOrNow: PeriodInput | Date = {}, now: Date = new Date()) {
+  const effectiveNow = inputOrNow instanceof Date ? inputOrNow : now;
+  const period = resolvePeriod(inputOrNow instanceof Date ? {} : inputOrNow, effectiveNow);
   const [trades, locks, settings, pool, reconcile] = await Promise.all([
     prisma.polyTrade.findMany({ where: { userId }, orderBy: { openedAt: "desc" }, take: 5000 }),
     prisma.polyLock.findMany({ where: { userId }, orderBy: { lockedAt: "desc" } }),
@@ -479,7 +482,11 @@ export async function getPolyOverview(userId: string, now: Date = new Date()) {
     reconcilePolyPool(userId)
   ]);
   const likes = polyTradesToLike(trades);
-  const bySection = (section: PolySectionKey) => summarizePoly(likes.filter((trade) => trade.section === section), now);
+  const periodLikes = likes.filter((trade) => {
+    const date = trade.resolvedAt ?? trade.openedAt;
+    return date >= period.from && date <= period.to;
+  });
+  const bySection = (section: PolySectionKey) => summarizePoly(periodLikes.filter((trade) => trade.section === section), effectiveNow);
   const locked = locks.filter((lock) => lock.status === PolyLockStatus.LOCKED).reduce((sum, lock) => sum.plus(lock.amountUsd.toString()), D(0));
   const lockedByAgent = new Map<string, ReturnType<typeof D>>();
   for (const lock of locks) {
@@ -489,14 +496,16 @@ export async function getPolyOverview(userId: string, now: Date = new Date()) {
   }
   const releasedResult = locks.reduce((sum, lock) => sum.plus(lock.resultPnlUsd?.toString() ?? 0), D(0));
   return {
-    all: summarizePoly(likes, now),
+    all: summarizePoly(likes, effectiveNow),
+    period,
+    periodStats: summarizePoly(periodLikes, effectiveNow),
     sections: { MANUAL: bySection("MANUAL"), COPYTRADE: bySection("COPYTRADE"), AI_AGENT: bySection("AI_AGENT") },
     pool: {
       balance: pool?.currentBalance.toString() ?? "0",
       lockedPrincipal: locked.toString(),
       total: D(pool?.currentBalance.toString() ?? 0).plus(locked).toString()
     },
-    locks: locks.map((lock) => agentLockView(lock, now)),
+    locks: locks.map((lock) => agentLockView(lock, effectiveNow)),
     lockedByAgent: Array.from(lockedByAgent.entries()).map(([agentName, amount]) => ({ agentName, amountUsd: amount.toString() })),
     releasedResult: releasedResult.toString(),
     reconcile,

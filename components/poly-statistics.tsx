@@ -64,17 +64,17 @@ function SectionCard({ section, stats, hidden }: { section: PolySectionKey; stat
       <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
         <Metric label="Winrate" value={hidden ? "****" : formatPercent(stats.winRate)} />
         <Metric label="ROI" value={hidden ? "****" : formatPercent(stats.roi)} />
-        <Metric label="Місяць" value={formatMoney(stats.monthPnl, CUR, hidden)} className={tone(stats.monthPnl)} />
+        <Metric label="Період" value={formatMoney(stats.totalPnl, CUR, hidden)} className={tone(stats.totalPnl)} />
       </div>
     </Card>
   );
 }
 
 export function PolyStatistics({ overview }: { overview: Overview }) {
-  const { all, sections, pool, locks, hidden, reconcile } = overview;
+  const { all, periodStats, period, sections, pool, locks, hidden, reconcile } = overview;
   const activeLocks = locks.filter((lock) => lock.status === "LOCKED");
   const agentNames = Array.from(new Set([...overview.all.byAgent.map((row) => row.name), ...locks.map((lock) => lock.agentName ?? "Без назви")]));
-  const equity = all.timeline.map((point) => ({
+  const equity = periodStats.timeline.map((point) => ({
     date: point.date,
     label: point.label,
     profit: Math.max(0, point.pnl),
@@ -89,25 +89,25 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
       <Card className="mt-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="font-semibold">Пул Polymarket</div>
+            <div className="font-semibold">Результат за період</div>
             <div className={`mt-1 text-sm ${muted}`}>
-              Вільно в пулі {formatMoney(pool.balance, CUR, hidden)} · заблоковано в агентах {formatMoney(pool.lockedPrincipal, CUR, hidden)}
+              {period.label} · вільно в пулі {formatMoney(pool.balance, CUR, hidden)} · заблоковано {formatMoney(pool.lockedPrincipal, CUR, hidden)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xl font-semibold">{formatMoney(pool.total, CUR, hidden)}</div>
-            <div className={`text-xs ${muted}`}>разом на Polymarket</div>
+            <div className={`text-2xl font-bold ${tone(periodStats.totalPnl)}`}>{formatMoney(periodStats.totalPnl, CUR, hidden)}</div>
+            <div className={`text-xs ${muted}`}>PnL · {periodStats.count} закритих</div>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
-          <Metric label="Загальний PnL" value={formatMoney(all.totalPnl, CUR, hidden)} className={tone(all.totalPnl)} />
-          <Metric label="PnL місяця" value={formatMoney(all.monthPnl, CUR, hidden)} className={tone(all.monthPnl)} />
-          <Metric label="PnL сьогодні" value={formatMoney(all.todayPnl, CUR, hidden)} className={tone(all.todayPnl)} />
+          <Metric label="Весь час" value={formatMoney(all.totalPnl, CUR, hidden)} className={tone(all.totalPnl)} />
           <Metric label="У відкритих угодах" value={formatMoney(all.openExposure, CUR, hidden)} />
-          <Metric label="Winrate" value={hidden ? "****" : formatPercent(all.winRate)} />
-          <Metric label="Profit factor" value={hidden ? "****" : (all.profitFactor == null ? "—" : formatPlain(all.profitFactor))} />
-          <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(all.turnover, CUR, false)} · ${formatPercent(all.roi)}`} />
-          <Metric label="Комісії" value={formatMoney(all.fees, CUR, hidden)} />
+          <Metric label="Winrate періоду" value={hidden ? "****" : formatPercent(periodStats.winRate)} />
+          <Metric label="Profit factor" value={hidden ? "****" : (periodStats.profitFactor == null ? "—" : formatPlain(periodStats.profitFactor))} />
+          <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(periodStats.turnover, CUR, false)} · ${formatPercent(periodStats.roi)}`} />
+          <Metric label="Комісії" value={formatMoney(periodStats.fees, CUR, hidden)} />
+          <Metric label="Пул зараз" value={formatMoney(pool.total, CUR, hidden)} />
+          <Metric label="Відкритих" value={String(all.openCount)} />
         </div>
         {reconcile && !reconcile.ok ? (
           <div className="mt-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
@@ -173,8 +173,8 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
       </Card>
 
       <Card className="mt-4">
-        <div className="mb-1 font-semibold">PnL по днях</div>
-        <div className={`mb-3 text-sm ${muted}`}>Усі закриті угоди; зверху результат дня, знизу — накопичений</div>
+        <div className="mb-1 font-semibold">PnL по днях · {period.label}</div>
+        <div className={`mb-3 text-sm ${muted}`}>Закриті угоди вибраного періоду; зверху результат дня, знизу — накопичений</div>
         <NetPnlChart data={equity} hidden={hidden} currency={CUR} />
       </Card>
 
