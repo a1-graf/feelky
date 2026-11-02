@@ -1,41 +1,76 @@
-import { TransactionType } from "@prisma/client";
 import { BackToOverview } from "@/components/back-to-overview";
-import { MetricGrid } from "@/components/metric-grid";
+import { DonutBreakdown } from "@/components/donut-breakdown";
+import { ExpandableList } from "@/components/expandable-list";
 import { PageTitle } from "@/components/page-title";
+import { PeriodPicker } from "@/components/period-picker";
+import { RangeAreaChart } from "@/components/range-area-chart";
 import { TransactionList } from "@/components/transaction-list";
-import { prisma } from "@/lib/db";
-import { formatMoney, sumDecimals } from "@/lib/money";
+import { TransactionExplorer } from "@/components/transaction-explorer";
+import { Card } from "@/components/ui/card";
+import { CHART_COLORS, LOSS_COLOR } from "@/lib/chart-colors";
+import { getExpensesPage } from "@/lib/expenses";
+import { formatMoney, formatPlain } from "@/lib/money";
+import { chartPresetFor } from "@/lib/period";
 import { requireUserId } from "@/lib/session";
-import { isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
   const userId = await requireUserId();
-  const transactions = await prisma.transaction.findMany({
-    where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
-    include: { sourceAccount: true, category: true, incomeSource: true },
-    orderBy: { transactionDate: "desc" }
-  });
-  const totalUah = sumDecimals(transactions.filter((item) => item.currency === "UAH").map((item) => item.amount));
-  const totalUsdt = sumDecimals(transactions.filter((item) => item.currency === "USDT").map((item) => item.amount));
-  const byCategory = new Map<string, string>();
-  for (const item of transactions.filter((transaction) => transaction.currency === "UAH")) {
-    const key = isWorkExpenseTransaction(item) ? `Робочі · ${item.incomeSource?.name || "Без напрямку"}` : item.category?.name || "Інше";
-    byCategory.set(key, formatMoney(sumDecimals(transactions.filter((transaction) => {
-      if (transaction.currency !== "UAH") return false;
-      const transactionKey = isWorkExpenseTransaction(transaction)
-        ? `Робочі · ${transaction.incomeSource?.name || "Без напрямку"}`
-        : transaction.category?.name || "Інше";
-      return transactionKey === key;
-    }).map((transaction) => transaction.amount)), "UAH"));
-  }
+  const params = await searchParams;
+  const data = await getExpensesPage(userId, { month: params?.month, period: params?.period });
+  const { hidden, totals, period } = data;
+
   return (
     <>
       <BackToOverview />
-      <PageTitle title="Витрати" subtitle="UAH та USDT витрати з контролем негативного балансу" />
-      <MetricGrid items={[{ label: "Загалом UAH", value: formatMoney(totalUah, "UAH"), tone: "danger" }, { label: "Загалом USDT", value: formatMoney(totalUsdt, "USDT"), tone: "danger" }, { label: "Операцій", value: String(transactions.length) }, ...Array.from(byCategory).slice(0, 2).map(([label, value]) => ({ label, value }))]} />
-      <div className="mt-5">
-        <TransactionList items={transactions} />
+      <PageTitle title="Витрати" subtitle={`Особисті й робочі витрати без змішування · ${period.label}`} />
+      <PeriodPicker basePath="/expenses" period={period} presets={["week", "month", "3m", "6m", "12m", "all"]} />
+
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
+        <Card className="col-span-2 border-danger/30 bg-danger/10 p-3.5 sm:p-4 md:col-span-1">
+          <div className="text-[11px] font-medium text-danger sm:text-[13px]">Витрати за період</div>
+          <div className="mt-1 text-xl font-bold tabular-nums text-danger sm:text-2xl">{formatMoney(totals.totalUsdt, "USDT", hidden)}</div>
+          <div className="mt-1 text-xs text-[hsl(var(--card-muted-foreground))]">UAH + USDT за курсом {formatPlain(data.rate)}</div>
+        </Card>
+        <Card className="p-3.5 sm:p-4">
+          <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))] sm:text-[13px]">Особисті витрати</div>
+          <div className="mt-1 text-lg font-bold tabular-nums sm:text-[22px]">{formatMoney(totals.personalUah, "UAH", hidden)}</div>
+        </Card>
+        <Card className="p-3.5 sm:p-4">
+          <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))] sm:text-[13px]">Робочі витрати</div>
+          <div className="mt-1 text-lg font-bold tabular-nums sm:text-[22px]">{formatMoney(totals.workUsdt, "USDT", hidden)}</div>
+        </Card>
+        <Card className="p-3.5 sm:p-4">
+          <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))] sm:text-[13px]">У середньому за день</div>
+          <div className="mt-1 text-lg font-bold tabular-nums sm:text-[22px]">{formatMoney(totals.dailyAverageUsdt, "USDT", hidden)}</div>
+          <div className="mt-1 text-xs text-[hsl(var(--card-muted-foreground))]">Операцій: {totals.count}</div>
+        </Card>
       </div>
+
+      <Card className="mt-4">
+        <div className="mb-1 font-semibold">Витрати у часі</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючий обсяг усіх витрат у USDT</div>
+        <RangeAreaChart key={period.key} data={data.series} hidden={hidden} color={LOSS_COLOR} totalLabel="Витрачено" emptyLabel="Поки немає витрат" defaultPreset={chartPresetFor(period.key)} minimal showSummary={false} />
+      </Card>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <div className="mb-3 font-semibold">За категоріями й напрямками</div>
+          <DonutBreakdown compact items={data.byCategory} colors={CHART_COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає витрат" />
+        </Card>
+        <Card>
+          <div className="mb-3 font-semibold">Особисті та робочі</div>
+          <DonutBreakdown compact items={data.byType} colors={CHART_COLORS} currency="USDT" hidden={hidden} emptyLabel="Поки немає витрат" />
+        </Card>
+      </div>
+
+      <Card className="mt-4">
+        <ExpandableList
+          title="Операції"
+          count={totals.count}
+          preview={<TransactionList items={data.recent.slice(0, 1)} compact hidden={hidden} />}
+          full={<TransactionExplorer items={data.recent} hidden={hidden} />}
+        />
+      </Card>
     </>
   );
 }

@@ -3,7 +3,7 @@ import { ArchiveAction } from "@/components/archive-action";
 import { formatMoney } from "@/lib/money";
 import { isOpeningBalanceTransaction, isSavingsDepositTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
-type Item = {
+export type TransactionItem = {
   id: string;
   type: TransactionType;
   amount: { toString(): string } | string;
@@ -11,7 +11,7 @@ type Item = {
   convertedAmount?: { toString(): string } | string | null;
   convertedCurrency?: string | null;
   note?: string | null;
-  transactionDate: Date;
+  transactionDate: Date | string;
   archivedAt?: Date | null;
   sourceAccount?: { name: string } | null;
   destinationAccount?: { name: string } | null;
@@ -33,7 +33,7 @@ const labels: Record<string, string> = {
   TRANSFER: "Переказ"
 };
 
-export function TransactionList({ items, archiveMode = false, compact = false }: { items: Item[]; archiveMode?: boolean; compact?: boolean }) {
+export function TransactionList({ items, archiveMode = false, compact = false, hidden = false }: { items: TransactionItem[]; archiveMode?: boolean; compact?: boolean; hidden?: boolean }) {
   if (!items.length) {
     return <div className={`rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground ${compact ? "p-4" : "p-8"}`}>Операцій поки немає</div>;
   }
@@ -57,8 +57,8 @@ export function TransactionList({ items, archiveMode = false, compact = false }:
             </div>
           </div>
           <div className={`text-right font-semibold ${compact ? "text-sm leading-tight" : ""}`}>
-            {formatMoney(item.amount.toString(), item.currency)}
-            {item.convertedAmount && item.convertedCurrency ? <div className="text-xs text-muted-foreground">{formatMoney(item.convertedAmount.toString(), item.convertedCurrency)}</div> : null}
+            {formatMoney(item.amount.toString(), item.currency, hidden)}
+            {item.convertedAmount && item.convertedCurrency ? <div className="text-xs text-muted-foreground">{formatMoney(item.convertedAmount.toString(), item.convertedCurrency, hidden)}</div> : null}
           </div>
           {compact ? null : <ArchiveAction transactionId={item.id} archived={Boolean(item.archivedAt || archiveMode)} />}
         </div>
