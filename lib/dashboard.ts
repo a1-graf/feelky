@@ -282,6 +282,23 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     pnlBySource.set(label, D(pnlBySource.get(label) || 0).plus(event.net));
   }
   const pnlBreakdown = topThree(Array.from(pnlBySource, ([label, value]) => ({ label, value })), true);
+  // Profit and costs split the same net result: per source a positive total is profit, a negative one (a losing flip/Aurum/Poly run) is a cost,
+  // and every expense is a cost. So profit - costs always equals periodNetPnlUsdt.
+  const costBySource = new Map<string, Decimal>();
+  for (const event of periodResults) {
+    if (event.kind !== "expense") continue;
+    const label = event.workExpense ? "Робочі витрати" : "Особисті витрати";
+    costBySource.set(label, D(costBySource.get(label) || 0).plus(event.net.negated()));
+  }
+  const profitSources: { label: string; value: Decimal }[] = [];
+  for (const [label, value] of pnlBySource) {
+    if (value.gt(0)) profitSources.push({ label, value });
+    else if (value.lt(0)) costBySource.set(label, D(costBySource.get(label) || 0).plus(value.negated()));
+  }
+  const periodProfitUsdt = profitSources.reduce((sum, item) => sum.plus(item.value), new Decimal(0));
+  const periodCostUsdt = Array.from(costBySource.values()).reduce((sum, value) => sum.plus(value), new Decimal(0));
+  const profitBreakdown = topThree(profitSources);
+  const costBreakdown = topThree(Array.from(costBySource, ([label, value]) => ({ label, value })));
   let runningNet = new Decimal(0);
   const pnlTimeline = resultEvents.map((event) => {
     runningNet = runningNet.plus(event.net);
@@ -388,6 +405,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       frozenTotalUsdt: frozenTotalUsdt.toString(),
       frozenBreakdown,
       pnlBreakdown,
+      profitBreakdown,
+      costBreakdown,
+      periodProfitUsdt: periodProfitUsdt.toString(),
+      periodCostUsdt: periodCostUsdt.toString(),
       cardUah: cardUah.toString(),
       cashUah: cashUah.toString(),
       cashUsd: cashUsd.toString(),

@@ -325,6 +325,51 @@ html[data-theme="mono"] .dark {
   color-scheme: light;
 }
 
+html[data-theme="minimal"],
+html[data-theme="minimal"] .dark {
+  --background: 48 24% 94%;
+  --foreground: 40 8% 7%;
+  --muted: 46 16% 90%;
+  --muted-foreground: 40 6% 36%;
+  --card: 48 33% 98%;
+  --card-foreground: 40 8% 7%;
+  --card-muted-foreground: 40 6% 36%;
+  --border: 44 12% 83%;
+  --primary: 40 8% 8%;
+  --primary-foreground: 48 33% 98%;
+  --danger: 0 68% 44%;
+  --success: 160 93% 24%;
+  --warning: 35 72% 42%;
+  --profit: 160 93% 24%;
+  --loss: 0 68% 44%;
+  --hero-from: 48 33% 98%;
+  --hero-to: 48 33% 98%;
+  --hero-ring: 44 12% 83%;
+  --hero-fg: 40 8% 7%;
+  --hero-accent: 35 72% 42%;
+  --hero-accent-soft: 35 72% 42%;
+  --hero-pos: 160 93% 24%;
+  --hero-neg: 0 68% 44%;
+  --chart-1: 221 83% 45%;
+  --chart-2: 35 72% 42%;
+  --chart-3: 160 93% 24%;
+  --chart-4: 190 80% 27%;
+  --chart-5: 258 60% 52%;
+  --chart-6: 199 89% 40%;
+  --chart-7: 330 70% 50%;
+  --chart-8: 40 6% 46%;
+  --lose-2: 11 75% 55%;
+  --lose-3: 35 67% 48%;
+  --lose-4: 27 39% 48%;
+  --lose-5: 258 60% 52%;
+  --lose-6: 204 30% 45%;
+  --lose-7: 154 33% 38%;
+  --lose-8: 215 17% 45%;
+  color-scheme: light;
+}
+
+html[data-theme="graphite"],
+
 html[data-theme="graphite"],
 html[data-theme="graphite"] .dark,
 html[data-theme="gold"],
@@ -405,5 +450,167 @@ html[data-theme="matrix"] [class*="bg-card"] > .font-semibold:first-child:not([c
 @media (display-mode: standalone) {
   body {
     padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Minimal: the light cream card from the mock-up. Both hero versions are in the page; the theme picks one. */
+.hero-minimal {
+  display: none;
+}
+html[data-theme="minimal"] .hero-default {
+  display: none;
+}
+html[data-theme="minimal"] .hero-minimal {
+  display: block;
+}
+.mn-card {
+  background: #fafaf7;
+  color: #111;
+  border-radius: 28px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.06);
+}
+.mn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 3px solid #111;
+}
+.mn-caption {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.mn-pill {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: #111;
+  color: #fff;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mn-big {
+  font-size: clamp(1.6rem, 7.2vw, 4.4rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.mn-sub {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #444;
+  font-variant-numeric: tabular-nums;
+}
+.mn-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin-top: 1.1rem;
+  border-top: 3px solid #111;
+}
+.mn-col {
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid #deddd5;
+}
+.mn-col:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.mn-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.mn-title .mn-emoji {
+  font-size: 1.15rem;
+  letter-spacing: 0;
+}
+.mn-value {
+  margin-top: 0.55rem;
+  font-size: 2.15rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.mn-rows {
+  margin-top: 0.7rem;
+  border-top: 1px solid #deddd5;
+}
+.mn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #deddd5;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.mn-row:last-child {
+  border-bottom: 0;
+}
+.mn-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-amt {
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #efeee9;
+  padding: 0.15rem 0.55rem;
+  font-variant-numeric: tabular-nums;
+  color: #111;
+}
+.mn-blue { color: #1d4ed8; }
+.mn-teal { color: #0e7490; }
+.mn-green { color: #047857; }
+.mn-red { color: #b91c1c; }
+.mn-amber { color: #b87a1f; }
+.mn-green.mn-amt { background: #dcf3e5; }
+.mn-red.mn-amt { background: #fbe3e3; }
+.mn-slash {
+  color: #b5b5b0;
+  font-weight: 300;
+}
+@media (min-width: 768px) {
+  .mn-card {
+    padding: 1.75rem 2.25rem;
+  }
+  .mn-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mn-col {
+    padding: 1.1rem 1.25rem;
+    border-bottom: 0;
+    border-left: 1px solid #deddd5;
+  }
+  .mn-col:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .mn-col:nth-child(3n) {
+    padding-right: 0;
+  }
+  .mn-col:nth-child(n + 4) {
+    border-top: 1px solid #deddd5;
+  }
+  .mn-value {
+    font-size: 2.4rem;
   }
 }

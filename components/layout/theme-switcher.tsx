@@ -42,7 +42,7 @@ function Swatch({ colors }: { colors: readonly string[] }) {
 export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   const { theme, choose } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Тема" className={cn("grid gap-1", compact ? "grid-cols-5" : "grid-cols-2 sm:grid-cols-5")}>
+    <div role="radiogroup" aria-label="Тема" className={cn("grid gap-1", compact ? "grid-cols-6" : "grid-cols-3 sm:grid-cols-6")}>
       {THEMES.map((item) => (
         <button
           key={item.id}
