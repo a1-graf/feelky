@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
 import { D, roundCurrency } from "@/lib/money";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
+import { resolvePeriod, type PeriodInput } from "@/lib/period";
 
 type Tx = Prisma.TransactionClient;
 
@@ -19,6 +20,18 @@ export function summarizeFlips(flips: FlipSummaryInput[], now = new Date()) {
   const monthPnl = monthlyFlips.reduce((sum, flip) => sum.plus(flip.pnl), new Prisma.Decimal(0));
   const wins = flips.filter((flip) => D(flip.pnl).gt(0)).length;
   const losses = flips.filter((flip) => D(flip.pnl).lt(0)).length;
+  const avgPnl = flips.length ? totalPnl.div(flips.length) : D(0);
+  const sortedByPnl = [...flips].sort((a, b) => D(b.pnl).cmp(D(a.pnl)));
+  const byDay = new Map<string, { profit: Decimal; loss: Decimal }>();
+  for (const flip of [...flips].sort((a, b) => a.tradeDate.getTime() - b.tradeDate.getTime())) {
+    const date = flip.tradeDate.toISOString().slice(0, 10);
+    const row = byDay.get(date) || { profit: D(0), loss: D(0) };
+    const pnl = D(flip.pnl);
+    if (pnl.gte(0)) row.profit = row.profit.plus(pnl);
+    else row.loss = row.loss.plus(pnl.abs());
+    byDay.set(date, row);
+  }
+  let running = D(0);
   const setupMap = new Map<string, { pnl: Prisma.Decimal; count: number; wins: number; losses: number }>();
 
   for (const flip of flips) {
@@ -38,6 +51,13 @@ export function summarizeFlips(flips: FlipSummaryInput[], now = new Date()) {
     wins,
     losses,
     winRate: wins + losses ? Math.round((wins / (wins + losses)) * 100) : 0,
+    avgPnl: avgPnl.toString(),
+    best: sortedByPnl[0] ? { setup: sortedByPnl[0].setup, pnl: sortedByPnl[0].pnl.toString() } : null,
+    worst: sortedByPnl.at(-1) ? { setup: sortedByPnl.at(-1)!.setup, pnl: sortedByPnl.at(-1)!.pnl.toString() } : null,
+    timeline: Array.from(byDay.entries()).map(([date, row]) => {
+      running = running.plus(row.profit).minus(row.loss);
+      return { date, label: `${date.slice(8, 10)}.${date.slice(5, 7)}`, profit: row.profit.toNumber(), loss: row.loss.toNumber(), net: running.toNumber() };
+    }),
     setups: Array.from(setupMap.entries())
       .map(([setup, value]) => ({
         setup,
@@ -58,12 +78,19 @@ export function summarizeFlips(flips: FlipSummaryInput[], now = new Date()) {
   };
 }
 
-export async function getFlipStatistics(userId: string) {
+export async function getFlipStatistics(userId: string, input: PeriodInput = {}) {
+  const period = resolvePeriod(input);
   const [flips, settings] = await Promise.all([
-    prisma.flip.findMany({ where: { userId }, orderBy: { tradeDate: "desc" }, take: 120 }),
+    prisma.flip.findMany({ where: { userId }, orderBy: { tradeDate: "desc" }, take: 2000 }),
     prisma.settings.findUnique({ where: { userId }, select: { hideAmounts: true } })
   ]);
-  return { data: summarizeFlips(flips), hidden: Boolean(settings?.hideAmounts) };
+  const periodFlips = flips.filter((flip) => flip.tradeDate >= period.from && flip.tradeDate <= period.to);
+  return {
+    data: summarizeFlips(periodFlips),
+    allTimePnl: summarizeFlips(flips).totalPnl,
+    period,
+    hidden: Boolean(settings?.hideAmounts)
+  };
 }
 
 function flipMetadata(flipId: string, setup: string) {

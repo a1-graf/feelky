@@ -64,6 +64,11 @@ describe("fork statistics", () => {
     expect(stats.timeline.map((p) => p.net)).toEqual([0.5, 0.3, 0.64]);
   });
 
+  it("breaks settled results down by bookmaker and sport", () => {
+    expect(stats.byBook).toEqual([{ name: "1win", count: 3, pnl: "0.64", net: "0.38", turnover: "45" }]);
+    expect(stats.bySport).toEqual([{ name: "CS2", count: 3, pnl: "0.64", net: "0.38", turnover: "45" }]);
+  });
+
   it("finds the best and worst fork", () => {
     expect(stats.best?.pnl).toBe("0.5");
     expect(stats.worst?.pnl).toBe("-0.2");

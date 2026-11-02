@@ -60,6 +60,18 @@ function DynamicsTable({ title, rows, hidden }: { title: string; rows: Dynamic[]
   );
 }
 
+function Breakdown({ title, rows, hidden }: { title: string; rows: ForkSummary["byBook"]; hidden: boolean }) {
+  return (
+    <div>
+      <div className="mb-2 text-sm font-semibold">{title}</div>
+      <div className="grid gap-2">
+        {rows.slice(0, 6).map((row) => <div key={row.name} className="flex items-center justify-between gap-3 rounded-lg bg-muted p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{row.name}</div><div className="text-xs text-[hsl(var(--card-muted-foreground))]">{row.count} вилок · обіг {formatMoney(row.turnover, "USD", hidden)}</div></div><div className={`shrink-0 font-semibold ${tone(row.net)}`}>{signedMoney(row.net, hidden)}</div></div>)}
+        {!rows.length && <div className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-[hsl(var(--card-muted-foreground))]">Поки порожньо</div>}
+      </div>
+    </div>
+  );
+}
+
 export function ForksStatistics({ stats, allTime, series, bonus, period, hidden = false }: { stats: ForkSummary; allTime: ForkSummary; series: ForkSeriesPoint[]; bonus: BonusData; period: ResolvedPeriod; hidden?: boolean }) {
   return (
     <>
@@ -114,6 +126,13 @@ export function ForksStatistics({ stats, allTime, series, bonus, period, hidden 
         <div className="grid gap-5 md:grid-cols-2">
           <DynamicsTable title="По днях" rows={stats.byDay} hidden={hidden} />
           <DynamicsTable title="По тижнях" rows={stats.byWeek} hidden={hidden} />
+        </div>
+      </Card>
+
+      <Card className="mt-4">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Breakdown title="По букмекерах · нам чистими" rows={stats.byBook} hidden={hidden} />
+          <Breakdown title="По видах спорту / подіях" rows={stats.bySport} hidden={hidden} />
         </div>
       </Card>
 
