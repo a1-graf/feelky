@@ -19,7 +19,6 @@ const navSections: readonly NavSection[] = [
       { href: "/income", label: "Доходи", icon: "income" },
       { href: "/expenses", label: "Витрати", icon: "expenses" },
       { href: "/withdrawals", label: "Виводи", icon: "withdrawals" },
-      { href: "/crypto", label: "Гаманець", icon: "wallet" },
       { href: "/expected", label: "Заморожені", icon: "frozen" },
       { href: "/savings", label: "Відкладення", icon: "savings" }
     ]
