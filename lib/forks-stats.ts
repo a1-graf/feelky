@@ -86,6 +86,8 @@ export function summarizeForks(forks: ForkLike[]) {
   const total = emptyBucket();
   const byDay = new Map<string, Bucket>();
   const byWeek = new Map<string, Bucket>();
+  const byBook = new Map<string, Bucket>();
+  const bySport = new Map<string, Bucket>();
   let percentSum = ZERO;
   let percentCount = 0;
   let best: (typeof settled)[number] | null = null;
@@ -101,6 +103,12 @@ export function summarizeForks(forks: ForkLike[]) {
     const week = weekStart(day);
     if (!byWeek.has(week)) byWeek.set(week, emptyBucket());
     addTo(byWeek.get(week) as Bucket, pnl, stake);
+    const bookmaker = fork.leg1Book.toLowerCase().includes("polymarket") ? fork.leg2Book : fork.leg1Book;
+    if (!byBook.has(bookmaker)) byBook.set(bookmaker, emptyBucket());
+    addTo(byBook.get(bookmaker) as Bucket, pnl, stake);
+    const sport = fork.sport || "Інше";
+    if (!bySport.has(sport)) bySport.set(sport, emptyBucket());
+    addTo(bySport.get(sport) as Bucket, pnl, stake);
     const percent = forkPercent(fork);
     if (percent) {
       percentSum = percentSum.plus(percent);
@@ -142,6 +150,9 @@ export function summarizeForks(forks: ForkLike[]) {
 
   const openStake = open.reduce((sum, fork) => sum.plus(D(fork.total)), ZERO);
   const openGuaranteed = open.reduce((sum, fork) => sum.plus(D(fork.guaranteed ?? 0)), ZERO);
+  const breakdown = (map: Map<string, Bucket>) => Array.from(map.entries())
+    .map(([name, bucket]) => ({ name, count: bucket.count, pnl: places(bucket.pnl), net: places(netOf(bucket.pnl)), turnover: places(bucket.turnover) }))
+    .sort((a, b) => Number(b.pnl) - Number(a.pnl));
 
   return {
     count: total.count,
@@ -158,6 +169,8 @@ export function summarizeForks(forks: ForkLike[]) {
     worst: extreme(worst),
     byDay: dynamics(byDay, dayLabel).reverse(),
     byWeek: dynamics(byWeek, (key) => `${dayLabel(key)} – ${dayLabel(new Date(new Date(`${key}T00:00:00Z`).getTime() + 6 * 86_400_000).toISOString().slice(0, 10))}`).reverse(),
+    byBook: breakdown(byBook),
+    bySport: breakdown(bySport),
     timeline,
     open: { count: open.length, stake: places(openStake), guaranteed: places(openGuaranteed), items: open.sort(sortDesc).map(serialize) },
     settled: settled.sort(sortDesc).map(serialize)
