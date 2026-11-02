@@ -70,7 +70,8 @@ export function RangeAreaChart({
   periodStart,
   periodEnd,
   periodPhrase,
-  valueCaption
+  valueCaption,
+  showSummary = true
 }: {
   data: RangePoint[];
   currency?: string;
@@ -90,6 +91,8 @@ export function RangeAreaChart({
   periodPhrase?: string;
   /** Small grey caption above the big value, e.g. what the level means. */
   valueCaption?: string;
+  /** Hide the chart's cumulative headline when the page already has a period headline. */
+  showSummary?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>(defaultPreset);
@@ -145,7 +148,7 @@ export function RangeAreaChart({
     <div className="flex min-h-56 flex-col">
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
         <div className="min-w-0">
-          {last && (
+          {last && showSummary && (
             <>
               {valueCaption && <div className="text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{valueCaption}</div>}
               <div className="whitespace-nowrap text-xl font-bold leading-tight tabular-nums sm:text-2xl">{hidden ? "••••" : `${levelSign(last.total)}${formatMoney(last.total, currency)}`}</div>

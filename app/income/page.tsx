@@ -43,18 +43,15 @@ export default async function IncomePage({ searchParams }: { searchParams?: Prom
       </div>
 
       <Card className="mt-4">
-        <div className="mb-1 font-semibold">Дохід у часі</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючий підсумок у USDT, усі джерела разом</div>
-        <RangeAreaChart key={period.key} data={data.series} hidden={hidden} totalLabel="Всього" emptyLabel="Поки немає доходів" defaultPreset={chartPresetFor(period.key)} minimal />
+        <div className="mb-1 font-semibold">Результат моделей</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Aurum, Polymarket, Steam і фліпи за період, USDT</div>
+        <BreakdownBars items={data.modules} hidden={hidden} />
       </Card>
 
       <Card className="mt-4">
-        <ExpandableList
-          title="Операції"
-          count={totals.count}
-          preview={<TransactionList items={data.recent.slice(0, 1)} compact />}
-          full={<TransactionList items={data.recent} compact />}
-        />
+        <div className="mb-1 font-semibold">Дохід у часі</div>
+        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Наростаючий підсумок у USDT, усі джерела разом</div>
+        <RangeAreaChart key={period.key} data={data.series} hidden={hidden} totalLabel="Всього" emptyLabel="Поки немає доходів" defaultPreset={chartPresetFor(period.key)} minimal showSummary={false} />
       </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -69,9 +66,12 @@ export default async function IncomePage({ searchParams }: { searchParams?: Prom
       </div>
 
       <Card className="mt-4">
-        <div className="mb-1 font-semibold">Результат модулів</div>
-        <div className="mb-3 text-sm text-[hsl(var(--card-muted-foreground))]">Aurum, Polymarket, Steam і фліпи за період, USDT</div>
-        <BreakdownBars items={data.modules} hidden={hidden} />
+        <ExpandableList
+          title="Операції"
+          count={totals.count}
+          preview={<TransactionList items={data.recent.slice(0, 1)} compact hidden={hidden} />}
+          full={<TransactionList items={data.recent} compact hidden={hidden} />}
+        />
       </Card>
     </>
   );

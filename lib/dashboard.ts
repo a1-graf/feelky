@@ -50,7 +50,7 @@ function topThree(items: { label: string; value: Decimal }[], byAbs = false): { 
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -63,6 +63,12 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       orderBy: { transactionDate: "desc" },
       take: 20,
       include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
+    }),
+    prisma.transaction.findMany({
+      where: { userId, archivedAt: null, type: TransactionType.EXPENSE },
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      include: { sourceAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
@@ -379,6 +385,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     frozenByAccount,
     expectedMoney,
     recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 3),
+    recentExpenses,
     expenseCategories,
     workExpenseSourcesUsdt,
     incomeSourcesUah,
