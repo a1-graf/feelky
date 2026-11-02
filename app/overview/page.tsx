@@ -153,6 +153,8 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               {data.totals.costBreakdown.map((item) => (
                 <MinimalRow key={item.label} label={item.label} value={signed(-Number(item.value))} tone="mn-red" />
               ))}
+              <MinimalRow label="Витрати UAH" value={formatMoney(data.totals.monthExpenseUah, "UAH", hidden)} tone={overLimit ? "mn-red" : ""} />
+              {limit > 0 && <MinimalRow label="Ліміт UAH" value={formatMoney(limit, "UAH", hidden)} />}
             </MinimalColumn>
             <MinimalColumn emoji="🧾" title="Загалом" valueClass={minimalTone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
               <MinimalRow label="Прибуток" value={signed(profit)} tone="mn-green" />
@@ -215,6 +217,8 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               {data.totals.costBreakdown.map((item) => (
                 <HeroTile key={item.label} label={item.label} value={signed(-Number(item.value))} />
               ))}
+              <HeroTile label="Витрати UAH" value={formatMoney(data.totals.monthExpenseUah, "UAH", hidden)} style={overLimit ? "bg-red-500/30 text-white" : undefined} />
+              {limit > 0 && <HeroTile label="Ліміт UAH" value={formatMoney(limit, "UAH", hidden)} />}
             </HeroStat>
             <HeroStat title="Загалом" titleClass="text-white/75" valueClass={tone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
               <HeroTile label="Прибуток" value={signed(profit)} />
@@ -241,7 +245,6 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
       <div className="mt-4">
         <MetricGrid
           items={[
-            { icon: "💸", label: `Витрати · ${data.period.label}`, value: formatMoney(data.totals.monthExpenseUah, "UAH", hidden), tone: overLimit ? "danger" : undefined, subValue: limit > 0 ? `ліміт ${formatMoney(limit, "UAH", hidden)}` : asUsdt(data.totals.monthExpenseUah) },
             { icon: "💰", label: "Прибуток", value: signedUsdt(data.totals.periodGrossUsdt), tone: moveTone(data.totals.periodGrossUsdt), subValue: "доходи, Aurum, Poly, фліпи" },
             { icon: "💎", label: "Чистий прибуток", value: signedUsdt(data.totals.periodNetPnlUsdt), tone: moveTone(data.totals.periodNetPnlUsdt), subValue: "після витрат" },
             { icon: "🎮", label: "Дохід по Steam", value: signedUsdt(data.totals.periodSteamUsdt), tone: moveTone(data.totals.periodSteamUsdt), subValue: `в обороті ${formatMoney(data.turnover.steamUsdt, "USDT", hidden)}` },
