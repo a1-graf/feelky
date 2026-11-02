@@ -39,6 +39,29 @@ function HeroTile({ label, value, style = "bg-black/15 text-white/90" }: { label
   );
 }
 
+function MinimalColumn({ emoji, title, valueClass, value, sub, children }: { emoji: string; title: string; valueClass: string; value: string; sub: string; children: React.ReactNode }) {
+  return (
+    <section className="mn-col">
+      <div className="mn-title">
+        <span className="mn-emoji" aria-hidden="true">{emoji}</span>
+        {title}
+      </div>
+      <div className={`mn-value ${valueClass}`}>{value}</div>
+      <div className="mn-sub !mt-1">{sub}</div>
+      <div className="mn-rows">{children}</div>
+    </section>
+  );
+}
+
+function MinimalRow({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className={`mn-row ${tone}`}>
+      <span title={label}>{label}</span>
+      <span className={`mn-amt ${tone}`}>{value}</span>
+    </div>
+  );
+}
+
 /** The one main page: the bank right now on top, then everything about the chosen period. */
 export default async function OverviewPage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
   const userId = await requireUserId();
@@ -53,7 +76,10 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
   const limitRatio = limit > 0 ? Math.min(1, monthExpense / limit) : 0;
   const overLimit = limit > 0 && monthExpense > limit;
   const periodPnl = Number(data.totals.periodNetPnlUsdt);
+  const profit = Number(data.totals.periodProfitUsdt);
+  const cost = Number(data.totals.periodCostUsdt);
   const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
+  const minimalTone = (value: number) => (value >= 0 ? "mn-green" : "mn-red");
   const tone = (value: number) => (value >= 0 ? "text-[hsl(var(--hero-pos))]" : "tone-neg text-[hsl(var(--hero-neg))]");
   const signedUsdt = (value: string) => `${Number(value) > 0 ? "+" : ""}${formatMoney(value, "USDT", hidden)}`;
   const moveTone = (value: string) => (Number(value) > 0 ? "ok" : Number(value) < 0 ? "danger" : undefined);
@@ -89,7 +115,55 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
         </div>
       </div>
 
-      <div className="hero-gradient relative overflow-hidden rounded-3xl p-5 text-[hsl(var(--hero-fg))] shadow-soft sm:p-7">
+      <div className="hero-minimal">
+        <div className="mn-card">
+          <div className="mn-head">
+            <div className="mn-caption">🏦 Доступний банк · USDT</div>
+            <div className="mn-pill">курс {formatPlain(data.rate)} UAH/USDT</div>
+          </div>
+          <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <span className="mn-big">{formatPlain(data.totals.availableBankUsdt, hidden)}</span>
+            <span className="mn-big mn-slash">/</span>
+            <span className="mn-big mn-amber">{formatPlain(data.totals.potentialBankUsdt, hidden)}</span>
+          </div>
+          <div className="mn-sub">≈ {asUah(data.totals.availableBankUsdt)} &nbsp;/&nbsp; ≈ {asUah(data.totals.potentialBankUsdt)}</div>
+
+          <div className="mn-grid">
+            <MinimalColumn emoji="🔄" title="В обороті" valueClass="mn-blue" value={formatPlain(data.turnover.totalUsdt, hidden)} sub={`≈ ${asUah(data.turnover.totalUsdt)}`}>
+              {turnover.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="❄️" title="Заморожено" valueClass="mn-teal" value={formatPlain(data.totals.frozenTotalUsdt, hidden)} sub={`≈ ${asUah(data.totals.frozenTotalUsdt)}`}>
+              {data.totals.frozenBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="💵" title="Чистий PnL" valueClass={minimalTone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              {data.totals.pnlBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(Number(item.value))} tone={minimalTone(Number(item.value))} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="📈" title="Прибуток" valueClass="mn-green" value={signed(profit)} sub={`≈ ${asUah(String(profit))}`}>
+              {data.totals.profitBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(Number(item.value))} tone="mn-green" />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="📉" title="Витрати і мінуси" valueClass="mn-red" value={signed(-cost)} sub={`≈ ${asUah(String(-cost))}`}>
+              {data.totals.costBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(-Number(item.value))} tone="mn-red" />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="🧾" title="Загалом" valueClass={minimalTone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              <MinimalRow label="Прибуток" value={signed(profit)} tone="mn-green" />
+              <MinimalRow label="Витрати" value={signed(-cost)} tone="mn-red" />
+              <MinimalRow label="Чистий" value={signed(periodPnl)} tone={minimalTone(periodPnl)} />
+            </MinimalColumn>
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-default hero-gradient relative overflow-hidden rounded-3xl p-5 text-[hsl(var(--hero-fg))] shadow-soft sm:p-7">
         <div className="hero-blob pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
         <div className="hero-blob pointer-events-none absolute -bottom-28 right-16 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
         <div className="relative">
@@ -131,6 +205,21 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
               {data.totals.pnlBreakdown.map((item) => (
                 <HeroTile key={item.label} label={item.label} value={signed(Number(item.value))} />
               ))}
+            </HeroStat>
+            <HeroStat title="Прибуток" titleClass="text-white/75" valueClass="text-[hsl(var(--hero-pos))]" value={signed(profit)} sub={`≈ ${asUah(String(profit))}`}>
+              {data.totals.profitBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(Number(item.value))} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Витрати і мінуси" titleClass="text-white/75" valueClass="tone-neg text-[hsl(var(--hero-neg))]" value={signed(-cost)} sub={`≈ ${asUah(String(-cost))}`}>
+              {data.totals.costBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(-Number(item.value))} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Загалом" titleClass="text-white/75" valueClass={tone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              <HeroTile label="Прибуток" value={signed(profit)} />
+              <HeroTile label="Витрати" value={signed(-cost)} />
+              <HeroTile label="Чистий" value={signed(periodPnl)} />
             </HeroStat>
           </div>
         </div>
