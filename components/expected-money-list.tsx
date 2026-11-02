@@ -19,7 +19,16 @@ type ExpectedMoneyItem = {
 
 const activeStatuses = new Set(["EXPECTED", "NEED_TO_COLLECT", "IN_PROGRESS"]);
 
-export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
+const statusLabels: Record<string, string> = {
+  EXPECTED: "Заморожено",
+  NEED_TO_COLLECT: "Потрібно забрати",
+  IN_PROGRESS: "В процесі",
+  RECEIVED: "Повернулось",
+  LOST: "Втрачено",
+  SCAMMED: "Скам"
+};
+
+export function ExpectedMoneyList({ items, hidden = false }: { items: ExpectedMoneyItem[]; hidden?: boolean }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
 
@@ -60,12 +69,12 @@ export function ExpectedMoneyList({ items }: { items: ExpectedMoneyItem[] }) {
               <div>
                 <div className="font-medium">{item.title}</div>
                 <div className="text-sm text-[hsl(var(--card-muted-foreground))]">
-                  {item.status}
+                  {statusLabels[item.status] || item.status}
                   {item.sourceAccountName ? ` · з рахунку ${item.sourceAccountName}` : ""}
                   {item.note ? ` · ${item.note}` : ""}
                 </div>
               </div>
-              <div className="font-semibold">{formatMoney(item.amount, item.currency)}</div>
+              <div className="font-semibold">{formatMoney(item.amount, item.currency, hidden)}</div>
             </div>
             {active && item.sourceAccountName && (
               <form action={release} className="mt-3 flex justify-end">
