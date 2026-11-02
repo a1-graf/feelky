@@ -53,7 +53,8 @@ export async function getWithdrawalsPage(userId: string, input: PeriodInput = {}
       if (item.convertedCurrency === "UAH") receivedUah = receivedUah.plus(item.convertedAmount || 0);
       if (item.convertedCurrency === "USD") receivedUsd = receivedUsd.plus(item.convertedAmount || 0);
     }
-    if (item.exchangeRate && volume.gt(0)) {
+    const isUahRate = item.type === TransactionType.P2P_DEPOSIT || item.convertedCurrency === "UAH";
+    if (isUahRate && item.exchangeRate && volume.gt(0)) {
       weightedRateVolume = weightedRateVolume.plus(D(item.exchangeRate).times(volume));
       rateWeight = rateWeight.plus(volume);
     }

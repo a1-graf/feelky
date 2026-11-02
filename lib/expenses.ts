@@ -60,7 +60,10 @@ export async function getExpensesPage(userId: string, input: PeriodInput = {}) {
     };
   });
 
-  const days = Math.max(1, Math.ceil((period.to.getTime() - period.from.getTime()) / 86_400_000));
+  const effectiveFrom = period.key === "all" && inPeriod.length
+    ? inPeriod[inPeriod.length - 1].transactionDate
+    : period.from;
+  const days = Math.max(1, Math.ceil((period.to.getTime() - effectiveFrom.getTime()) / 86_400_000));
   return {
     period,
     rate: rate.toString(),
