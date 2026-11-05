@@ -34,7 +34,7 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="uk" data-theme={theme === "default" ? undefined : theme} suppressHydrationWarning>
+    <html lang="uk" data-theme={theme} suppressHydrationWarning>
       <body>
         <SessionProvider>
           <PwaRegister />

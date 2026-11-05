@@ -1,3 +1,5 @@
+// ARCHIVE (06.11.2026): the old lower half of the home page. «Наростаючий дохід» and «Що приносить дохід» live on in
+// components/home/income-charts.tsx; the rest (Підсумковий результат, Доступний банк, Банк в обороті, Структура банку, Останні операції) is hidden.
 import { DonutBreakdown } from "@/components/donut-breakdown";
 import { IncomeLineChart, IncomeSourceGrowthChart } from "@/components/income-line-chart";
 import { RangeAreaChart, type RangePoint } from "@/components/range-area-chart";

@@ -10,16 +10,14 @@ function currentTheme(): ThemeId {
 }
 
 function applyTheme(id: ThemeId) {
-  const root = document.documentElement;
-  if (id === "default") delete root.dataset.theme;
-  else root.dataset.theme = id;
+  document.documentElement.dataset.theme = id;
   document.cookie = `${THEME_COOKIE}=${id}; path=/; max-age=31536000; samesite=lax`;
   const color = THEMES.find((item) => item.id === id)?.themeColor;
   if (color) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
 }
 
 function useTheme() {
-  const [theme, setTheme] = useState<ThemeId>("default");
+  const [theme, setTheme] = useState<ThemeId>("minimal");
   useEffect(() => setTheme(currentTheme()), []);
   const choose = (id: ThemeId) => {
     applyTheme(id);
@@ -42,7 +40,7 @@ function Swatch({ colors }: { colors: readonly string[] }) {
 export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   const { theme, choose } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Тема" className={cn("grid gap-1", compact ? "grid-cols-6" : "grid-cols-3 sm:grid-cols-6")}>
+    <div role="radiogroup" aria-label="Тема" className={cn("grid gap-1", "grid-cols-3")}>
       {THEMES.map((item) => (
         <button
           key={item.id}
