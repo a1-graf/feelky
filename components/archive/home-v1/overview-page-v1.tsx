@@ -1,0 +1,276 @@
+// ARCHIVE (06.11.2026): the home page as it was before the «prehome2» redesign. Not routed anywhere.
+// To bring it back, re-export it from app/overview/page.tsx. What every block meant: projects/feelky/ui-research/ARCHIVE.md.
+import Link from "next/link";
+import { DashboardStatistics } from "@/components/archive/home-v1/dashboard-statistics";
+import { PeriodPicker } from "@/components/period-picker";
+import { RangeAreaChart } from "@/components/range-area-chart";
+import { RecentExpenses } from "@/components/archive/home-v1/recent-expenses";
+import { Card } from "@/components/ui/card";
+import { bankSeries } from "@/lib/bank-history";
+import { getDashboard } from "@/lib/dashboard";
+import { formatMoney, formatPercent, formatPlain } from "@/lib/money";
+import { requireUserId } from "@/lib/session";
+
+const mobileLinks = [
+  { href: "/fx", label: "FX" },
+  { href: "/forks", label: "Вилки" },
+  { href: "/poly", label: "Polymarket" },
+  { href: "/steam", label: "Steam" }
+];
+
+function HeroStat({ title, titleClass, valueClass, value, sub, children }: { title: string; titleClass: string; valueClass: string; value: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col rounded-xl bg-white/12 px-3 py-3 ring-1 ring-white/20">
+      <div className={`text-center text-[11px] font-semibold uppercase tracking-wide ${titleClass}`}>{title}</div>
+      <div className="mt-2 flex items-baseline justify-center gap-1.5">
+        <span className={`text-4xl font-extrabold leading-none tabular-nums ${valueClass}`}>{value}</span>
+        <span className="text-xs font-semibold text-white/60">USDT</span>
+      </div>
+      <div className="mt-1.5 text-center text-xs tabular-nums text-white/70">{sub}</div>
+      <div className="mt-3 grid grid-cols-3 gap-1">{children}</div>
+    </div>
+  );
+}
+
+function HeroTile({ label, value, style = "bg-black/15 text-white/90" }: { label: string; value: string; style?: string }) {
+  return (
+    <div className={`min-w-0 rounded-md px-1.5 py-1.5 text-center ${style}`}>
+      <div className="truncate text-[10px] font-medium opacity-80">{label}</div>
+      <div className="text-[11px] font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function MinimalColumn({ emoji, title, valueClass, value, sub, children }: { emoji: string; title: string; valueClass: string; value: string; sub: string; children: React.ReactNode }) {
+  return (
+    <section className="mn-col">
+      <div className="mn-title">
+        <span className="mn-emoji" aria-hidden="true">{emoji}</span>
+        {title}
+      </div>
+      <div className={`mn-value ${valueClass}`}>{value}</div>
+      <div className="mn-sub !mt-1">{sub}</div>
+      <div className="mn-rows">{children}</div>
+    </section>
+  );
+}
+
+function MinimalRow({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className={`mn-row ${tone}`}>
+      <span title={label}>{label}</span>
+      <span className={`mn-amt ${tone}`}>{value}</span>
+    </div>
+  );
+}
+
+/** The one main page: the bank right now on top, then everything about the chosen period. */
+export async function OverviewPageV1({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
+  const userId = await requireUserId();
+  const params = await searchParams;
+  const data = await getDashboard(userId, { month: params?.month, period: params?.period });
+  const hidden = Boolean(data.settings?.hideAmounts);
+  const rate = Number(data.rate);
+  const asUah = (value: string) => formatMoney(Number(value) * rate, "UAH", hidden);
+  const asUsdt = (value: string) => formatMoney(Number(value) / rate, "USDT", hidden);
+  const monthExpense = Number(data.totals.monthExpenseUah);
+  const limit = Number(data.settings?.monthlyExpenseLimit?.toString() || 0);
+  const limitRatio = limit > 0 ? Math.min(1, monthExpense / limit) : 0;
+  const overLimit = limit > 0 && monthExpense > limit;
+  const periodPnl = Number(data.totals.periodNetPnlUsdt);
+  const profit = Number(data.totals.periodProfitUsdt);
+  const cost = Number(data.totals.periodCostUsdt);
+  const signed = (value: number) => (value > 0 ? "+" : "") + formatPlain(value, hidden);
+  const minimalTone = (value: number) => (value >= 0 ? "mn-green" : "mn-red");
+  const tone = (value: number) => (value >= 0 ? "text-[hsl(var(--hero-pos))]" : "tone-neg text-[hsl(var(--hero-neg))]");
+  const turnover = [
+    { label: "Steam", value: data.turnover.steamUsdt },
+    { label: "Aurum", value: data.turnover.aurumUsdt },
+    { label: "Polymarket", value: data.turnover.polyUsdt }
+  ];
+
+  const turnoverStyle: Record<string, string> = {
+    Steam: "bg-[#1e3a8a] text-white",
+    Aurum: "bg-[#d4a62a] text-[#2a2008]",
+    Polymarket: "bg-[#38bdf8] text-[#06283d]"
+  };
+
+  const accounts = [
+    { icon: "💵", label: "Мейн гаманець", value: formatMoney(data.totals.cryptoTotal, "USDT", hidden), sub: asUah(data.totals.cryptoTotal) },
+    { icon: "💳", label: "Картка", value: formatMoney(data.totals.cardUah, "UAH", hidden), sub: asUsdt(data.totals.cardUah) },
+    { icon: "👛", label: "Готівка", value: formatMoney(data.totals.cashUah, "UAH", hidden), sub: `${formatMoney(data.totals.cashUsd, "USD", hidden)} cash` },
+    { icon: "🏦", label: "Відкладення", value: formatMoney(data.totals.savingsUah, "UAH", hidden), sub: asUsdt(data.totals.savingsUah) }
+  ];
+
+  return (
+    <>
+      <div className="mb-3">
+        <PeriodPicker
+          basePath="/overview"
+          period={data.period}
+          presets={["week", "month", "3m", "all"]}
+        />
+        <div className="mt-1.5 px-1 text-xs text-[hsl(var(--card-muted-foreground))]">
+          Чистий PnL, прибутки й плашки нижче — за період: <span className="font-semibold text-[hsl(var(--card-foreground))]">{data.period.label}</span>. Банк, оборот і заморожене — на зараз.
+        </div>
+      </div>
+
+      <div className="hero-minimal">
+        <div className="mn-card">
+          <div className="mn-head">
+            <div className="mn-caption">🏦 Доступний банк · USDT</div>
+            <div className="mn-pill">курс {formatPlain(data.rate)} UAH/USDT</div>
+          </div>
+          <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <span className="mn-big">{formatPlain(data.totals.availableBankUsdt, hidden)}</span>
+            <span className="mn-big mn-slash">/</span>
+            <span className="mn-big mn-amber">{formatPlain(data.totals.potentialBankUsdt, hidden)}</span>
+          </div>
+          <div className="mn-sub">≈ {asUah(data.totals.availableBankUsdt)} &nbsp;/&nbsp; ≈ {asUah(data.totals.potentialBankUsdt)}</div>
+
+          <div className="mn-grid">
+            <MinimalColumn emoji="🔄" title="В обороті" valueClass="mn-blue" value={formatPlain(data.turnover.totalUsdt, hidden)} sub={`≈ ${asUah(data.turnover.totalUsdt)}`}>
+              {turnover.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="❄️" title="Заморожено" valueClass="mn-teal" value={formatPlain(data.totals.frozenTotalUsdt, hidden)} sub={`≈ ${asUah(data.totals.frozenTotalUsdt)}`}>
+              {data.totals.frozenBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="💵" title="Чистий PnL" valueClass={minimalTone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              {data.totals.pnlBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(Number(item.value))} tone={minimalTone(Number(item.value))} />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="📈" title="Прибуток" valueClass="mn-green" value={signed(profit)} sub={`≈ ${asUah(String(profit))}`}>
+              {data.totals.profitBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(Number(item.value))} tone="mn-green" />
+              ))}
+            </MinimalColumn>
+            <MinimalColumn emoji="📉" title="Витрати і мінуси" valueClass="mn-red" value={signed(-cost)} sub={`≈ ${asUah(String(-cost))}`}>
+              {data.totals.costBreakdown.map((item) => (
+                <MinimalRow key={item.label} label={item.label} value={signed(-Number(item.value))} tone="mn-red" />
+              ))}
+              <MinimalRow label="Витрати UAH" value={formatMoney(data.totals.monthExpenseUah, "UAH", hidden)} tone={overLimit ? "mn-red" : ""} />
+              {limit > 0 && <MinimalRow label="Ліміт UAH" value={formatMoney(limit, "UAH", hidden)} />}
+            </MinimalColumn>
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-default hero-gradient relative overflow-hidden rounded-3xl p-5 text-[hsl(var(--hero-fg))] shadow-soft sm:p-7">
+        <div className="hero-blob pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="hero-blob pointer-events-none absolute -bottom-28 right-16 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-3">
+            <div className="hero-label text-sm font-medium text-white/75">Доступний банк</div>
+            <div className="rounded-lg bg-white/20 px-2.5 py-1 text-sm font-bold tabular-nums text-white ring-1 ring-white/30">
+              курс {formatPlain(data.rate)} <span className="text-[11px] font-medium text-white/70">UAH/USDT</span>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-start gap-x-3 gap-y-2">
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums sm:text-5xl">
+                {formatPlain(data.totals.availableBankUsdt, hidden)}
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.availableBankUsdt)}</div>
+            </div>
+            <div className="text-4xl font-bold leading-none text-white/60 sm:text-5xl">/</div>
+            <div>
+              <div className="break-words text-4xl font-bold leading-none tracking-tight tabular-nums text-[hsl(var(--hero-accent))] sm:text-5xl">
+                {formatPlain(data.totals.potentialBankUsdt, hidden)}
+                <span className="ml-2 text-base font-semibold text-[hsl(var(--hero-accent)/0.6)]">USDT</span>
+              </div>
+              <div className="mt-2 text-sm tabular-nums text-white/70">≈ {asUah(data.totals.potentialBankUsdt)}</div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <HeroStat title="В обороті" titleClass="text-[hsl(var(--hero-accent))]" valueClass="text-[hsl(var(--hero-accent-soft))]" value={formatPlain(data.turnover.totalUsdt, hidden)} sub={`≈ ${asUah(data.turnover.totalUsdt)}`}>
+              {turnover.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={formatPlain(item.value, hidden)} style={turnoverStyle[item.label]} />
+              ))}
+            </HeroStat>
+            <HeroStat title="❄️ Заморожено" titleClass="text-white/75" valueClass="text-white" value={formatPlain(data.totals.frozenTotalUsdt, hidden)} sub={`≈ ${asUah(data.totals.frozenTotalUsdt)}`}>
+              {data.totals.frozenBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={formatPlain(item.value, hidden)} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Чистий PnL" titleClass="text-white/75" valueClass={tone(periodPnl)} value={signed(periodPnl)} sub={`≈ ${asUah(String(periodPnl))}`}>
+              {data.totals.pnlBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(Number(item.value))} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Прибуток" titleClass="text-white/75" valueClass="text-[hsl(var(--hero-pos))]" value={signed(profit)} sub={`≈ ${asUah(String(profit))}`}>
+              {data.totals.profitBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(Number(item.value))} />
+              ))}
+            </HeroStat>
+            <HeroStat title="Витрати і мінуси" titleClass="text-white/75" valueClass="tone-neg text-[hsl(var(--hero-neg))]" value={signed(-cost)} sub={`≈ ${asUah(String(-cost))}`}>
+              {data.totals.costBreakdown.map((item) => (
+                <HeroTile key={item.label} label={item.label} value={signed(-Number(item.value))} />
+              ))}
+              <HeroTile label="Витрати UAH" value={formatMoney(data.totals.monthExpenseUah, "UAH", hidden)} style={overLimit ? "bg-red-500/30 text-white" : undefined} />
+              {limit > 0 && <HeroTile label="Ліміт UAH" value={formatMoney(limit, "UAH", hidden)} />}
+            </HeroStat>
+          </div>
+        </div>
+      </div>
+
+      <Card className="mt-3">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <div className="font-semibold">Останні витрати</div>
+          <Link href="/expenses" className="text-xs font-semibold text-primary hover:underline">Усі витрати</Link>
+        </div>
+        <RecentExpenses items={data.recentExpenses} hidden={hidden} />
+      </Card>
+
+      <Card className="mt-3">
+        <div className="mb-2 font-semibold">Загальний банк</div>
+        <RangeAreaChart data={bankSeries(data.bankHistory, "total")} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" minimal smooth />
+      </Card>
+
+      <div className="mt-3 grid grid-cols-4 gap-2 md:hidden">
+        {mobileLinks.map((link) => (
+          <Link key={link.href} href={link.href} className="flex min-h-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 px-2 py-2.5 text-center text-xs font-semibold text-primary shadow-card active:bg-muted">
+            {link.label}
+          </Link>
+        ))}
+      </div>
+
+      {limit > 0 && (data.period.key === "month" || data.period.key === "custom") && (
+        <Card className="mt-4 p-4">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="font-medium">Ліміт витрат на місяць</span>
+            <span className={overLimit ? "font-semibold text-danger" : "text-[hsl(var(--card-muted-foreground))]"}>
+              {formatPercent((monthExpense / limit) * 100)}
+            </span>
+          </div>
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full rounded-full transition-all ${overLimit ? "bg-danger" : limitRatio > 0.8 ? "bg-warning" : "bg-success"}`}
+              style={{ width: `${Math.max(2, limitRatio * 100)}%` }}
+            />
+          </div>
+        </Card>
+      )}
+
+      <DashboardStatistics data={data} />
+
+      <Card className="mt-4">
+        <div className="mb-3 font-semibold">Рахунки</div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          {accounts.map((account) => (
+            <div key={account.label} className="min-w-0">
+              <dt className="text-xs text-[hsl(var(--card-muted-foreground))]">{account.icon} {account.label}</dt>
+              <dd className="mt-0.5 break-words text-base font-bold tabular-nums">{account.value}</dd>
+              <dd className="text-xs tabular-nums text-[hsl(var(--card-muted-foreground))]">{account.sub}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+    </>
+  );
+}

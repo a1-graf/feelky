@@ -50,7 +50,7 @@ function topThree(items: { label: string; value: Decimal }[], byAbs = false): { 
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, latestTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -69,6 +69,13 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
       take: 5,
       include: { sourceAccount: true, category: true, incomeSource: true }
+    }),
+    // The home page's "Останні транзакції": every kind of operation that touched the bank, newest first, whatever the period.
+    prisma.transaction.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      take: 12,
+      include: { sourceAccount: true, destinationAccount: true, category: true, incomeSource: true }
     }),
     prisma.transaction.findMany({
       where: { userId, archivedAt: null },
@@ -305,6 +312,14 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const periodCostUsdt = Array.from(costBySource.values()).reduce((sum, value) => sum.plus(value), new Decimal(0));
   const profitBreakdown = topThree(profitSources);
   const costBreakdown = topThree(Array.from(costBySource, ([label, value]) => ({ label, value })));
+  // The same costs, split for the home tiles: money spent (expenses) vs. directions that ended the period in the red (losses).
+  const isSpendLabel = (label: string) => label === "Робочі витрати" || label === "Особисті витрати";
+  const spendEntries = Array.from(costBySource, ([label, value]) => ({ label, value })).filter((item) => isSpendLabel(item.label));
+  const lossEntries = Array.from(costBySource, ([label, value]) => ({ label, value })).filter((item) => !isSpendLabel(item.label));
+  const periodSpendUsdt = spendEntries.reduce((sum, item) => sum.plus(item.value), new Decimal(0));
+  const periodLossUsdt = lossEntries.reduce((sum, item) => sum.plus(item.value), new Decimal(0));
+  const spendBreakdown = topThree(spendEntries);
+  const lossBreakdown = topThree(lossEntries);
   let runningNet = new Decimal(0);
   const pnlTimeline = resultEvents.map((event) => {
     runningNet = runningNet.plus(event.net);
@@ -386,6 +401,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     expectedMoney,
     recentTransactions: recentTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 3),
     recentExpenses,
+    latestTransactions: latestTransactions.filter((item) => !isOpeningBalanceTransaction(item)).slice(0, 10),
     expenseCategories,
     workExpenseSourcesUsdt,
     incomeSourcesUah,
@@ -414,6 +430,10 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       pnlBreakdown,
       profitBreakdown,
       costBreakdown,
+      spendBreakdown,
+      lossBreakdown,
+      periodSpendUsdt: periodSpendUsdt.toString(),
+      periodLossUsdt: periodLossUsdt.toString(),
       periodProfitUsdt: periodProfitUsdt.toString(),
       periodCostUsdt: periodCostUsdt.toString(),
       cardUah: cardUah.toString(),
