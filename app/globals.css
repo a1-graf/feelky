@@ -368,6 +368,158 @@ html[data-theme="minimal"] .dark {
   color-scheme: light;
 }
 
+/* Біла / Чорна (06.11.2026): pure white or pure black, plain grey hairlines, no accent colour.
+   Colour is left only for plus/minus and the project tiles; charts are greys. Old "minimal"/"graphite" above stay unused. */
+html[data-theme="white"],
+html[data-theme="white"] .dark {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 38%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --card-muted-foreground: 0 0% 38%;
+  --border: 0 0% 80%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --danger: 0 72% 42%;
+  --success: 142 76% 26%;
+  --warning: 0 0% 38%;
+  --profit: 142 76% 26%;
+  --loss: 0 72% 42%;
+  --hero-from: 0 0% 100%;
+  --hero-to: 0 0% 100%;
+  --hero-ring: 0 0% 80%;
+  --hero-fg: 0 0% 0%;
+  --hero-accent: 0 0% 0%;
+  --hero-accent-soft: 0 0% 20%;
+  --hero-pos: 142 76% 26%;
+  --hero-neg: 0 72% 42%;
+  --chart-1: 0 0% 0%;
+  --chart-2: 0 0% 45%;
+  --chart-3: 0 0% 70%;
+  --chart-4: 0 0% 25%;
+  --chart-5: 0 0% 58%;
+  --chart-6: 0 0% 82%;
+  --chart-7: 0 0% 12%;
+  --chart-8: 0 0% 90%;
+  --lose-2: 0 0% 45%;
+  --lose-3: 0 0% 70%;
+  --lose-4: 0 0% 25%;
+  --lose-5: 0 0% 58%;
+  --lose-6: 0 0% 82%;
+  --lose-7: 0 0% 12%;
+  --lose-8: 0 0% 90%;
+  color-scheme: light;
+}
+
+html[data-theme="black"],
+html[data-theme="black"] .dark {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --muted: 0 0% 10%;
+  --muted-foreground: 0 0% 64%;
+  --card: 0 0% 0%;
+  --card-foreground: 0 0% 100%;
+  --card-muted-foreground: 0 0% 64%;
+  --border: 0 0% 24%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+  --danger: 0 84% 66%;
+  --success: 142 69% 58%;
+  --warning: 0 0% 64%;
+  --profit: 142 69% 58%;
+  --loss: 0 84% 66%;
+  --hero-from: 0 0% 0%;
+  --hero-to: 0 0% 0%;
+  --hero-ring: 0 0% 24%;
+  --hero-fg: 0 0% 100%;
+  --hero-accent: 0 0% 100%;
+  --hero-accent-soft: 0 0% 85%;
+  --hero-pos: 142 69% 58%;
+  --hero-neg: 0 84% 66%;
+  --chart-1: 0 0% 100%;
+  --chart-2: 0 0% 60%;
+  --chart-3: 0 0% 36%;
+  --chart-4: 0 0% 80%;
+  --chart-5: 0 0% 48%;
+  --chart-6: 0 0% 24%;
+  --chart-7: 0 0% 90%;
+  --chart-8: 0 0% 16%;
+  --lose-2: 0 0% 60%;
+  --lose-3: 0 0% 36%;
+  --lose-4: 0 0% 80%;
+  --lose-5: 0 0% 48%;
+  --lose-6: 0 0% 24%;
+  --lose-7: 0 0% 90%;
+  --lose-8: 0 0% 16%;
+  color-scheme: dark;
+}
+
+/* Flat surfaces: no shadow or blur, no tinted canvas glow. */
+html[data-theme="white"] body,
+html[data-theme="black"] body {
+  background: hsl(var(--background));
+}
+html[data-theme="white"] .shadow-card,
+html[data-theme="black"] .shadow-card,
+html[data-theme="white"] .shadow-soft,
+html[data-theme="black"] .shadow-soft {
+  box-shadow: none;
+}
+/* The app logo loses its green too. */
+html[data-theme="white"] img[src="/icons/icon.svg"],
+html[data-theme="black"] img[src="/icons/icon.svg"] {
+  filter: grayscale(1) contrast(1.6);
+}
+html[data-theme="white"] .backdrop-blur-sm,
+html[data-theme="black"] .backdrop-blur-sm {
+  backdrop-filter: none;
+}
+
+/* Project tiles: always green for a profit and red for a loss, whatever the theme, with white text that reads on both.
+   The fill drifts slowly and a soft sheen passes over it; both stop for prefers-reduced-motion. */
+.project-tile {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background-size: 220% 220%;
+  animation: project-tile-drift 7s ease-in-out infinite alternate;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.18);
+}
+.project-tile-pos {
+  background-image: linear-gradient(120deg, #0b6b37, #15803d 45%, #1a9150 70%, #0f7a3f);
+}
+.project-tile-neg {
+  background-image: linear-gradient(120deg, #9f1239, #b91c1c 45%, #d32f2f 70%, #a61b1b);
+}
+.project-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.13) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: project-tile-sheen 8s ease-in-out infinite;
+}
+.project-tile > * {
+  position: relative;
+}
+@keyframes project-tile-drift {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+@keyframes project-tile-sheen {
+  0%, 55% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-tile,
+  .project-tile::after {
+    animation: none;
+  }
+}
+
 html[data-theme="graphite"],
 
 html[data-theme="graphite"],

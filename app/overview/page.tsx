@@ -45,6 +45,17 @@ function Tile({ icon, label, value, valueClass = "", sub, rows, rowSigned = fals
   );
 }
 
+/** One of the four project squares: fully painted green for a profit (or zero) and red for a loss, with a slow soft shimmer. */
+function ProjectTile({ label, value, sub, hidden }: { label: string; value: number; sub: string; hidden: boolean }) {
+  return (
+    <div className={`project-tile ${value >= 0 ? "project-tile-pos" : "project-tile-neg"} min-w-0 rounded-2xl p-3.5 sm:p-4`}>
+      <div className="truncate text-[13px]">{label}</div>
+      <div className="mt-2 break-words text-xl font-bold leading-tight tabular-nums sm:text-2xl">{(value > 0 && !hidden ? "+" : "") + formatPlain(value, hidden)}</div>
+      <div className="mt-0.5 text-xs tabular-nums opacity-90">{sub}</div>
+    </div>
+  );
+}
+
 /** The one main page: bank and rate, the bank chart, six tiles, this month's spending, income, and the latest operations at the bottom. */
 export default async function OverviewPage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
   const userId = await requireUserId();
@@ -66,6 +77,13 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
     { label: "Steam", value: data.turnover.steamUsdt },
     { label: "Aurum", value: data.turnover.aurumUsdt },
     { label: "Polymarket", value: data.turnover.polyUsdt }
+  ];
+
+  const projects = [
+    { label: "Фліпи", value: Number(data.projects.flipsUsdt) },
+    { label: "Вилки", value: Number(data.projects.forksUsdt) },
+    { label: "Steam", value: Number(data.projects.steamUsdt) },
+    { label: "Форекс", value: Number(data.projects.fxUsdt) }
   ];
 
   const monthPersonalUah = Number(monthExpenses.totals.personalUah);
@@ -106,7 +124,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
       <div className="mt-4">
         <PeriodPicker basePath="/overview" period={data.period} presets={["week", "month", "3m", "all"]} />
         <div className="mt-1.5 px-1 text-xs text-[hsl(var(--card-muted-foreground))]">
-          Оборот і заморожене — на зараз; PnL, прибуток, мінуси й витрати — за період «{data.period.label}»
+          Оборот і заморожене — на зараз; PnL, прибуток, мінуси, витрати й проєкти — за період «{data.period.label}»
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
@@ -116,6 +134,13 @@ export default async function OverviewPage({ searchParams }: { searchParams?: Pr
         <Tile hidden={hidden} icon={<Dot className="bg-success" />} label="Прибуток" value={signed(profit)} valueClass="text-success" sub={asUah(profit)} rows={data.totals.profitBreakdown} />
         <Tile hidden={hidden} icon={<Dot className="bg-danger" />} label="Мінуси" value={negative(loss)} valueClass={loss > 0 ? "tone-neg text-danger" : ""} sub={asUah(-loss)} rows={data.totals.lossBreakdown} />
         <Tile hidden={hidden} icon={<SquareArrowOutUpRight className="h-3.5 w-3.5 text-danger" />} label="Витрати" value={negative(spend)} valueClass={spend > 0 ? "tone-neg text-danger" : ""} sub={asUah(-spend)} rows={data.totals.spendBreakdown} />
+      </div>
+
+      {/* 3b. Profit of each project over the same period: 4 in a row on desktop, 2×2 on a phone. */}
+      <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:mt-3 sm:gap-3 lg:grid-cols-4">
+        {projects.map((project) => (
+          <ProjectTile key={project.label} hidden={hidden} label={project.label} value={project.value} sub={asUah(project.value)} />
+        ))}
       </div>
 
       {/* 4. This month's spending by category. */}

@@ -17,8 +17,13 @@ function applyTheme(id: ThemeId) {
 }
 
 function useTheme() {
-  const [theme, setTheme] = useState<ThemeId>("minimal");
-  useEffect(() => setTheme(currentTheme()), []);
+  const [theme, setTheme] = useState<ThemeId>("white");
+  useEffect(() => {
+    const id = currentTheme();
+    setTheme(id);
+    // A cookie still holding an old theme ("minimal", "graphite"…) is rewritten to the one it was mapped to.
+    if (!document.cookie.includes(`${THEME_COOKIE}=${id}`)) applyTheme(id);
+  }, []);
   const choose = (id: ThemeId) => {
     applyTheme(id);
     setTheme(id);
