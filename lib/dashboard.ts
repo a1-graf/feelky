@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { bankChange, buildBankHistory } from "@/lib/bank-history";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
+import { summarizeForks } from "@/lib/forks-stats";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
@@ -50,7 +51,7 @@ function topThree(items: { label: string; value: Decimal }[], byAbs = false): { 
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, latestTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, latestTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals, periodForks] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -88,7 +89,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     prisma.polyLock.findMany({ where: { userId } }),
     prisma.steamResaleInvestment.findMany({ where: { userId, archivedAt: null } }),
     prisma.steamArbitrageRound.findMany({ where: { userId, archivedAt: null } }),
-    prisma.steamResaleWithdrawal.findMany({ where: { userId, archivedAt: null, transactionId: null } })
+    prisma.steamResaleWithdrawal.findMany({ where: { userId, archivedAt: null, transactionId: null } }),
+    prisma.forkTrade.findMany({ where: { userId, placedAt: { gte: period.from, lte: period.to } } })
   ]);
 
   const { rate, source } = rateData;
@@ -320,6 +322,16 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const periodLossUsdt = lossEntries.reduce((sum, item) => sum.plus(item.value), new Decimal(0));
   const spendBreakdown = topThree(spendEntries);
   const lossBreakdown = topThree(lossEntries);
+  // The four project tiles: each direction's period result minus its own work expenses. Forks are not booked in the bank,
+  // so their tile is the forks page's net (after Bagira's cut) plus the extra income on the "Вилки" source.
+  const projectOf = (source: string) =>
+    /^steam/i.test(source) ? "steam" : source === "Фліпи" ? "flips" : source === "Вилки" ? "forks" : /aurum|forex|форекс/i.test(source) ? "fx" : null;
+  const projectProfit = { flips: new Decimal(0), forks: D(summarizeForks(periodForks).net), steam: new Decimal(0), fx: new Decimal(0) };
+  for (const event of periodResults) {
+    if (event.kind === "expense" && !event.workExpense) continue;
+    const project = projectOf(event.source);
+    if (project) projectProfit[project] = projectProfit[project].plus(event.net);
+  }
   let runningNet = new Decimal(0);
   const pnlTimeline = resultEvents.map((event) => {
     runningNet = runningNet.plus(event.net);
@@ -414,6 +426,12 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     steam: {
       frozenCapital: steamFrozenCapital.toString(),
       profit: steam.totals.steamProfit
+    },
+    projects: {
+      flipsUsdt: projectProfit.flips.toFixed(2),
+      forksUsdt: projectProfit.forks.toFixed(2),
+      steamUsdt: projectProfit.steam.toFixed(2),
+      fxUsdt: projectProfit.fx.toFixed(2)
     },
     turnover: {
       totalUsdt: turnoverUsdt.toString(),
