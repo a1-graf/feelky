@@ -1,3 +1,5 @@
+// ARCHIVE (06.11.2026): «Наростаючий дохід» і «Що приносить дохід» з головної варіанта B. Замінено графіком components/home/flow-chart.tsx і кільцями components/home/flow-donut.tsx.
+// Щоб повернути: у components/home/gpt-home.tsx відрендерити <IncomeCharts data={data} hidden={hidden} /> з цього файла.
 import { IncomeLineChart, IncomeSourceGrowthChart } from "@/components/income-line-chart";
 import { Card } from "@/components/ui/card";
 

@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { bankChange, buildBankHistory } from "@/lib/bank-history";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
-import { summarizeForks } from "@/lib/forks-stats";
+import { netOf, summarizeForks } from "@/lib/forks-stats";
+import { buildHomeFlow } from "@/lib/home-flow";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
@@ -254,8 +255,8 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   // Every result event over ALL time; the page period only slices them, the charts have their own presets.
   // `source` names where it came from, so one list feeds the net result, the tiles and "Що приносить дохід".
   type ResultKind = "income" | "expense" | "flip" | "fx" | "poly";
-  const resultEvents: { date: Date; net: Decimal; kind: ResultKind; source: string; workExpense?: boolean }[] = [];
-  const addResult = (date: Date, net: Decimal.Value, kind: ResultKind, source: string, workExpense = false) => resultEvents.push({ date, net: D(net), kind, source, workExpense });
+  const resultEvents: { date: Date; net: Decimal; kind: ResultKind; source: string; workExpense?: boolean; category?: string }[] = [];
+  const addResult = (date: Date, net: Decimal.Value, kind: ResultKind, source: string, workExpense = false, category?: string) => resultEvents.push({ date, net: D(net), kind, source, workExpense, category });
   for (const transaction of allTransactions) {
     const source = metadataSource(transaction.metadata);
     if ((transaction.type === TransactionType.INCOME || transaction.type === TransactionType.EXPECTED_MONEY_RECEIVED) && !isOpeningBalanceTransaction(transaction) && !isFlipLedgerTransaction(transaction)) {
@@ -270,7 +271,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       addResult(transaction.transactionDate, amount, "income", transaction.incomeSource?.name || "Без джерела");
     } else if (transaction.type === TransactionType.EXPENSE && !isFlipLedgerTransaction(transaction)) {
       const work = isWorkExpenseTransaction(transaction);
-      addResult(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated(), "expense", work ? transaction.incomeSource?.name || "Без напрямку" : "", work);
+      addResult(transaction.transactionDate, asUsdt(transaction.amount, transaction.currency).negated(), "expense", work ? transaction.incomeSource?.name || "Без напрямку" : "", work, transaction.category?.name || (work ? "Робочі витрати" : "Без категорії"));
     } else if (transaction.type === TransactionType.MANUAL_ADJUSTMENT) {
       if (source === "FX_PNL") addResult(transaction.transactionDate, transaction.amount, "fx", "Aurum (Forex)");
       else if (source === "POLY_PNL" || source === "POLY_UNATTRIBUTED") addResult(transaction.transactionDate, transaction.amount, "poly", "Polymarket");
@@ -355,6 +356,23 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       sources: Array.from(value.sources.entries()).map(([name, amount]) => ({ name, value: amount.toNumber() }))
     }));
 
+  // Home chart and donuts: the period's results day by day; forks are not in the bank, so each day's net after Bagira's cut is added here.
+  const forkDays = new Map<string, Decimal>();
+  for (const fork of periodForks) {
+    if (fork.status !== "SETTLED" || fork.pnl == null) continue;
+    const key = fork.placedAt.toISOString().slice(0, 10);
+    forkDays.set(key, D(forkDays.get(key) || 0).plus(fork.pnl));
+  }
+  // The period starts at local midnight, so its bounds are named by the local calendar day.
+  const localDayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const homeFlow = buildHomeFlow(
+    [
+      ...periodResults.map((event) => ({ date: event.date, net: event.net, kind: event.kind, source: event.source, category: event.category })),
+      ...Array.from(forkDays, ([key, pnl]) => ({ date: new Date(`${key}T12:00:00.000Z`), net: netOf(pnl), kind: "fork" as const, source: "Вилки" }))
+    ],
+    { from: period.key === "all" ? undefined : localDayKey(period.from), to: localDayKey(period.to) }
+  );
+
   const bankHistory = buildBankHistory({
     now: new Date(),
     rate,
@@ -421,6 +439,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     incomeTimeline,
     incomeSourceTimeline,
     pnlTimeline,
+    homeFlow,
     bankHistory,
     flips: flipStatistics,
     steam: {
