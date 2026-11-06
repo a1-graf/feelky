@@ -47,7 +47,7 @@ export function FeelkyHome({ data, expenses }: Props) {
   </section>;
   const Chart = <section className="gh-panel gh-bank-chart"><div className="gh-heading"><div><span className="gh-eyebrow">КАПІТАЛ У ЧАСІ</span><h2>Загальний банк</h2></div><span className={`gh-change ${change >= 0 ? "gh-positive" : "gh-negative"}`}>{signed(change)} <small>USDT · {data.period.label}</small></span></div>
     <p className="gh-muted gh-note">Зміна банку включає рух коштів і курс; це не прибуток.</p>
-    <RangeAreaChart data={history} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="1m" minimal smooth />
+    <RangeAreaChart data={history} currency="USDT" hidden={hidden} totalLabel="Банк" emptyLabel="Поки немає історії" defaultPreset="period" periodStart={data.period.fromMs} periodEnd={data.period.toMs} periodPhrase={data.period.phrase} minimal smooth />
   </section>;
   const Period = <div className="gh-period"><div><span className="gh-eyebrow">РЕЗУЛЬТАТИ</span><h2>Гроші в деталях</h2></div><PeriodPicker basePath="/overview" period={data.period} presets={["week", "month", "3m", "all"]} /><p className="gh-muted gh-period-note">Оборот і заморожене — на зараз. Результати й проєкти — {data.period.label}.</p></div>;
   const Metrics = <div className="gh-metrics">{metrics.map((m, i) => <section className={`gh-panel gh-metric gh-metric-${i}`} key={m.label}>
