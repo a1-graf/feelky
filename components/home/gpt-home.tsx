@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, RefreshCw, Snowflake, Wallet, Plus, ArrowRight } from "lucide-react";
-import { IncomeCharts } from "@/components/home/income-charts";
+import { FlowChart } from "@/components/home/flow-chart";
+import { COST_COLORS, FlowDonut, INCOME_COLORS, LOSS_COLOR } from "@/components/home/flow-donut";
 import { PeriodPicker } from "@/components/period-picker";
 import { RangeAreaChart } from "@/components/range-area-chart";
 import { TransactionList } from "@/components/transaction-list";
 import { bankSeries } from "@/lib/bank-history";
 import type { getDashboard } from "@/lib/dashboard";
 import type { getExpensesPage } from "@/lib/expenses";
+import { LOSS_LABEL } from "@/lib/home-flow";
 import { formatMoney, formatPlain, formatSigned, formatPercent } from "@/lib/money";
 import "./gpt-home.css";
 
@@ -67,6 +69,20 @@ export function FeelkyHome({ data, expenses }: Props) {
   </section>;
   const Transactions = <section className="gh-panel gh-transactions"><div className="gh-heading"><div><span className="gh-eyebrow">РУХ КОШТІВ</span><h2>Останні транзакції</h2></div><span className="gh-muted gh-note">Усі типи операцій</span></div><TransactionList items={data.latestTransactions} compact hidden={hidden} /></section>;
   const Actions = <nav className="gh-actions" aria-label="Фінансові розділи"><Link href="/expenses"><Plus size={15} />Витрати</Link><Link href="/income"><ArrowUpRight size={15} />Доходи</Link><Link href="/withdrawals"><RefreshCw size={15} />Перекази</Link><Link href="/flips"><ArrowRight size={15} />Фліпи</Link></nav>;
-  const Income = <div className="gh-income"><IncomeCharts data={data} hidden={hidden} /></div>;
+  // ARCHIVE: «Наростаючий дохід» і «Що приносить дохід» → components/archive/home-b/income-charts.tsx.
+  const flow = data.homeFlow;
+  let costIndex = 0;
+  const costItems = flow.costs.map(c => ({ ...c, color: c.name === LOSS_LABEL ? LOSS_COLOR : COST_COLORS[costIndex++ % COST_COLORS.length] }));
+  const Income = <div className="gh-flow">
+    <section className="gh-panel gh-flow-panel"><div className="gh-heading"><div><span className="gh-eyebrow">ГРОШІ ПО ДНЯХ</span><h2>Дохід і витрати</h2></div><span className="gh-muted gh-note">USDT · {data.period.rangeLabel}</span></div>
+      <div className="gh-legend"><span><i className="gh-dot" style={{ background: "hsl(var(--profit))" }} />Дохід <b className="gh-positive">{money(flow.incomeTotal)}</b></span><span><i className="gh-dot" style={{ background: "hsl(var(--loss))" }} />Витрати й мінуси <b className="gh-negative">{money(flow.costsTotal)}</b></span></div>
+      <FlowChart series={flow.series} hidden={hidden} />
+      <p className="gh-muted gh-note">Дохід — результат дня з усіх проєктів і доходів, де напрямок закрив день у плюс. Червона — витрати дня плюс напрямки, що закрили день у мінус.</p>
+    </section>
+    <div className="gh-donuts">
+      <FlowDonut eyebrow={data.period.label.toUpperCase()} title="Що приносить дохід" items={flow.income.map(i => ({ ...i, color: INCOME_COLORS[i.name] ?? "#64748b" }))} total={flow.incomeTotal} hidden={hidden} emptyLabel="За цей період доходів ще немає" />
+      <FlowDonut eyebrow={data.period.label.toUpperCase()} title="Куди йдуть витрати" items={costItems} total={flow.costsTotal} hidden={hidden} emptyLabel="За цей період витрат і мінусів немає" />
+    </div>
+  </div>;
   return <div className="gh gh-b"><div className="gh-intro"><div><span className="gh-eyebrow">FEELKY / КОНТРОЛЬ КАПІТАЛУ</span><h1>Усе під контролем.</h1></div><span>01 — Огляд</span></div><div className="gh-bento">{Hero}<div className="gh-bento-chart">{Chart}</div><div className="gh-bento-action">{Actions}<p className="gh-muted gh-note">Капітал зараз — окремо.<br/>Результат періоду — нижче.</p></div></div>{Period}<div className="gh-bento-body"><div className="gh-bento-main">{Metrics}{Projects}</div>{Expenses}</div>{Income}{Transactions}</div>;
 }
