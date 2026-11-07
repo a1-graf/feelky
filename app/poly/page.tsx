@@ -1,6 +1,7 @@
 import { PageTitle } from "@/components/page-title";
 import { PeriodPicker } from "@/components/period-picker";
 import { PolyStatistics } from "@/components/poly-statistics";
+import { PolyVariantNav } from "@/components/poly-variants/variant-nav";
 import { getPolyOverview } from "@/lib/poly";
 import { requireUserId } from "@/lib/session";
 
@@ -15,6 +16,7 @@ export default async function PolyPage({ searchParams }: { searchParams?: Promis
     <>
       <PageTitle title="Polymarket" subtitle="Вручну, копітрейд і три AI-агенти: кожна угода окремим рядком, PnL, ризики й блокування" />
       <PeriodPicker basePath="/poly" period={overview.period} presets={["week", "month", "3m", "6m", "12m", "all"]} />
+      <PolyVariantNav current="/poly" />
       <PolyStatistics overview={overview} />
     </>
   );
