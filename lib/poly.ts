@@ -514,6 +514,7 @@ export async function getPolyOverview(userId: string, inputOrNow: PeriodInput | 
       externalId: trade.externalId,
       section: trade.section,
       agentName: trade.agentName,
+      walletRef: trade.walletRef,
       marketKind: trade.marketKind,
       title: trade.title,
       outcome: trade.outcome,
