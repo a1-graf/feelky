@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { SteamArbitrageResidualStatus, SteamArbitrageRoundStatus, SteamResaleInvestmentStatus } from "@prisma/client";
+import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
 import { MetricGrid } from "@/components/metric-grid";
 import { SteamWallets } from "@/components/steam-wallets";
 import { PageTitle } from "@/components/page-title";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatPercent, formatPlain, formatSigned, formatSignedPercent } from "@/lib/money";
+import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { steamAnalytics } from "@/lib/steam";
 import { steamWallets } from "@/lib/steam-wallets";
@@ -50,7 +52,12 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
   const userId = await requireUserId();
   const params = await searchParams;
   const tab = params?.tab === "arbitrage" ? "arbitrage" : "resale";
-  const [data, wallets] = await Promise.all([steamAnalytics.dashboard(userId), steamWallets(userId)]);
+  const [data, wallets, dayPnl, settings] = await Promise.all([
+    steamAnalytics.dashboard(userId),
+    steamWallets(userId),
+    steamAnalytics.dayPnl(userId),
+    prisma.settings.findUnique({ where: { userId }, select: { hideAmounts: true } })
+  ]);
   const accounts = data.accounts;
   const resaleAccounts = data.resaleAccounts;
   const schemes = data.schemes;
@@ -64,7 +71,9 @@ export default async function SteamPage({ searchParams }: { searchParams?: Promi
 
   return (
     <>
-      <PageTitle title="Steam" subtitle="Скільки завезено і скільки лежить на Steam зараз, перепродаж і арбітраж" />
+      <TitleWithDayPnl title={<PageTitle className="mb-0" title="Steam" subtitle="Скільки завезено і скільки лежить на Steam зараз, перепродаж і арбітраж" />}>
+        <DayPnl days={dayPnl} currency="USDT" hidden={Boolean(settings?.hideAmounts)} />
+      </TitleWithDayPnl>
       <div className="mb-4">
         <SteamWallets
           wallets={wallets.wallets.map((wallet) => ({
