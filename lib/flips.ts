@@ -6,6 +6,7 @@ import { ledger } from "@/lib/ledger";
 import { D, roundCurrency } from "@/lib/money";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
 import { resolvePeriod, type PeriodInput } from "@/lib/period";
+import { kyivDayKey, lastDaysPnl } from "@/lib/day-pnl";
 
 type Tx = Prisma.TransactionClient;
 
@@ -88,6 +89,7 @@ export async function getFlipStatistics(userId: string, input: PeriodInput = {})
   return {
     data: summarizeFlips(periodFlips),
     allTimePnl: summarizeFlips(flips).totalPnl,
+    dayPnl: lastDaysPnl(flips.map((flip) => ({ date: kyivDayKey(flip.tradeDate), pnl: flip.pnl.toString() }))),
     period,
     hidden: Boolean(settings?.hideAmounts)
   };

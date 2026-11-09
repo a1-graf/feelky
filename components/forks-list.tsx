@@ -26,7 +26,7 @@ function Leg({ leg, hidden }: { leg: ForkItem["legs"][number]; hidden: boolean }
 function ForkRow({ fork, hidden }: { fork: ForkItem; hidden: boolean }) {
   const open = fork.status === "OPEN";
   return (
-    <div className="rounded-lg bg-muted p-3 text-sm">
+    <div className="min-w-0 rounded-lg bg-muted p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-semibold">{fork.match}</div>

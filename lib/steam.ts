@@ -10,6 +10,9 @@ import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { allocationIsValid, percent, withdrawalLoss } from "@/lib/steam-calculations";
 import { D, roundCurrency } from "@/lib/money";
+import { kyivDayStart } from "@/lib/agent-query";
+import { DAY_PNL_DAYS, kyivDayKey, lastDaysPnl } from "@/lib/day-pnl";
+import { recentDates } from "@/lib/telegram/dates";
 
 type Tx = Prisma.TransactionClient;
 
@@ -610,6 +613,37 @@ export class SteamExpenseService {
   }
 }
 
+type SteamProfitRows = {
+  expenseAllocations: { arbitrageRoundId: string | null; resalePercent: Prisma.Decimal; arbitragePercent: Prisma.Decimal; expenseTransaction: { amount: Prisma.Decimal; archivedAt: Date | null; transactionDate: Date } }[];
+  resaleWithdrawals: { amountReceived: Prisma.Decimal; withdrawalDate: Date }[];
+  completedRounds: { id: string; investedAmount: Prisma.Decimal; finalAmountReceived: Prisma.Decimal | null; completedAt: Date | null }[];
+  withdrawnResiduals: { resolvedAmount: Prisma.Decimal | null; resolvedAt: Date | null }[];
+};
+
+/** Steam profit (resale + arbitrage) of the rows that fall into `inPeriod`; the dashboard and the per-day block share it. */
+export function steamProfitParts(rows: SteamProfitRows, inPeriod: (date?: Date | null) => boolean) {
+  const expenseRows = rows.expenseAllocations.filter((item) => !item.expenseTransaction.archivedAt && inPeriod(item.expenseTransaction.transactionDate));
+  const resaleExpenses = expenseRows.reduce((sum, item) => sum.plus(D(item.expenseTransaction.amount).mul(item.resalePercent).div(100)), new Decimal(0));
+  const arbitrageUnboundExpenses = expenseRows
+    .filter((item) => !item.arbitrageRoundId)
+    .reduce((sum, item) => sum.plus(D(item.expenseTransaction.amount).mul(item.arbitragePercent).div(100)), new Decimal(0));
+  const roundExpenseMap = new Map<string, Decimal>();
+  for (const item of expenseRows.filter((row) => row.arbitrageRoundId)) {
+    roundExpenseMap.set(item.arbitrageRoundId!, D(roundExpenseMap.get(item.arbitrageRoundId!) || 0).plus(D(item.expenseTransaction.amount).mul(item.arbitragePercent).div(100)));
+  }
+
+  const resaleWithdrawn = rows.resaleWithdrawals.filter((item) => inPeriod(item.withdrawalDate)).reduce((sum, item) => sum.plus(item.amountReceived), new Decimal(0));
+  const resaleProfit = resaleWithdrawn.minus(resaleExpenses);
+  const completedProfit = rows.completedRounds
+    .filter((round) => inPeriod(round.completedAt))
+    .reduce((sum, round) => sum.plus(D(round.finalAmountReceived || 0).minus(round.investedAmount).minus(roundExpenseMap.get(round.id) || 0)), new Decimal(0));
+  const residualProfit = rows.withdrawnResiduals
+    .filter((residual) => inPeriod(residual.resolvedAt))
+    .reduce((sum, residual) => sum.plus(residual.resolvedAmount || 0), new Decimal(0));
+  const arbitrageProfit = completedProfit.plus(residualProfit).minus(arbitrageUnboundExpenses);
+  return { resaleExpenses, arbitrageUnboundExpenses, roundExpenseMap, resaleWithdrawn, resaleProfit, arbitrageProfit };
+}
+
 export class SteamAnalyticsService {
   constructor(private readonly db = prisma) {}
 
@@ -643,25 +677,10 @@ export class SteamAnalyticsService {
       return true;
     };
 
-    const expenseRows = expenseAllocations.filter((item) => !item.expenseTransaction.archivedAt && inPeriod(item.expenseTransaction.transactionDate));
-    const resaleExpenses = expenseRows.reduce((sum, item) => sum.plus(D(item.expenseTransaction.amount).mul(item.resalePercent).div(100)), new Decimal(0));
-    const arbitrageUnboundExpenses = expenseRows
-      .filter((item) => !item.arbitrageRoundId)
-      .reduce((sum, item) => sum.plus(D(item.expenseTransaction.amount).mul(item.arbitragePercent).div(100)), new Decimal(0));
-    const roundExpenseMap = new Map<string, Decimal>();
-    for (const item of expenseRows.filter((row) => row.arbitrageRoundId)) {
-      roundExpenseMap.set(item.arbitrageRoundId!, D(roundExpenseMap.get(item.arbitrageRoundId!) || 0).plus(D(item.expenseTransaction.amount).mul(item.arbitragePercent).div(100)));
-    }
-
-    const resaleWithdrawn = resaleWithdrawals.reduce((sum, item) => sum.plus(item.amountReceived), new Decimal(0));
-    const resaleProfit = resaleWithdrawn.minus(resaleExpenses);
-    const completedProfit = completedRounds
-      .filter((round) => inPeriod(round.completedAt))
-      .reduce((sum, round) => sum.plus(D(round.finalAmountReceived || 0).minus(round.investedAmount).minus(roundExpenseMap.get(round.id) || 0)), new Decimal(0));
-    const residualProfit = withdrawnResiduals
-      .filter((residual) => inPeriod(residual.resolvedAt))
-      .reduce((sum, residual) => sum.plus(residual.resolvedAmount || 0), new Decimal(0));
-    const arbitrageProfit = completedProfit.plus(residualProfit).minus(arbitrageUnboundExpenses);
+    const { resaleExpenses, arbitrageUnboundExpenses, roundExpenseMap, resaleWithdrawn, resaleProfit, arbitrageProfit } = steamProfitParts(
+      { expenseAllocations, resaleWithdrawals, completedRounds, withdrawnResiduals },
+      inPeriod
+    );
     const softwareBalance = resaleAccounts.reduce((sum, item) => sum.plus(item.currentSoftwareBalance), new Decimal(0));
     const activeResaleCapital = activeResaleInvestments.reduce((sum, item) => sum.plus(item.externalAmount), new Decimal(0));
     const activeArbitrageCapital = activeRounds.reduce((sum, item) => sum.plus(item.investedAmount), new Decimal(0));
@@ -700,6 +719,27 @@ export class SteamAnalyticsService {
         avgDurationDays: avgDurationDays.toFixed(1)
       }
     };
+  }
+
+  /** Steam profit of each of the last Kyiv days, the same formula as `dashboard().totals.steamProfit` for that day. */
+  async dayPnl(userId: string, days = DAY_PNL_DAYS, now: Date = new Date()) {
+    const keys = recentDates(days, now).reverse();
+    const from = kyivDayStart(keys[0]);
+    const [expenseAllocations, resaleWithdrawals, completedRounds, withdrawnResiduals] = await Promise.all([
+      this.db.steamExpenseAllocation.findMany({ where: { userId, expenseTransaction: { transactionDate: { gte: from } } }, include: { expenseTransaction: true } }),
+      this.db.steamResaleWithdrawal.findMany({ where: { userId, archivedAt: null, withdrawalDate: { gte: from } } }),
+      this.db.steamArbitrageRound.findMany({ where: { userId, archivedAt: null, status: SteamArbitrageRoundStatus.COMPLETED, completedAt: { gte: from } } }),
+      this.db.steamArbitrageResidual.findMany({ where: { userId, status: SteamArbitrageResidualStatus.WITHDRAWN, resolvedAt: { gte: from } } })
+    ]);
+    return lastDaysPnl(
+      keys.map((date) => {
+        const inDay = (value?: Date | null) => Boolean(value) && kyivDayKey(value as Date) === date;
+        const { resaleProfit, arbitrageProfit } = steamProfitParts({ expenseAllocations, resaleWithdrawals, completedRounds, withdrawnResiduals }, inDay);
+        return { date, pnl: resaleProfit.plus(arbitrageProfit) };
+      }),
+      days,
+      now
+    );
   }
 
   async potentialSteamCapital(userId: string) {

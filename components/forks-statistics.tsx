@@ -141,7 +141,7 @@ export function ForksStatistics({ stats, allTime, series, bonus, period, hidden 
           <div className="mb-3 font-semibold">Доп. дохід (джерело «Вилки»)</div>
           <div className="grid gap-2">
             {bonus.items.map((item) => (
-              <div key={item.id} className="flex items-baseline justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
+              <div key={item.id} className="flex min-w-0 items-baseline justify-between gap-3 rounded-lg bg-muted p-3 text-sm">
                 <div className="min-w-0">
                   <div className="truncate">{item.note ?? "Дохід"}</div>
                   <div className="text-xs text-[hsl(var(--card-muted-foreground))]">{new Date(item.receivedAt).toLocaleString("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" })}</div>
