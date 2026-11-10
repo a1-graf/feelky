@@ -603,6 +603,18 @@ html[data-theme="matrix"] [class*="bg-card"] > .font-semibold:first-child:not([c
   body {
     padding-top: env(safe-area-inset-top);
   }
+  /* Under the translucent iOS status bar: a solid strip so scrolled content never shows through it. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: env(safe-area-inset-top);
+    background: hsl(var(--background));
+    z-index: 60;
+  }
+  .app-top-bar {
+    top: env(safe-area-inset-top);
+  }
 }
 
 /* Minimal: the light cream card from the mock-up. Both hero versions are in the page; the theme picks one. */

@@ -146,6 +146,7 @@ model User {
   steamResaleWithdrawals    SteamResaleWithdrawal[]
   steamArbitrageSchemes     SteamArbitrageScheme[]
   steamArbitrageRounds      SteamArbitrageRound[]
+  pushSubscriptions         PushSubscription[]
   steamArbitrageResiduals   SteamArbitrageResidual[]
   steamExpenseAllocations   SteamExpenseAllocation[]
   flips                     Flip[]
@@ -706,4 +707,27 @@ model ForkTrade {
   @@unique([userId, externalId])
   @@index([userId, placedAt])
   @@index([userId, status])
+}
+
+/// A Web Push endpoint of one installed device (iOS 16.4+ only for the home-screen app).
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSentAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Small app-wide key/value store (e.g. the generated VAPID key pair when no env is set).
+model AppConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
