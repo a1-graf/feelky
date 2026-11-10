@@ -7,6 +7,7 @@ import { AccountBalanceManager } from "@/components/forms/account-balance-manage
 import { Card } from "@/components/ui/card";
 import { ThemeSwitcher } from "@/components/layout/theme-switcher";
 import { MobileLogout } from "@/components/layout/mobile-logout";
+import { PushSettings } from "@/components/push-settings";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
@@ -88,6 +89,7 @@ export default async function SettingsPage() {
           <section className="grid gap-3">
             <SectionTitle id="integrations" title="Інтеграції" text="Підключені джерела даних працюють у фоновому режимі." />
             <Card><div className="grid gap-2 text-sm sm:grid-cols-3">{["OpenClaw агент", "Telegram-бот", "Vercel sync"].map((name) => <div key={name} className="flex items-center gap-2 rounded-lg bg-muted p-3"><span className="h-2 w-2 rounded-full bg-success" />{name}</div>)}</div></Card>
+            <Card><PushSettings /></Card>
           </section>
 
           <section className="grid gap-3">
