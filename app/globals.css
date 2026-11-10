@@ -467,11 +467,6 @@ html[data-theme="white"] .shadow-soft,
 html[data-theme="black"] .shadow-soft {
   box-shadow: none;
 }
-/* The app logo loses its green too. */
-html[data-theme="white"] img[src="/icons/icon.svg"],
-html[data-theme="black"] img[src="/icons/icon.svg"] {
-  filter: grayscale(1) contrast(1.6);
-}
 html[data-theme="white"] .backdrop-blur-sm,
 html[data-theme="black"] .backdrop-blur-sm {
   backdrop-filter: none;
