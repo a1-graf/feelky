@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { FxBalanceChart } from "@/components/fx-balance-chart";
 import { PolyBalanceBlock } from "@/components/poly-balance-block";
-import { Half, SplitTile } from "@/components/stat-tiles";
+import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
 import type { FxBalancePoint } from "@/lib/fx-stats";
 import { formatMoney, formatPercent, formatSignedPercent } from "@/lib/money";
@@ -16,7 +16,7 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 
-/** Top of /poly laid out like the top of /fx: one card, four muted tiles (balance, figures, chart, figures). */
+/** Top of /poly laid out like the top of /fx: one card, four muted tiles (turnover, trades/win rate/ROI, PnL chart, balance). */
 export default async function PolyPage() {
   const userId = await requireUserId();
   const [overview, balanceRows] = await Promise.all([getPolyOverview(userId), polyBalanceSeries(userId)]);
@@ -31,16 +31,14 @@ export default async function PolyPage() {
   return (
     <Card>
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-        <PolyBalanceBlock balance={pool.balance} series={balanceSeries} currency={CUR} hidden={hidden} />
-        <SplitTile>
-          <Half label="Оборот" main={formatMoney(all.turnover, CUR, hidden)} />
+        <BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>
+        <SplitTile className="lg:grid-cols-3">
+          <Half label="Угод" main={all.count} />
+          <Half label="Вінрейт" main={formatPercent(winRate, hidden)} divider />
           <Half label="ROI тотал" className={hidden ? "" : tone(all.roi)} main={formatSignedPercent(all.roi, hidden)} divider />
         </SplitTile>
         <FxBalanceChart data={pnlSeries} currency={CUR} oneR={0} hidden={hidden} title="PnL" showTotal={false} />
-        <SplitTile>
-          <Half label="Угод" main={all.count} />
-          <Half label="Вінрейт" main={formatPercent(winRate, hidden)} divider />
-        </SplitTile>
+        <PolyBalanceBlock balance={pool.balance} series={balanceSeries} currency={CUR} hidden={hidden} />
       </div>
     </Card>
   );

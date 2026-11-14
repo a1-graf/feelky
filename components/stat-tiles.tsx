@@ -10,9 +10,9 @@ export function BigTile({ label, children, className }: { label: string; childre
   );
 }
 
-/** Two figures side by side on desktop, stacked under each other on a phone. */
-export function SplitTile({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2">{children}</div>;
+/** Two (or `className="lg:grid-cols-3"` for three) figures side by side on desktop, stacked under each other on a phone. */
+export function SplitTile({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2", className)}>{children}</div>;
 }
 
 export function Half({ label, main, sub, className = "", divider = false }: { label: string; main: React.ReactNode; sub?: string; className?: string; divider?: boolean }) {
