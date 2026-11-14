@@ -1,21 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { RangeAreaChart, type RangePoint } from "@/components/range-area-chart";
-import { Card } from "@/components/ui/card";
+import { useRef, useState } from "react";
+import { FxBalanceChart } from "@/components/fx-balance-chart";
+import { BigTile } from "@/components/stat-tiles";
 import { formatMoney } from "@/lib/money";
-import { cn } from "@/lib/ui";
+import type { FxBalancePoint } from "@/lib/fx-stats";
 
-const muted = "text-[hsl(var(--card-muted-foreground))]";
-
-/** Current pool balance; while hovered (or held on a phone) the figure turns into the balance-over-time chart. */
-export function PolyBalanceBlock({ balance, series, currency, hidden, className }: { balance: string; series: RangePoint[]; currency: string; hidden: boolean; className?: string }) {
-  const [open, setOpen] = useState(false);
+/**
+ * Balance tile as on /fx; while hovered (or held on a phone) the balance-over-time chart opens on top of it.
+ * The tile sits at the top of the left column, so the chart covers that whole column (tile and the PnL chart under it):
+ * the grid does not jump and the two charts never show through each other.
+ */
+export function PolyBalanceBlock({ balance, series, currency, hidden }: { balance: string; series: FxBalancePoint[]; currency: string; hidden: boolean }) {
+  const [height, setHeight] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const open = height != null;
+  const setOpen = (value: boolean) => setHeight(value ? (ref.current?.parentElement?.getBoundingClientRect().height ?? null) : null);
   const touch = (pointerType: string) => pointerType !== "mouse";
 
   return (
-    <Card
-      className={cn("flex select-none flex-col [-webkit-touch-callout:none]", className)}
+    <div
+      ref={ref}
+      className="relative select-none [-webkit-touch-callout:none]"
       onPointerEnter={(event) => !touch(event.pointerType) && setOpen(true)}
       onPointerLeave={(event) => !touch(event.pointerType) && setOpen(false)}
       onPointerDown={(event) => touch(event.pointerType) && setOpen(true)}
@@ -23,14 +29,21 @@ export function PolyBalanceBlock({ balance, series, currency, hidden, className 
       onPointerCancel={() => setOpen(false)}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div className={`text-[11px] font-medium sm:text-[13px] ${muted}`}>Баланс</div>
-      {open ? (
-        <div className="mt-1 grid flex-1">
-          <RangeAreaChart data={series} currency={currency} hidden={hidden} totalLabel="Баланс" emptyLabel="Поки немає історії балансу" defaultPreset="all" showChange={false} />
-        </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center pb-5 text-4xl font-bold tabular-nums">{formatMoney(balance, currency, hidden)}</div>
+      <BigTile label="Баланс" className={open ? "invisible h-full" : "h-full"}>
+        {formatMoney(balance, currency, hidden)}
+      </BigTile>
+      {open && (
+        <FxBalanceChart
+          data={series}
+          currency={currency}
+          oneR={0}
+          hidden={hidden}
+          title="Баланс"
+          showTotal={false}
+          className="absolute inset-x-0 top-0 z-20 shadow-lg ring-1 ring-border"
+          style={{ height }}
+        />
       )}
-    </Card>
+    </div>
   );
 }

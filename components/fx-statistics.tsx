@@ -1,6 +1,7 @@
 import { FxBalanceChart } from "@/components/fx-balance-chart";
 import { NetPnlChart } from "@/components/income-line-chart";
 import { FxPositions } from "@/components/fx-positions";
+import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatPercent, formatPlain, formatSigned } from "@/lib/money";
 import type { FxBalancePoint, summarizeFx, summarizeFxFlows } from "@/lib/fx-stats";
@@ -90,22 +91,6 @@ function Breakdown({ title, rows, currency, hidden }: { title: string; rows: Row
   );
 }
 
-function SplitTile({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 items-center rounded-lg bg-muted py-3.5 lg:grid-cols-2">{children}</div>;
-}
-
-function Half({ label, main, sub, className = "", divider = false }: { label: string; main: React.ReactNode; sub?: string; className?: string; divider?: boolean }) {
-  return (
-    <div className={`flex min-w-0 flex-col justify-center px-2 text-center ${divider ? "mt-3 border-t-2 border-foreground/70 pt-3 lg:mt-0 lg:self-stretch lg:border-l-2 lg:border-t-0 lg:pt-0" : "lg:pb-0"}`}>
-      <div className="text-sm text-[hsl(var(--card-muted-foreground))]">{label}</div>
-      <div className={`mt-1.5 whitespace-nowrap font-bold tabular-nums ${className}`}>
-        <div className="text-xl sm:text-2xl xl:text-3xl">{main}</div>
-        {sub && <div className="mt-0.5 text-lg">{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
 export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = false }: { data: FxData; brokers: Broker[]; flows: Flows; balanceSeries: FxBalancePoint[]; hidden?: boolean }) {
   const currency = brokers[0]?.currency || "USD";
 
@@ -113,12 +98,9 @@ export function FxStatistics({ data, brokers, flows, balanceSeries, hidden = fal
     <>
       <Card className="mt-0 md:mt-4">
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="relative flex items-center justify-center rounded-lg bg-muted px-3 py-3.5 text-center">
-            <div className="absolute left-3 top-2 text-xs text-[hsl(var(--card-muted-foreground))]">Баланс FX</div>
-            <div className="font-bold tabular-nums text-2xl sm:text-4xl xl:text-5xl">
-              {brokers.length ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ") : <span className="text-base font-normal text-[hsl(var(--card-muted-foreground))]">Рахунок брокера ще не створено</span>}
-            </div>
-          </div>
+          <BigTile label="Баланс FX">
+            {brokers.length ? brokers.map((broker) => formatMoney(broker.balance, broker.currency, hidden)).join(" · ") : <span className="text-base font-normal text-[hsl(var(--card-muted-foreground))]">Рахунок брокера ще не створено</span>}
+          </BigTile>
           <SplitTile>
             <Half label="За місяць" className={tone(data.monthPnl)} main={signedMoney(data.monthPnl, currency, hidden)} sub={formatR(data.monthSumR, hidden)} />
             <Half label="Total profit" className={tone(data.totalPnl)} main={signedMoney(data.totalPnl, currency, hidden)} sub={formatR(data.allTime.sumR, hidden)} divider />

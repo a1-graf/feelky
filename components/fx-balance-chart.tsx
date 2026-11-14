@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { formatMoney, formatSigned } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
+import { cn } from "@/lib/ui";
 
 type Point = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
 
@@ -20,7 +21,7 @@ type PresetKey = (typeof PRESETS)[number]["key"];
 const dayStart = (value: string) => (value ? new Date(`${value}T00:00:00`).getTime() : NaN);
 const dayEnd = (value: string) => (value ? new Date(`${value}T23:59:59.999`).getTime() : NaN);
 
-function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number }) {
+function BalanceTooltip({ active, payload, hidden, currency, oneR, showTotal }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number; showTotal: boolean }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
   return (
@@ -33,10 +34,12 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: 
           {point.delta !== 0 && <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : formatSigned(point.delta)}</span>}
         </div>
       )}
-      <div className="text-[hsl(var(--card-muted-foreground))]">
-        Total ${" "}
-        <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
-      </div>
+      {showTotal && (
+        <div className="text-[hsl(var(--card-muted-foreground))]">
+          Total ${" "}
+          <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
+        </div>
+      )}
       {oneR > 0 && (
         <div className="text-[hsl(var(--card-muted-foreground))]">
           Total R{" "}
@@ -47,7 +50,8 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: 
   );
 }
 
-export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data: Point[]; currency: string; oneR: number; hidden?: boolean }) {
+/** `title` names the line when the tile is not the balance (Poly reuses it for PnL); `showTotal` drops the Total $ row when it would repeat the line itself. */
+export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; className?: string; style?: React.CSSProperties }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>("1m");
   const [from, setFrom] = useState("");
@@ -87,7 +91,7 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
   const pad = (high - low) * 0.1 || Math.max(1, Math.abs(high) * 0.02);
 
   return (
-    <div className="flex min-h-44 flex-col rounded-lg bg-muted p-2">
+    <div className={cn("flex min-h-44 flex-col rounded-lg bg-muted p-2", className)} style={style}>
       <div className="flex flex-wrap gap-0.5 sm:gap-1">
         {PRESETS.map((item) => (
           <button
@@ -110,6 +114,8 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
         <div className="flex flex-1 items-center justify-center text-center text-sm text-[hsl(var(--card-muted-foreground))]">Немає угод за період</div>
       ) : (
         <div className="relative mt-1 min-h-28 flex-1">
+          {/* A pill over the plot: a label beside the presets wraps to its own line on a phone. */}
+          {title && <span className="pointer-events-none absolute right-0 top-0 z-10 rounded bg-muted/80 px-1 text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{title}</span>}
           <div className="absolute inset-0">
             <ResponsiveContainer>
               <AreaChart data={points} margin={{ left: 0, right: 0, top: 6, bottom: 0 }}>
@@ -120,8 +126,9 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
                   </linearGradient>
                 </defs>
                 <YAxis hide domain={[low - pad, high + pad]} />
-                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
-                <Area type="monotone" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />
+                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} showTotal={showTotal} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
+                {/* Fill down to the bottom of the plot: by default recharts fills towards zero, i.e. upwards for an all-negative PnL line. */}
+                <Area type="monotone" baseValue="dataMin" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
