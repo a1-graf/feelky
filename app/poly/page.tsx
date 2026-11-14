@@ -1,31 +1,60 @@
-import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
-import { PageTitle } from "@/components/page-title";
-import { PeriodPicker } from "@/components/period-picker";
-import { PolyStatistics } from "@/components/poly-statistics";
-import { PolyVariantNav } from "@/components/poly-variants/variant-nav";
-import { lastDaysPnl } from "@/lib/day-pnl";
-import { getPolyOverview } from "@/lib/poly";
+import Decimal from "decimal.js";
+import { PolyBalanceBlock } from "@/components/poly-balance-block";
+import { RangeAreaChart } from "@/components/range-area-chart";
+import { Card } from "@/components/ui/card";
+import { formatMoney, formatPercent } from "@/lib/money";
+import { getPolyOverview, polyBalanceSeries } from "@/lib/poly";
+import { polyEquity } from "@/lib/poly-variants";
 import { requireUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export default async function PolyPage({ searchParams }: { searchParams?: Promise<{ month?: string; period?: string }> }) {
-  const userId = await requireUserId();
-  const params = await searchParams;
-  const overview = await getPolyOverview(userId, { month: params?.month, period: params?.period });
+const CUR = "$";
+const muted = "text-[hsl(var(--card-muted-foreground))]";
+const label = `text-[11px] font-medium sm:text-[13px] ${muted}`;
+// Trade titles run to 60+ characters and would push the chart tooltip past the card on a phone.
+const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
+const tone = (value: string) => (Number(value) > 0 ? "text-success" : Number(value) < 0 ? "text-danger" : "");
 
-  const dayPnl = lastDaysPnl(overview.all.timeline.map((point) => ({ date: point.date, pnl: point.pnl })));
+export default async function PolyPage() {
+  const userId = await requireUserId();
+  const [overview, balanceSeries] = await Promise.all([getPolyOverview(userId), polyBalanceSeries(userId)]);
+  const { all, hidden, pool } = overview;
+  const equity = polyEquity(overview.trades).points.map((point) => ({ ...point, label: short(point.label) }));
+  // summarizePoly rounds the win rate to whole percent; the page shows two decimals, so it is recomputed here.
+  const decided = all.wins + all.losses;
+  const winRate = decided ? new Decimal(all.wins).div(decided).times(100).toString() : "0";
 
   return (
-    <>
-      <TitleWithDayPnl
-        title={<PageTitle className="mb-0" title="Polymarket" subtitle="Вручну, копітрейд і три AI-агенти: кожна угода окремим рядком, PnL, ризики й блокування" />}
-      >
-        <DayPnl days={dayPnl} currency="USDT" hidden={overview.hidden} />
-      </TitleWithDayPnl>
-      <PeriodPicker basePath="/poly" period={overview.period} presets={["week", "month", "3m", "6m", "12m", "all"]} />
-      <PolyVariantNav current="/poly" />
-      <PolyStatistics overview={overview} />
-    </>
+    <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
+      <Card className="p-3.5 sm:p-4">
+        <div className={label}>Оборот</div>
+        <div className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{formatMoney(all.turnover, CUR, hidden)}</div>
+      </Card>
+
+      <Card className="grid grid-cols-3 gap-2 p-3.5 sm:p-4 md:col-span-2">
+        <div>
+          <div className={label}>Угод</div>
+          <div className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{all.count}</div>
+        </div>
+        <div>
+          <div className={label}>Вінрейт</div>
+          <div className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{formatPercent(winRate, hidden)}</div>
+        </div>
+        <div>
+          <div className={label}>ROI тотал</div>
+          <div className={`mt-1 text-xl font-bold tabular-nums sm:text-2xl ${hidden ? "" : tone(all.roi)}`}>{formatPercent(all.roi, hidden)}</div>
+        </div>
+      </Card>
+
+      <Card className="flex h-72 flex-col p-3.5 sm:p-4 md:col-span-2">
+        <div className={label}>PnL</div>
+        <div className="mt-1 grid flex-1">
+          <RangeAreaChart data={equity} currency={CUR} hidden={hidden} totalLabel="PnL" emptyLabel="Поки немає закритих угод" defaultPreset="all" signed showChange={false} />
+        </div>
+      </Card>
+
+      <PolyBalanceBlock balance={pool.balance} series={balanceSeries} currency={CUR} hidden={hidden} className="h-72 p-3.5 sm:p-4" />
+    </div>
   );
 }
