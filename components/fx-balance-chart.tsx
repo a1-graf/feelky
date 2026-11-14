@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { formatMoney, formatSigned } from "@/lib/money";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatMoney, formatPlain, formatSigned } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
 import { cn } from "@/lib/ui";
 
@@ -23,6 +23,18 @@ export type ChartRange = { start: number; end: number };
 
 const dayStart = (value: string) => (value ? new Date(`${value}T00:00:00`).getTime() : NaN);
 const dayEnd = (value: string) => (value ? new Date(`${value}T23:59:59.999`).getTime() : NaN);
+const TICK = { fontSize: 9, fill: "hsl(var(--card-muted-foreground) / 0.7)" };
+const shortDate = (t: number) => new Date(t).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit" });
+
+/** First and last date labels hug the plot edges so a narrow tile never clips them. */
+function DateTick({ x, y, payload, index, count }: { x?: number; y?: number; payload?: { value: number }; index?: number; count: number }) {
+  const anchor = index === 0 ? "start" : index === count - 1 ? "end" : "middle";
+  return (
+    <text x={x} y={y} dy="0.71em" textAnchor={anchor} {...TICK}>
+      {payload ? shortDate(payload.value) : ""}
+    </text>
+  );
+}
 
 function BalanceTooltip({ active, payload, hidden, currency, oneR, showTotal }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number; showTotal: boolean }) {
   const point = active ? payload?.[0]?.payload : undefined;
@@ -56,8 +68,9 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR, showTotal }: 
 /**
  * `title` names the line when the tile is not the balance (Poly reuses it for PnL); `showTotal` drops the Total $ row when it would repeat the line itself.
  * `range` hands the window to a switcher outside the chart: the chart then draws no presets of its own.
+ * `ticks` adds faint scale marks (three hairlines with their values inside the plot, three dates under it); /fx leaves them off.
  */
-export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, range, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; range?: ChartRange; className?: string; style?: React.CSSProperties }) {
+export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, range, ticks = false, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; range?: ChartRange; ticks?: boolean; className?: string; style?: React.CSSProperties }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>("1m");
   const [from, setFrom] = useState("");
@@ -98,6 +111,9 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
   const low = values.length ? Math.min(...values) : 0;
   const high = values.length ? Math.max(...values) : 0;
   const pad = (high - low) * 0.1 || Math.max(1, Math.abs(high) * 0.02);
+  // Points are spaced by index, not time (as without ticks), so the date marks are the first, middle and last point.
+  const levels = high > low ? [low, (low + high) / 2, high] : [low];
+  const dates = points.length ? [...new Set([points[0].t, points[Math.floor((points.length - 1) / 2)].t, points[points.length - 1].t])] : [];
 
   return (
     <div className={cn("flex min-h-44 flex-col rounded-lg bg-muted p-2", className)} style={style}>
@@ -136,7 +152,18 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
                     <stop offset="1" stopColor={color} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <YAxis hide domain={[low - pad, high + pad]} />
+                {ticks && <CartesianGrid vertical={false} horizontalValues={levels} stroke="hsl(var(--foreground) / 0.08)" strokeDasharray="2 3" />}
+                {ticks && <XAxis dataKey="t" ticks={dates} interval={0} height={13} tickSize={0} tickMargin={3} axisLine={false} tickLine={false} tick={<DateTick count={dates.length} />} />}
+                <YAxis
+                  hide={!ticks}
+                  domain={[low - pad, high + pad]}
+                  ticks={levels}
+                  mirror
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ ...TICK, dy: -5, stroke: "hsl(var(--muted))", strokeWidth: 3, paintOrder: "stroke" }}
+                  tickFormatter={(value: number) => (hidden ? "" : formatPlain(value))}
+                />
                 <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} showTotal={showTotal} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
                 {/* Fill down to the bottom of the plot: by default recharts fills towards zero, i.e. upwards for an all-negative PnL line. */}
                 <Area type="monotone" baseValue="dataMin" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />

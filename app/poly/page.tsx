@@ -15,9 +15,9 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const MONTH_MS = 30 * 86_400_000;
-// Four figures: a column on a phone (a half-width tile is too narrow for two), 2x2 on desktop where the borders meet in a cross.
-const RULE = "mt-2.5 border-t-2 border-foreground/70 pt-2.5 lg:mt-0 lg:self-stretch";
-const EDGE = { top: "lg:self-stretch lg:pb-3", topRight: `${RULE} lg:border-l-2 lg:border-t-0 lg:pb-3 lg:pt-0`, bottom: `${RULE} lg:pt-3`, bottomRight: `${RULE} lg:border-l-2 lg:pt-3` };
+// Four figures as a 2x2 square on every screen; hairline rules meet in a cross between the cells.
+const RULE = "self-stretch border-foreground/15";
+const EDGE = { top: `${RULE} pb-2.5 sm:pb-3`, topRight: `${RULE} border-l pb-2.5 sm:pb-3`, bottom: `${RULE} border-t pt-2.5 sm:pt-3`, bottomRight: `${RULE} border-l border-t pt-2.5 sm:pt-3` };
 
 /** Top of /poly laid out like the top of /fx: one card, one period switcher for the charts, four muted tiles (balance, trades/win rate/ROI/month PnL, PnL chart, turnover). */
 export default async function PolyPage() {
@@ -46,11 +46,11 @@ export default async function PolyPage() {
         currency={CUR}
         hidden={hidden}
         stats={
-          <SplitTile>
-            <Half label="Угод" main={all.count} edge={EDGE.top} />
-            <Half label="Вінрейт" main={formatPercent(winRate, hidden)} edge={EDGE.topRight} />
-            <Half label="ROI тотал" className={hidden ? "" : tone(all.roi)} main={formatSignedPercent(all.roi, hidden)} edge={EDGE.bottom} />
-            <Half label="PnL за місяць" className={hidden ? "" : tone(monthPnl)} main={hidden ? "••••" : `${formatSigned(monthPnl)} ${CUR}`} edge={EDGE.bottomRight} />
+          <SplitTile className="grid-cols-2">
+            <Half compact label="Угод" main={all.count} edge={EDGE.top} />
+            <Half compact label="Вінрейт" main={formatPercent(winRate, hidden)} edge={EDGE.topRight} />
+            <Half compact label="ROI тотал" className={hidden ? "" : tone(all.roi)} main={formatSignedPercent(all.roi, hidden)} edge={EDGE.bottom} />
+            <Half compact label="PnL за місяць" className={hidden ? "" : tone(monthPnl)} main={hidden ? "••••" : `${formatSigned(monthPnl)} ${CUR}`} edge={EDGE.bottomRight} />
           </SplitTile>
         }
         turnover={<BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>}

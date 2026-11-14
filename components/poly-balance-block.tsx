@@ -27,7 +27,7 @@ export function PolyBalanceBlock({ balance, series, currency, hidden, range }: {
       <BigTile label="Баланс" className={open ? "invisible h-full" : "h-full"}>
         {formatMoney(balance, currency, hidden)}
       </BigTile>
-      {open && <FxBalanceChart data={series} currency={currency} oneR={0} hidden={hidden} title="Баланс" showTotal={false} range={range} className="absolute inset-0 z-20 min-h-0" />}
+      {open && <FxBalanceChart data={series} currency={currency} oneR={0} hidden={hidden} title="Баланс" showTotal={false} range={range} ticks className="absolute inset-0 z-20 min-h-0" />}
     </div>
   );
 }
