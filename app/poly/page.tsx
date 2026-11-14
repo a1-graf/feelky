@@ -16,7 +16,7 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 
-/** Top of /poly laid out like the top of /fx: one card, four muted tiles (turnover, trades/win rate/ROI, PnL chart, balance). */
+/** Top of /poly laid out like the top of /fx: one card, four muted tiles (balance, trades/win rate/ROI, PnL chart, turnover). */
 export default async function PolyPage() {
   const userId = await requireUserId();
   const [overview, balanceRows] = await Promise.all([getPolyOverview(userId), polyBalanceSeries(userId)]);
@@ -31,14 +31,14 @@ export default async function PolyPage() {
   return (
     <Card>
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-        <BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>
+        <PolyBalanceBlock balance={pool.balance} series={balanceSeries} currency={CUR} hidden={hidden} />
         <SplitTile className="lg:grid-cols-3">
           <Half label="Угод" main={all.count} />
           <Half label="Вінрейт" main={formatPercent(winRate, hidden)} divider />
           <Half label="ROI тотал" className={hidden ? "" : tone(all.roi)} main={formatSignedPercent(all.roi, hidden)} divider />
         </SplitTile>
         <FxBalanceChart data={pnlSeries} currency={CUR} oneR={0} hidden={hidden} title="PnL" showTotal={false} />
-        <PolyBalanceBlock balance={pool.balance} series={balanceSeries} currency={CUR} hidden={hidden} />
+        <BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>
       </div>
     </Card>
   );
