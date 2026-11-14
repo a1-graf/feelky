@@ -18,6 +18,9 @@ const PRESETS = [
 ] as const;
 type PresetKey = (typeof PRESETS)[number]["key"];
 
+/** A window picked outside the chart; `start: -Infinity` means from the first point (all time). */
+export type ChartRange = { start: number; end: number };
+
 const dayStart = (value: string) => (value ? new Date(`${value}T00:00:00`).getTime() : NaN);
 const dayEnd = (value: string) => (value ? new Date(`${value}T23:59:59.999`).getTime() : NaN);
 
@@ -50,8 +53,11 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR, showTotal }: 
   );
 }
 
-/** `title` names the line when the tile is not the balance (Poly reuses it for PnL); `showTotal` drops the Total $ row when it would repeat the line itself. */
-export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; className?: string; style?: React.CSSProperties }) {
+/**
+ * `title` names the line when the tile is not the balance (Poly reuses it for PnL); `showTotal` drops the Total $ row when it would repeat the line itself.
+ * `range` hands the window to a switcher outside the chart: the chart then draws no presets of its own.
+ */
+export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, range, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; range?: ChartRange; className?: string; style?: React.CSSProperties }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>("1m");
   const [from, setFrom] = useState("");
@@ -62,7 +68,10 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
     if (!data.length) return [];
     let start: number;
     let end = now;
-    if (preset === "cd") {
+    if (range) {
+      start = Math.max(range.start, data[0].t);
+      end = range.end;
+    } else if (preset === "cd") {
       start = Number.isNaN(dayStart(from)) ? data[0].t : dayStart(from);
       if (!Number.isNaN(dayEnd(to))) end = dayEnd(to);
     } else start = now - PRESETS.find((item) => item.key === preset)!.span;
@@ -82,7 +91,7 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
       ...inside,
       { t: Math.min(end, Math.max(now, inside[inside.length - 1]?.t ?? windowStart)), balance: last, total: lastTotal, delta: 0, kind: "trade", label: "" }
     ];
-  }, [data, preset, from, to, now]);
+  }, [data, range, preset, from, to, now]);
 
   const values = points.map((point) => point.balance);
   const color = points.length && points[points.length - 1].balance < points[0].balance ? LOSS_COLOR : PROFIT_COLOR;
@@ -92,19 +101,21 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
 
   return (
     <div className={cn("flex min-h-44 flex-col rounded-lg bg-muted p-2", className)} style={style}>
-      <div className="flex flex-wrap gap-0.5 sm:gap-1">
-        {PRESETS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setPreset(item.key)}
-            className={`rounded-md px-1 py-0.5 text-[11px] font-semibold leading-4 transition-colors sm:px-1.5 ${preset === item.key ? "bg-foreground text-background" : "bg-background/70 text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      {preset === "cd" && (
+      {!range && (
+        <div className="flex flex-wrap gap-0.5 sm:gap-1">
+          {PRESETS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setPreset(item.key)}
+              className={`rounded-md px-1 py-0.5 text-[11px] font-semibold leading-4 transition-colors sm:px-1.5 ${preset === item.key ? "bg-foreground text-background" : "bg-background/70 text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!range && preset === "cd" && (
         <div className="mt-1.5 grid grid-cols-1 gap-1 sm:grid-cols-2">
           <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-label="Від" className="min-w-0 rounded-md border border-border bg-background px-1 py-0.5 text-[11px] sm:px-1.5 sm:text-xs" />
           <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-label="До" className="min-w-0 rounded-md border border-border bg-background px-1 py-0.5 text-[11px] sm:px-1.5 sm:text-xs" />
@@ -113,7 +124,7 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false, title, sh
       {points.length < 2 ? (
         <div className="flex flex-1 items-center justify-center text-center text-sm text-[hsl(var(--card-muted-foreground))]">Немає угод за період</div>
       ) : (
-        <div className="relative mt-1 min-h-28 flex-1">
+        <div className={cn("relative min-h-28 flex-1", !range && "mt-1")}>
           {/* A pill over the plot: a label beside the presets wraps to its own line on a phone. */}
           {title && <span className="pointer-events-none absolute right-0 top-0 z-10 rounded bg-muted/80 px-1 text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{title}</span>}
           <div className="absolute inset-0">
