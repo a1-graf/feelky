@@ -1,10 +1,16 @@
 import Decimal from "decimal.js";
+import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
+import { PageTitle } from "@/components/page-title";
+import { PolyDayCalendar } from "@/components/poly-day-calendar";
+import { PolyStatistics } from "@/components/poly-statistics";
 import { PolyTop } from "@/components/poly-top";
 import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
 import type { FxBalancePoint } from "@/lib/fx-stats";
 import { formatMoney, formatPercent, formatSigned, formatSignedPercent } from "@/lib/money";
+import { kyivDayKey, lastDaysPnl } from "@/lib/day-pnl";
 import { getPolyOverview, polyBalanceSeries } from "@/lib/poly";
+import { polyDays } from "@/lib/poly-calendar";
 import { polyEquity } from "@/lib/poly-variants";
 import { requireUserId } from "@/lib/session";
 
@@ -37,8 +43,20 @@ export default async function PolyPage() {
     .reduce((sum, trade) => sum.plus(trade.pnlUsd), new Decimal(0))
     .toString();
 
+  const dayPnl = lastDaysPnl(overview.all.timeline.map((point) => ({ date: point.date, pnl: point.pnl })));
+
   return (
-    <Card>
+    <>
+      <TitleWithDayPnl
+        title={
+          <div className="hidden md:block">
+            <PageTitle className="mb-0" title="Polymarket" subtitle="Вручну, копітрейд і три AI-агенти: PnL по днях, угоди, ризики й блокування" />
+          </div>
+        }
+      >
+        <DayPnl days={dayPnl} currency={CUR} hidden={hidden} />
+      </TitleWithDayPnl>
+      <Card>
       <PolyTop
         balance={pool.balance}
         balanceSeries={balanceSeries}
@@ -55,6 +73,9 @@ export default async function PolyPage() {
         }
         turnover={<BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>}
       />
-    </Card>
+      </Card>
+      <PolyDayCalendar days={polyDays(overview.trades)} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
+      <PolyStatistics overview={overview} below />
+    </>
   );
 }

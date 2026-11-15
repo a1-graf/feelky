@@ -70,7 +70,7 @@ function SectionCard({ section, stats, hidden }: { section: PolySectionKey; stat
   );
 }
 
-export function PolyStatistics({ overview }: { overview: Overview }) {
+export function PolyStatistics({ overview, below = false }: { overview: Overview; below?: boolean }) {
   const { all, periodStats, period, sections, pool, locks, hidden, reconcile } = overview;
   const activeLocks = locks.filter((lock) => lock.status === "LOCKED");
   const agentNames = Array.from(new Set([...overview.all.byAgent.map((row) => row.name), ...locks.map((lock) => lock.agentName ?? "Без назви")]));
@@ -86,6 +86,7 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
 
   return (
     <>
+      {below ? null : (
       <Card className="mt-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -116,6 +117,7 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
           </div>
         ) : null}
       </Card>
+      )}
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {(["MANUAL", "COPYTRADE", "AI_AGENT"] as const).map((section) => (
@@ -172,11 +174,13 @@ export function PolyStatistics({ overview }: { overview: Overview }) {
         </div>
       </Card>
 
+      {below ? null : (
       <Card className="mt-4">
         <div className="mb-1 font-semibold">PnL по днях · {period.label}</div>
         <div className={`mb-3 text-sm ${muted}`}>Закриті угоди вибраного періоду; зверху результат дня, знизу — накопичений</div>
         <NetPnlChart data={equity} hidden={hidden} currency={CUR} />
       </Card>
+      )}
 
       <Card className="mt-4">
         <div className="grid gap-5 md:grid-cols-2">
