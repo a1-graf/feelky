@@ -3,6 +3,12 @@ import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
 import { PageTitle } from "@/components/page-title";
 import { PolyDayCalendar } from "@/components/poly-day-calendar";
 import { PolyStatistics } from "@/components/poly-statistics";
+import { toBelowData } from "@/components/poly-below-variants/data";
+import { BelowV1 } from "@/components/poly-below-variants/v1";
+import { BelowV2 } from "@/components/poly-below-variants/v2";
+import { BelowV3 } from "@/components/poly-below-variants/v3";
+import { BelowV4 } from "@/components/poly-below-variants/v4";
+import { BelowV5 } from "@/components/poly-below-variants/v5";
 import { PolyTop } from "@/components/poly-top";
 import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
@@ -20,12 +26,16 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const MONTH_MS = 30 * 86_400_000;
+// Trial layouts of everything under the day calendar, picked with ?v=1..5.
+const BELOW_VARIANTS = { "1": BelowV1, "2": BelowV2, "3": BelowV3, "4": BelowV4, "5": BelowV5 } as const;
 // Four figures as a 2x2 square on every screen; hairline rules meet in a cross between the cells.
 const RULE = "self-stretch border-foreground/15";
 const EDGE = { top: `${RULE} pb-2.5 sm:pb-3`, topRight: `${RULE} border-l pb-2.5 sm:pb-3`, bottom: `${RULE} border-t pt-2.5 sm:pt-3`, bottomRight: `${RULE} border-l border-t pt-2.5 sm:pt-3` };
 
 /** Top of /poly laid out like the top of /fx: one card, one period switcher for the charts, four muted tiles (balance, trades/win rate/ROI/month PnL, PnL chart, turnover). */
-export default async function PolyPage() {
+export default async function PolyPage({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
+  const { v } = await searchParams;
+  const Below = v && v in BELOW_VARIANTS ? BELOW_VARIANTS[v as keyof typeof BELOW_VARIANTS] : null;
   const userId = await requireUserId();
   const [overview, balanceRows] = await Promise.all([getPolyOverview(userId), polyBalanceSeries(userId)]);
   const { all, hidden, pool } = overview;
@@ -74,7 +84,7 @@ export default async function PolyPage() {
       />
       </Card>
       <PolyDayCalendar days={overview.days} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
-      <PolyStatistics overview={overview} below />
+      {Below ? <Below data={toBelowData(overview)} /> : <PolyStatistics overview={overview} below />}
     </>
   );
 }
