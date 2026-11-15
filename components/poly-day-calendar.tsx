@@ -83,6 +83,7 @@ export function PolyDayCalendar({
     const latest = (days.at(-1)?.date ?? today).slice(0, 7);
     return Math.max(0, months.indexOf(latest));
   });
+  const [selected, setSelected] = useState<string | null>(null);
   const monthKey = months[index];
   const [year, month] = monthKey.split("-").map(Number);
   const length = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -93,6 +94,7 @@ export function PolyDayCalendar({
   ];
   while (cells.length % 7) cells.push(null);
 
+  const selectedDay = selected ? byDay.get(selected) : undefined;
   const monthDays = days.filter((day) => day.date.startsWith(monthKey));
   const monthSum = monthDays.reduce((sum, day) => sum.plus(day.pnl), D(0));
   const plusDays = monthDays.filter((day) => Number(day.pnl) > 0.004).length;
@@ -127,7 +129,10 @@ export function PolyDayCalendar({
             type="button"
             aria-label="Попередній місяць"
             disabled={index === 0}
-            onClick={() => setIndex(index - 1)}
+            onClick={() => {
+              setIndex(index - 1);
+              setSelected(null);
+            }}
             className={`${arrow} ${muted}`}
           >
             ‹
@@ -139,7 +144,10 @@ export function PolyDayCalendar({
             type="button"
             aria-label="Наступний місяць"
             disabled={index === months.length - 1}
-            onClick={() => setIndex(index + 1)}
+            onClick={() => {
+              setIndex(index + 1);
+              setSelected(null);
+            }}
             className={`${arrow} ${muted}`}
           >
             ›
@@ -185,18 +193,30 @@ export function PolyDayCalendar({
                 const label = day
                   ? `${dm(key)}: ${money(day.pnl)} · ${day.count} ${plural(day.count, "угода", "угоди", "угод")}`
                   : dm(key);
+                const Cell = day ? "button" : "div";
                 return (
-                  <div
+                  <Cell
                     key={key}
+                    {...(day
+                      ? {
+                          type: "button" as const,
+                          onClick: () =>
+                            setSelected(selected === key ? null : key),
+                          "aria-pressed": selected === key,
+                        }
+                      : {})}
                     title={label}
                     aria-label={label}
                     className={cn(
-                      "relative flex h-10 flex-col rounded-md px-1 py-0.5 text-[10px] tabular-nums sm:h-16 sm:px-2 sm:py-1.5 sm:text-xs",
+                      "relative flex h-10 flex-col rounded-md px-1 py-0.5 text-left text-[10px] tabular-nums sm:h-16 sm:px-2 sm:py-1.5 sm:text-xs",
+                      day &&
+                        "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/60",
+                      selected === key && "ring-2 ring-foreground/70",
                       step === 0
                         ? key > today
                           ? "bg-foreground/[0.04] text-foreground/25"
                           : "bg-foreground/10 text-foreground/55"
-                        : shadeTextDark(step)
+                        : shadeTextDark(step, value > 0)
                           ? "font-bold text-black"
                           : "font-bold text-white",
                     )}
@@ -212,7 +232,7 @@ export function PolyDayCalendar({
                         {hidden ? "••••" : formatSigned(day.pnl)}
                       </span>
                     )}
-                  </div>
+                  </Cell>
                 );
               }),
               <div
@@ -237,7 +257,19 @@ export function PolyDayCalendar({
         </div>
 
         <div
-          className={`mt-3 flex items-center justify-end gap-1.5 whitespace-nowrap text-[10px] sm:text-xs ${muted}`}
+          aria-live="polite"
+          className={cn(
+            "mt-3 min-h-5 text-center text-sm font-semibold tabular-nums",
+            selectedDay && !hidden ? tone(Number(selectedDay.pnl)) : muted,
+          )}
+        >
+          {selectedDay
+            ? `${dm(selectedDay.date)}: ${money(selectedDay.pnl)} · ${selectedDay.count} ${plural(selectedDay.count, "угода", "угоди", "угод")}`
+            : "Торкнись дня, щоб побачити результат"}
+        </div>
+
+        <div
+          className={`mt-2 flex items-center justify-end gap-1.5 whitespace-nowrap text-[10px] sm:text-xs ${muted}`}
         >
           <span>−{SHADE_CAP}</span>
           <div className="flex gap-0.5">

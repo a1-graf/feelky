@@ -29,7 +29,7 @@ export function polyDays(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, day]) => ({
       date,
-      pnl: day.pnl.toDecimalPlaces(2).toString(),
+      pnl: day.pnl.toString(),
       count: day.count,
     }));
 }

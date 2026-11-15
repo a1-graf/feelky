@@ -1,3 +1,4 @@
+import { polyDays } from "@/lib/poly-calendar";
 import { AccountType, PolyLockStatus, PolySection, PolyTradeStatus, Prisma, TransactionType } from "@prisma/client";
 import type { Account, PolyLock, PolyTrade } from "@prisma/client";
 import type Decimal from "decimal.js";
@@ -546,6 +547,8 @@ export async function getPolyOverview(userId: string, inputOrNow: PeriodInput | 
     lockedByAgent: Array.from(lockedByAgent.entries()).map(([agentName, amount]) => ({ agentName, amountUsd: amount.toString() })),
     releasedResult: releasedResult.toString(),
     reconcile,
+    // Day buckets use every loaded trade (up to 5000), not the 2000-row slice sent to the table.
+    days: polyDays(trades.map((trade) => ({ status: trade.status, pnlUsd: trade.pnlUsd.toString(), openedAt: trade.openedAt.toISOString(), resolvedAt: trade.resolvedAt?.toISOString() ?? null }))),
     trades: trades.slice(0, 2000).map((trade) => ({
       id: trade.id,
       externalId: trade.externalId,

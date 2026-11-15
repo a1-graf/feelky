@@ -10,7 +10,6 @@ import type { FxBalancePoint } from "@/lib/fx-stats";
 import { formatMoney, formatPercent, formatSigned, formatSignedPercent } from "@/lib/money";
 import { kyivDayKey, lastDaysPnl } from "@/lib/day-pnl";
 import { getPolyOverview, polyBalanceSeries } from "@/lib/poly";
-import { polyDays } from "@/lib/poly-calendar";
 import { polyEquity } from "@/lib/poly-variants";
 import { requireUserId } from "@/lib/session";
 
@@ -74,7 +73,7 @@ export default async function PolyPage() {
         turnover={<BigTile label="Оборот">{formatMoney(all.turnover, CUR, hidden)}</BigTile>}
       />
       </Card>
-      <PolyDayCalendar days={polyDays(overview.trades)} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
+      <PolyDayCalendar days={overview.days} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
       <PolyStatistics overview={overview} below />
     </>
   );

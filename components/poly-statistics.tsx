@@ -83,11 +83,12 @@ export function PolyStatistics({ overview, below = false }: { overview: Overview
   }));
   const activeHours = all.byHourUtc.filter((row) => row.count > 0);
   const slippage = all.slippage;
+  const stats = below ? all : periodStats;
 
   return (
     <>
-      {below ? null : (
       <Card className="mt-4">
+        {below ? null : (
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="font-semibold">Результат за період</div>
@@ -100,13 +101,14 @@ export function PolyStatistics({ overview, below = false }: { overview: Overview
             <div className={`text-xs ${muted}`}>PnL · {periodStats.count} закритих</div>
           </div>
         </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-4">
-          <Metric label="Весь час" value={formatMoney(all.totalPnl, CUR, hidden)} className={tone(all.totalPnl)} />
+          {below ? null : <Metric label="Весь час" value={formatMoney(all.totalPnl, CUR, hidden)} className={tone(all.totalPnl)} />}
           <Metric label="У відкритих угодах" value={formatMoney(all.openExposure, CUR, hidden)} />
-          <Metric label="Winrate періоду" value={hidden ? "****" : formatPercent(periodStats.winRate)} />
-          <Metric label="Profit factor" value={hidden ? "****" : (periodStats.profitFactor == null ? "—" : formatPlain(periodStats.profitFactor))} />
-          <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(periodStats.turnover, CUR, false)} · ${formatPercent(periodStats.roi)}`} />
-          <Metric label="Комісії" value={formatMoney(periodStats.fees, CUR, hidden)} />
+          {below ? null : <Metric label="Winrate періоду" value={hidden ? "****" : formatPercent(periodStats.winRate)} />}
+          <Metric label="Profit factor" value={hidden ? "****" : (stats.profitFactor == null ? "—" : formatPlain(stats.profitFactor))} />
+          {below ? null : <Metric label="Оборот / ROI" value={hidden ? "****" : `${formatMoney(periodStats.turnover, CUR, false)} · ${formatPercent(periodStats.roi)}`} />}
+          <Metric label="Комісії" value={formatMoney(stats.fees, CUR, hidden)} />
           <Metric label="Пул зараз" value={formatMoney(pool.total, CUR, hidden)} />
           <Metric label="Відкритих" value={String(all.openCount)} />
         </div>
@@ -117,7 +119,6 @@ export function PolyStatistics({ overview, below = false }: { overview: Overview
           </div>
         ) : null}
       </Card>
-      )}
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {(["MANUAL", "COPYTRADE", "AI_AGENT"] as const).map((section) => (
