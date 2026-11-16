@@ -3,18 +3,8 @@ import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
 import { PageTitle } from "@/components/page-title";
 import { PolyDayCalendar } from "@/components/poly-day-calendar";
 import { PolyRecentTrades } from "@/components/poly-recent-trades";
-import { PolyStatistics } from "@/components/poly-statistics";
+import { PolySources } from "@/components/poly-sources";
 import { toBelowData } from "@/components/poly-below-variants/data";
-import { BelowV1 } from "@/components/poly-below-variants/v1";
-import { BelowV2 } from "@/components/poly-below-variants/v2";
-import { BelowV3 } from "@/components/poly-below-variants/v3";
-import { BelowV4 } from "@/components/poly-below-variants/v4";
-import { BelowV5 } from "@/components/poly-below-variants/v5";
-import { BelowM1 } from "@/components/poly-below-min/m1";
-import { BelowM2 } from "@/components/poly-below-min/m2";
-import { BelowM3 } from "@/components/poly-below-min/m3";
-import { BelowM4 } from "@/components/poly-below-min/m4";
-import { BelowM5 } from "@/components/poly-below-min/m5";
 import { PolyTop } from "@/components/poly-top";
 import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
@@ -22,6 +12,7 @@ import type { FxBalancePoint } from "@/lib/fx-stats";
 import { formatMoney, formatPercent, formatSigned, formatSignedPercent } from "@/lib/money";
 import { kyivDayKey, lastDaysPnl } from "@/lib/day-pnl";
 import { getPolyOverview, polyBalanceSeries } from "@/lib/poly";
+import { sourceSeries } from "@/lib/poly-source-series";
 import { polyEquity } from "@/lib/poly-variants";
 import { requireUserId } from "@/lib/session";
 
@@ -32,25 +23,18 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const MONTH_MS = 30 * 86_400_000;
-// "Останні угоди" under the calendar: open trades first, then newest by opening time (the order of the Trades list).
+// "Останні угоди" at the bottom of the page: open trades first, then newest by opening time (the order of the Trades list).
 const RECENT_MAX = 10;
 const latest = <T extends { status: string; openedAt: string }>(trades: T[]) =>
   [...trades]
     .sort((a, b) => Number(b.status === "OPEN") - Number(a.status === "OPEN") || b.openedAt.localeCompare(a.openedAt))
     .slice(0, RECENT_MAX);
-// Trial layouts of everything under the day calendar, picked with ?v=1..5 (and their minimal takes ?v=m1..m5).
-const BELOW_VARIANTS = {
-  "1": BelowV1, "2": BelowV2, "3": BelowV3, "4": BelowV4, "5": BelowV5,
-  m1: BelowM1, m2: BelowM2, m3: BelowM3, m4: BelowM4, m5: BelowM5,
-} as const;
 // Four figures as a 2x2 square on every screen; hairline rules meet in a cross between the cells.
 const RULE = "self-stretch border-foreground/15";
 const EDGE = { top: `${RULE} pb-2.5 sm:pb-3`, topRight: `${RULE} border-l pb-2.5 sm:pb-3`, bottom: `${RULE} border-t pt-2.5 sm:pt-3`, bottomRight: `${RULE} border-l border-t pt-2.5 sm:pt-3` };
 
-/** Top of /poly laid out like the top of /fx: one card, one period switcher for the charts, four muted tiles (balance, trades/win rate/ROI/month PnL, PnL chart, turnover). */
-export default async function PolyPage({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
-  const { v } = await searchParams;
-  const Below = v && v in BELOW_VARIANTS ? BELOW_VARIANTS[v as keyof typeof BELOW_VARIANTS] : null;
+/** /poly: top card like the top of /fx (balance, trades/win rate/ROI/month PnL, PnL chart, turnover), the day calendar, what brings the profit (sources + their running PnL), the latest trades at the bottom. */
+export default async function PolyPage() {
   const userId = await requireUserId();
   const [overview, balanceRows] = await Promise.all([getPolyOverview(userId), polyBalanceSeries(userId)]);
   const { all, hidden, pool } = overview;
@@ -67,7 +51,9 @@ export default async function PolyPage({ searchParams }: { searchParams: Promise
     .reduce((sum, trade) => sum.plus(trade.pnlUsd), new Decimal(0))
     .toString();
 
+  // Sources (squares + per-source running PnL) and the latest trades come from the one serialisable slice.
   const below = toBelowData(overview);
+  const series = sourceSeries(below.trades, below.sources.map((source) => source.key));
   const dayPnl = lastDaysPnl(overview.all.timeline.map((point) => ({ date: point.date, pnl: point.pnl })));
 
   return (
@@ -100,8 +86,8 @@ export default async function PolyPage({ searchParams }: { searchParams: Promise
       />
       </Card>
       <PolyDayCalendar days={overview.days} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
+      <PolySources sources={below.sources} series={series} hidden={hidden} />
       <PolyRecentTrades trades={latest(below.trades)} hidden={hidden} />
-      {Below ? <Below data={below} /> : <PolyStatistics overview={overview} below />}
     </>
   );
 }

@@ -47,7 +47,7 @@ function plural(count: number, one: string, few: string, many: string) {
       : many;
 }
 
-/** Month grid of daily results: ten shades of green and red (every 50 USD one step, up to 500), a weekly total on the right, month summary below. */
+/** Month grid of daily results: ten shades of green and red (every 50 USD one step, up to 500), a weekly total on the right. */
 export function PolyDayCalendar({
   days,
   today,
@@ -97,21 +97,8 @@ export function PolyDayCalendar({
   const selectedDay = selected ? byDay.get(selected) : undefined;
   const monthDays = days.filter((day) => day.date.startsWith(monthKey));
   const monthSum = monthDays.reduce((sum, day) => sum.plus(day.pnl), D(0));
-  const plusDays = monthDays.filter((day) => Number(day.pnl) > 0.004).length;
-  const minusDays = monthDays.filter((day) => Number(day.pnl) < -0.004).length;
-  const best = monthDays.reduce<PolyDay | null>(
-    (top, day) => (!top || Number(day.pnl) > Number(top.pnl) ? day : top),
-    null,
-  );
-  const worst = monthDays.reduce<PolyDay | null>(
-    (low, day) => (!low || Number(day.pnl) < Number(low.pnl) ? day : low),
-    null,
-  );
   const money = (value: Parameters<typeof formatSigned>[0]) =>
     hidden ? "••••" : `${formatSigned(value)} ${currency}`;
-  const when = (day: PolyDay) =>
-    `${dm(day.date)} · ${day.count} ${plural(day.count, "угода", "угоди", "угод")}`;
-
   const arrow =
     "flex size-7 items-center sm:size-8 justify-center rounded-md bg-muted text-base disabled:opacity-30";
   const weeks = Array.from({ length: cells.length / 7 }, (_, week) =>
@@ -298,62 +285,6 @@ export function PolyDayCalendar({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 rounded-lg bg-muted">
-        <div className="px-2 py-3 text-center">
-          <div className={`text-xs sm:text-sm ${muted}`}>Днів у плюсі</div>
-          <div
-            className={cn(
-              "mt-1 text-lg font-bold tabular-nums sm:text-2xl",
-              plusDays ? "text-success" : muted,
-            )}
-          >
-            {plusDays}
-          </div>
-        </div>
-        <div className="border-l border-foreground/15 px-2 py-3 text-center">
-          <div className={`text-xs sm:text-sm ${muted}`}>Днів у мінусі</div>
-          <div
-            className={cn(
-              "mt-1 text-lg font-bold tabular-nums sm:text-2xl",
-              minusDays ? "text-danger" : muted,
-            )}
-          >
-            {minusDays}
-          </div>
-        </div>
-        <div className="border-t border-foreground/15 px-2 py-3 text-center">
-          <div className={`text-xs sm:text-sm ${muted}`}>Найкращий день</div>
-          <div
-            className={cn(
-              "mt-1 text-base font-bold tabular-nums sm:text-xl",
-              best && !hidden ? tone(Number(best.pnl)) : "",
-            )}
-          >
-            {best ? money(best.pnl) : "—"}
-          </div>
-          {best && (
-            <div className={`mt-0.5 text-[11px] sm:text-xs ${muted}`}>
-              {when(best)}
-            </div>
-          )}
-        </div>
-        <div className="border-l border-t border-foreground/15 px-2 py-3 text-center">
-          <div className={`text-xs sm:text-sm ${muted}`}>Найгірший день</div>
-          <div
-            className={cn(
-              "mt-1 text-base font-bold tabular-nums sm:text-xl",
-              worst && !hidden ? tone(Number(worst.pnl)) : "",
-            )}
-          >
-            {worst ? money(worst.pnl) : "—"}
-          </div>
-          {worst && (
-            <div className={`mt-0.5 text-[11px] sm:text-xs ${muted}`}>
-              {when(worst)}
-            </div>
-          )}
-        </div>
-      </div>
     </section>
   );
 }

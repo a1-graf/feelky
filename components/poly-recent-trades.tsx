@@ -8,7 +8,7 @@ import type { BelowTrade } from "./poly-below-variants/data";
 
 const FEW = 3;
 
-/** Latest trades right under the day calendar: the first three of the (already sorted, at most ten) list, the rest on "Показати ще". */
+/** Latest trades at the bottom of /poly: the first three of the (already sorted, at most ten) list, the rest on "Показати ще". */
 export function PolyRecentTrades({ trades, hidden }: { trades: BelowTrade[]; hidden: boolean }) {
   const [open, setOpen] = useState(false);
   const visible = open ? trades : trades.slice(0, FEW);
