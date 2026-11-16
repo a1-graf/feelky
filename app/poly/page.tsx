@@ -9,6 +9,11 @@ import { BelowV2 } from "@/components/poly-below-variants/v2";
 import { BelowV3 } from "@/components/poly-below-variants/v3";
 import { BelowV4 } from "@/components/poly-below-variants/v4";
 import { BelowV5 } from "@/components/poly-below-variants/v5";
+import { BelowM1 } from "@/components/poly-below-min/m1";
+import { BelowM2 } from "@/components/poly-below-min/m2";
+import { BelowM3 } from "@/components/poly-below-min/m3";
+import { BelowM4 } from "@/components/poly-below-min/m4";
+import { BelowM5 } from "@/components/poly-below-min/m5";
 import { PolyTop } from "@/components/poly-top";
 import { BigTile, Half, SplitTile } from "@/components/stat-tiles";
 import { Card } from "@/components/ui/card";
@@ -26,8 +31,11 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const MONTH_MS = 30 * 86_400_000;
-// Trial layouts of everything under the day calendar, picked with ?v=1..5.
-const BELOW_VARIANTS = { "1": BelowV1, "2": BelowV2, "3": BelowV3, "4": BelowV4, "5": BelowV5 } as const;
+// Trial layouts of everything under the day calendar, picked with ?v=1..5 (and their minimal takes ?v=m1..m5).
+const BELOW_VARIANTS = {
+  "1": BelowV1, "2": BelowV2, "3": BelowV3, "4": BelowV4, "5": BelowV5,
+  m1: BelowM1, m2: BelowM2, m3: BelowM3, m4: BelowM4, m5: BelowM5,
+} as const;
 // Four figures as a 2x2 square on every screen; hairline rules meet in a cross between the cells.
 const RULE = "self-stretch border-foreground/15";
 const EDGE = { top: `${RULE} pb-2.5 sm:pb-3`, topRight: `${RULE} border-l pb-2.5 sm:pb-3`, bottom: `${RULE} border-t pt-2.5 sm:pt-3`, bottomRight: `${RULE} border-l border-t pt-2.5 sm:pt-3` };
