@@ -373,7 +373,7 @@ export function Trades({ data, pageSize = 10, byDay = false }: { data: BelowData
   );
 }
 
-function TradeRow({ trade, hidden, withDate }: { trade: BelowTrade; hidden: boolean; withDate: boolean }) {
+export function TradeRow({ trade, hidden, withDate }: { trade: BelowTrade; hidden: boolean; withDate: boolean }) {
   const open = trade.status === "OPEN";
   return (
     <div className={cn("border-b py-2 text-sm last:border-b-0", HAIR)}>

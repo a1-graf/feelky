@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import { DayPnl, TitleWithDayPnl } from "@/components/day-pnl";
 import { PageTitle } from "@/components/page-title";
 import { PolyDayCalendar } from "@/components/poly-day-calendar";
+import { PolyRecentTrades } from "@/components/poly-recent-trades";
 import { PolyStatistics } from "@/components/poly-statistics";
 import { toBelowData } from "@/components/poly-below-variants/data";
 import { BelowV1 } from "@/components/poly-below-variants/v1";
@@ -31,6 +32,12 @@ const CUR = "USD";
 const short = (text: string) => (text.length > 28 ? `${text.slice(0, 27)}…` : text);
 const tone = (value: string) => (Number(value) >= 0 ? "text-success" : "text-danger");
 const MONTH_MS = 30 * 86_400_000;
+// "Останні угоди" under the calendar: open trades first, then newest by opening time (the order of the Trades list).
+const RECENT_MAX = 10;
+const latest = <T extends { status: string; openedAt: string }>(trades: T[]) =>
+  [...trades]
+    .sort((a, b) => Number(b.status === "OPEN") - Number(a.status === "OPEN") || b.openedAt.localeCompare(a.openedAt))
+    .slice(0, RECENT_MAX);
 // Trial layouts of everything under the day calendar, picked with ?v=1..5 (and their minimal takes ?v=m1..m5).
 const BELOW_VARIANTS = {
   "1": BelowV1, "2": BelowV2, "3": BelowV3, "4": BelowV4, "5": BelowV5,
@@ -60,6 +67,7 @@ export default async function PolyPage({ searchParams }: { searchParams: Promise
     .reduce((sum, trade) => sum.plus(trade.pnlUsd), new Decimal(0))
     .toString();
 
+  const below = toBelowData(overview);
   const dayPnl = lastDaysPnl(overview.all.timeline.map((point) => ({ date: point.date, pnl: point.pnl })));
 
   return (
@@ -92,7 +100,8 @@ export default async function PolyPage({ searchParams }: { searchParams: Promise
       />
       </Card>
       <PolyDayCalendar days={overview.days} today={kyivDayKey(new Date())} currency={CUR} hidden={hidden} />
-      {Below ? <Below data={toBelowData(overview)} /> : <PolyStatistics overview={overview} below />}
+      <PolyRecentTrades trades={latest(below.trades)} hidden={hidden} />
+      {Below ? <Below data={below} /> : <PolyStatistics overview={overview} below />}
     </>
   );
 }
