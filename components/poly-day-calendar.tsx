@@ -192,7 +192,7 @@ export function PolyDayCalendar({
                     title={label}
                     aria-label={label}
                     className={cn(
-                      "relative flex h-10 flex-col rounded-md px-1 py-0.5 text-left text-[10px] tabular-nums sm:h-16 sm:px-2 sm:py-1.5 sm:text-xs",
+                      "relative flex h-11 flex-col rounded-md px-0.5 py-0.5 text-left text-[10px] tabular-nums sm:h-16 sm:px-2 sm:py-1.5 sm:text-xs",
                       day &&
                         "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/60",
                       selected === key && "ring-2 ring-foreground/70",
@@ -212,7 +212,7 @@ export function PolyDayCalendar({
                   >
                     <span>{Number(key.slice(8))}</span>
                     {day && (
-                      <span className="mt-auto hidden truncate text-center text-[11px] font-semibold sm:block">
+                      <span className="mt-auto -mx-px whitespace-nowrap text-center text-[8px] font-semibold tracking-tighter sm:mx-0 sm:truncate sm:text-[11px] sm:tracking-normal">
                         {hidden ? "••••" : formatSigned(day.pnl)}
                       </span>
                     )}
