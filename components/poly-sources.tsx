@@ -138,14 +138,14 @@ export function PolySources({ sources, series, hidden }: { sources: BelowSource[
                   />
                   <Tooltip content={<SourceTooltip sources={drawn} hidden={hidden} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
                   {drawn.map((source) => (
-                    // A result lands at one moment and the total holds until the next one: steps, not slopes that invent gains in between.
                     <Line
                       key={source.key}
-                      type="stepAfter"
+                      type="monotone"
                       dataKey={source.key}
                       name={source.label}
                       stroke={SOURCE_COLORS[source.key]}
-                      strokeWidth={2}
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
                       dot={false}
                       isAnimationActive={false}
                       activeDot={{ r: 4, fill: SOURCE_COLORS[source.key], stroke: "hsl(var(--muted))", strokeWidth: 2 }}
