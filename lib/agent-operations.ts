@@ -569,7 +569,7 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
     case "asset_update_value": {
       const target = await findAsset(userId, input.asset).catch(debtRefusal);
       const asset = await revalueAsset(userId, { assetId: target.id, value: input.value, currency: (input.currency ?? null) as "UAH" | "USDT" | "USD" | null, valuedAt: transactionDate ?? new Date(), note: input.note ?? null }).catch(debtRefusal);
-      return done(`Оцінку «${asset.name}» записано: зараз ${asset.value.toString()} ${asset.currency}.`);
+      return done(`Оцінку «${asset.name}» записано в історію; поточна оцінка ${asset.value.toString()} ${asset.currency} від ${kyivToday(asset.valuedAt)}.`);
     }
     case "asset_update": {
       const target = await findAsset(userId, input.asset).catch(debtRefusal);
