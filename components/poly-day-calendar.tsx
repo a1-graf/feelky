@@ -240,17 +240,17 @@ export function PolyDayCalendar({
           })}
         </div>
 
-        <div
-          aria-live="polite"
-          className={cn(
-            "mt-3 min-h-5 text-center text-sm font-semibold tabular-nums",
-            selectedDay && !hidden ? tone(Number(selectedDay.pnl)) : muted,
-          )}
-        >
-          {selectedDay
-            ? `${dm(selectedDay.date)}: ${money(selectedDay.pnl)} · ${selectedDay.count} ${plural(selectedDay.count, "угода", "угоди", "угод")}`
-            : "Торкнись дня, щоб побачити результат"}
-        </div>
+        {selectedDay && (
+          <div
+            aria-live="polite"
+            className={cn(
+              "mt-3 text-center text-sm font-semibold tabular-nums",
+              hidden ? muted : tone(Number(selectedDay.pnl)),
+            )}
+          >
+            {`${dm(selectedDay.date)}: ${money(selectedDay.pnl)} · ${selectedDay.count} ${plural(selectedDay.count, "угода", "угоди", "угод")}`}
+          </div>
+        )}
 
         <div className="mt-2 flex items-center justify-center gap-0.5">
           {[...LEGEND_STEPS].reverse().map((step) => (
