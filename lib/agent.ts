@@ -71,7 +71,16 @@ export async function agentSummary(userId: string, month?: string | null) {
   const [data, steam] = await Promise.all([getDashboard(userId, { month: month || undefined }), steamWallets(userId, { historyDays: 1 })]);
   return {
     period: { month: data.period.monthKey, label: data.period.label, range: data.period.rangeLabel, isCurrentMonth: data.period.isCurrentMonth },
-    rate: { uahPerUsdt: data.rate, source: data.rateSource },
+    // `uahPerUsdt` is the rate every figure below uses; `market` is the live market one, `myAverage` the user's last 10 P2P withdrawals.
+    rate: {
+      uahPerUsdt: data.rate,
+      source: data.rateSource,
+      mode: data.rateInfo.mode,
+      market: data.rateInfo.market
+        ? { uahPerUsdt: data.rateInfo.market.rate, source: data.rateInfo.market.source, label: data.rateInfo.market.label, updatedAt: kyivStamp(new Date(data.rateInfo.market.fetchedAt)), stale: data.rateInfo.market.stale }
+        : null,
+      myAverage: data.rateInfo.myAverage ? { uahPerUsdt: data.rateInfo.myAverage.rate, withdrawals: data.rateInfo.myAverage.count } : null
+    },
     accounts: data.accounts.map((account) => ({
       name: account.name,
       type: account.type,

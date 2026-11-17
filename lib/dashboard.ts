@@ -6,37 +6,64 @@ import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
 import { netOf, summarizeForks } from "@/lib/forks-stats";
 import { buildHomeFlow } from "@/lib/home-flow";
+import { averageOfRates, getMarketRate, isSaneRate, MARKET_SOURCE_LABELS, type MarketRate } from "@/lib/market-rate";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
 import { isFlipLedgerTransaction, isOpeningBalanceTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
 type DashboardPeriod = PeriodInput;
 
-export async function resolveUahUsdtRate(userId: string) {
-  const settings = await prisma.settings.findUnique({ where: { userId } });
-  if (settings?.rateMode === RateMode.MANUAL && settings.manualUahUsdtRate) {
-    return { rate: D(settings.manualUahUsdtRate), source: "Ручний курс" };
-  }
+/** Only when there is no market rate, no stored rate and not a single own P2P withdrawal. */
+const LAST_RESORT_RATE = 40;
+const MY_AVERAGE_WITHDRAWALS = 10;
 
-  const since = new Date();
-  since.setDate(since.getDate() - 30);
-  const p2p = await prisma.transaction.findMany({
-    where: {
-      userId,
-      type: TransactionType.P2P_WITHDRAWAL,
-      archivedAt: null,
-      transactionDate: { gte: since },
-      exchangeRate: { not: null }
-    },
-    select: { exchangeRate: true }
+/** Everything the site shows about the rate: the one used, the market one with its source and time, and the user's own average. */
+export type RateInfo = {
+  rate: string;
+  mode: RateMode;
+  /** Short label of what the used rate is. */
+  source: string;
+  market: (MarketRate & { label: string }) | null;
+  myAverage: { rate: string; count: number } | null;
+};
+
+export async function resolveUahUsdtRate(userId: string): Promise<{ rate: Decimal; source: string; info: RateInfo }> {
+  const [settings, withdrawals, market] = await Promise.all([
+    prisma.settings.findUnique({ where: { userId } }).catch(() => null),
+    prisma.transaction
+      .findMany({
+        where: { userId, type: TransactionType.P2P_WITHDRAWAL, archivedAt: null, exchangeRate: { not: null } },
+        orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+        take: MY_AVERAGE_WITHDRAWALS,
+        select: { exchangeRate: true }
+      })
+      .catch(() => []),
+    getMarketRate()
+  ]);
+  const average = averageOfRates(withdrawals.map((item) => item.exchangeRate?.toString()), MY_AVERAGE_WITHDRAWALS);
+  const mode = settings?.rateMode ?? RateMode.AUTO;
+  const marketLabel = market
+    ? market.source === "LAST_KNOWN"
+      ? `${MARKET_SOURCE_LABELS[market.origin]}, останнє відоме`
+      : MARKET_SOURCE_LABELS[market.source]
+    : null;
+  const myAverage = average ? { rate: average.rate.toString(), count: average.count } : null;
+  const info = (rate: Decimal, source: string) => ({
+    rate,
+    source,
+    info: { rate: rate.toString(), mode, source, market: market && marketLabel ? { ...market, label: marketLabel } : null, myAverage }
   });
 
-  if ((settings?.rateMode === RateMode.P2P_AVERAGE || !settings) && p2p.length) {
-    const rate = p2p.reduce((sum, item) => sum.plus(item.exchangeRate || 0), new Decimal(0)).div(p2p.length);
-    return { rate, source: "Середній P2P за 30 днів" };
+  if (mode === RateMode.MANUAL && settings?.manualUahUsdtRate && isSaneRate(settings.manualUahUsdtRate.toString())) {
+    return info(D(settings.manualUahUsdtRate), "Ручний курс");
   }
-
-  return { rate: new Decimal(40), source: "Fallback market provider" };
+  if (mode === RateMode.P2P_AVERAGE && average) {
+    return info(average.rate, `Мій середній за ${average.count} P2P-виводів`);
+  }
+  // AUTO (and the fallbacks of the other modes): the market rate.
+  if (market) return info(D(market.rate), `Ринковий · ${marketLabel}`);
+  if (average) return info(average.rate, `Мій середній за ${average.count} P2P-виводів (ринковий недоступний)`);
+  return info(new Decimal(LAST_RESORT_RATE), "Запасний курс (немає жодного джерела)");
 }
 
 // Three tiles that explain a headline number: the biggest parts, the rest folded into "Інше".
@@ -426,6 +453,7 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     settings,
     rate: rate.toString(),
     rateSource: source,
+    rateInfo: rateData.info,
     accounts,
     frozenByAccount,
     expectedMoney,

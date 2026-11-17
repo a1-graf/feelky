@@ -10,6 +10,7 @@ import type { getDashboard } from "@/lib/dashboard";
 import type { getExpensesPage } from "@/lib/expenses";
 import { LOSS_LABEL } from "@/lib/home-flow";
 import { formatMoney, formatPlain, formatSigned, formatPercent } from "@/lib/money";
+import { rateSourceLine } from "@/lib/rate-display";
 import "./gpt-home.css";
 
 type Props = { data: Awaited<ReturnType<typeof getDashboard>>; expenses: Awaited<ReturnType<typeof getExpensesPage>> };
@@ -42,9 +43,10 @@ export function FeelkyHome({ data, expenses }: Props) {
   // This is bank movement, NOT investment return: cash flows and FX are included.
   const change = Number(data.totals.periodBankChangeUsdt);
   const Hero = <section className="gh-panel gh-hero">
-    <div className="gh-hero-top"><span className="gh-eyebrow"><span className="gh-live" /> ДОСТУПНИЙ БАНК</span><div className="gh-rate"><span>Курс</span> <b>{formatPlain(data.rate)}</b> <small>UAH / USDT</small></div></div>
+    <div className="gh-hero-top"><span className="gh-eyebrow"><span className="gh-live" /> ДОСТУПНИЙ БАНК</span><div className="gh-rate"><span>Курс</span> <b>{formatPlain(data.rate)}</b>{data.rateInfo.myAverage && <small>/ мій {formatPlain(data.rateInfo.myAverage.rate)}</small>} <small>UAH / USDT</small></div></div>
     <div className="gh-balance">{plain(data.totals.availableBankUsdt)} <span>USDT</span></div>
     <div className="gh-equivalent">{uah(data.totals.availableBankUsdt)}</div>
+    <div className="gh-rate-source">{rateSourceLine(data.rateInfo)}</div>
     <div className="gh-hero-foot"><span>Вільні гроші · на зараз</span><Link href="/crypto">Гаманець <ArrowUpRight size={15} /></Link></div>
   </section>;
   const Chart = <section className="gh-panel gh-bank-chart"><div className="gh-heading"><div><span className="gh-eyebrow">КАПІТАЛ У ЧАСІ</span><h2>Загальний банк</h2></div><span className={`gh-change ${change >= 0 ? "gh-positive" : "gh-negative"}`}>{signed(change)} <small>USDT · {data.period.label}</small></span></div>

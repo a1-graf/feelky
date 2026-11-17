@@ -42,10 +42,10 @@ export function SettingsForm({ settings }: { settings: SettingsPayload | null })
           </select>
         </label>
         <label>Режим курсу
-          <select name="rateMode" defaultValue={settings?.rateMode || "P2P_AVERAGE"}>
-            <option value="P2P_AVERAGE">Середній P2P</option>
+          <select name="rateMode" defaultValue={settings?.rateMode || "AUTO"}>
+            <option value="AUTO">Ринковий (Binance P2P, запасний — НБУ)</option>
+            <option value="P2P_AVERAGE">Мій середній (10 останніх P2P-виводів)</option>
             <option value="MANUAL">Ручний</option>
-            <option value="AUTO">Авто provider</option>
           </select>
         </label>
         <label>Ручний курс UAH/USDT<input name="manualUahUsdtRate" inputMode="decimal" defaultValue={settings?.manualUahUsdtRate || ""} /></label>

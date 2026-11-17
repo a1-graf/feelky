@@ -8,6 +8,7 @@ import { decimalString } from "@/lib/fx-input";
 import { deleteFxTradeWithLedger } from "@/lib/fx";
 import { deletePolyTrade, lockPolyFunds, movePolyFunds, POLY_FLOW_SOURCE, POLY_LOCK_SOURCE, POLY_RELEASE_SOURCE, releasePolyLock } from "@/lib/poly";
 import { ACTIVE_EXPECTED_STATUSES, ledger } from "@/lib/ledger";
+import { savePushedRate } from "@/lib/market-rate";
 import { steamArbitrage, steamResale } from "@/lib/steam";
 import { resolveReceivedAmount } from "@/lib/steam-wallet-math";
 import { deleteSteamRound, deleteSteamWithdrawal, findSteamAccount, undoSteamInvestment } from "@/lib/steam-wallets";
@@ -113,6 +114,8 @@ export const agentOperationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("expected_receive"), entry: name, amount: positive.optional(), to: name.optional(), source: name.optional(), date }),
   z.object({ type: z.literal("expected_update"), entry: name, title: name.optional(), amount: positive.optional(), status: z.nativeEnum(ExpectedMoneyStatus).optional(), note }),
   z.object({ type: z.literal("expected_delete"), entry: name }),
+  // The market UAH/USDT rate from the OpenClaw server, for when Vercel cannot reach Binance P2P itself.
+  z.object({ type: z.literal("rate_push"), rate: positive, fetchedAt: z.string().trim().datetime({ offset: true }).optional() }),
   // Any row of any table, exactly as given - no balance is moved (see lib/agent-raw.ts).
   z.object({ type: z.literal("raw_create"), table: name, data: z.record(z.unknown()) }),
   z.object({ type: z.literal("raw_update"), table: name, id: recordId, data: z.record(z.unknown()) }),
@@ -498,6 +501,10 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
       }
       await prisma.expectedMoney.delete({ where: { id: entry.id } });
       return done(`«${entry.title}» видалено.`);
+    }
+    case "rate_push": {
+      const saved = await savePushedRate({ rate: input.rate, fetchedAt: input.fetchedAt ? new Date(input.fetchedAt) : undefined });
+      return done(`Ринковий курс ${saved.rate} UAH/USDT збережено (${saved.fetchedAt}).`);
     }
     case "raw_create": {
       const row = await rawCreate(userId, { table: input.table, data: input.data });

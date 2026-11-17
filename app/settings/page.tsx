@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { ThemeSwitcher } from "@/components/layout/theme-switcher";
 import { MobileLogout } from "@/components/layout/mobile-logout";
 import { PushSettings } from "@/components/push-settings";
+import { RateBadge } from "@/components/rate-badge";
+import { resolveUahUsdtRate } from "@/lib/dashboard";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { MAIN_WALLET_NAME } from "@/lib/user-defaults";
@@ -31,12 +33,13 @@ function SectionTitle({ id, title, text }: { id: string; title: string; text: st
 
 export default async function SettingsPage() {
   const userId = await requireUserId();
-  const [user, settings, categories, incomeSources, accounts] = await Promise.all([
+  const [user, settings, categories, incomeSources, accounts, rateData] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
     prisma.settings.findUnique({ where: { userId } }),
     prisma.category.findMany({ where: { userId, isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.incomeSource.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } }),
-    prisma.account.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } })
+    prisma.account.findMany({ where: { userId, isActive: true }, orderBy: { createdAt: "asc" } }),
+    resolveUahUsdtRate(userId)
   ]);
   const visibleAccounts = accounts.filter((account) => account.name !== MAIN_WALLET_NAME);
   return (
@@ -67,6 +70,7 @@ export default async function SettingsPage() {
 
           <section className="grid gap-3">
             <SectionTitle id="money" title="Баланс і валюти" text="Курс, базова валюта та контроль видимих рахунків." />
+            <Card><RateBadge info={rateData.info} /></Card>
             <SettingsForm settings={settings ? {
               baseDisplayCurrency: settings.baseDisplayCurrency, rateMode: settings.rateMode,
               manualUahUsdtRate: settings.manualUahUsdtRate?.toString() || "",
