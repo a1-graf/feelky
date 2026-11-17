@@ -13,3 +13,6 @@
 
 /* The market rate's source and update time under the hero balance. */
 .gh-rate-source{font-size:10px;line-height:1.5;margin-top:6px;color:var(--gh-muted)}.gh-b .gh-hero .gh-rate-source{color:#344c30}
+/* Net capital beside the hero: the bank plus property and money owed to the user, minus debts. */
+.gh-capital{display:grid;gap:10px}.gh-capital-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}.gh-capital-head b{font-size:22px;font-weight:600;letter-spacing:-.03em;white-space:nowrap}.gh-capital-head small{font-size:10px;font-weight:400;color:var(--gh-muted)}.gh-capital-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.gh-capital-rows a{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--gh-border);border-radius:9px;padding:8px 10px;font-size:11px}.gh-capital-rows a:hover{background:hsl(var(--muted))}.gh-capital-rows span{color:var(--gh-muted)}.gh-capital-rows b{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}.gh-capital-rows i{font-style:normal;color:var(--gh-muted);margin-right:3px}
+@media(max-width:700px){.gh-capital-head b{font-size:19px}.gh-capital-rows a{padding:7px 8px;font-size:10px}}

@@ -6,6 +6,7 @@ import { resolvePeriod, type PeriodInput } from "@/lib/period";
 import { summarizeFlips } from "@/lib/flips";
 import { netOf, summarizeForks } from "@/lib/forks-stats";
 import { buildHomeFlow } from "@/lib/home-flow";
+import { debtBalance, debtTotals, netCapital, toUsdt } from "@/lib/debt-math";
 import { averageOfRates, getMarketRate, isSaneRate, MARKET_SOURCE_LABELS, type MarketRate } from "@/lib/market-rate";
 import { D } from "@/lib/money";
 import { steamAnalytics } from "@/lib/steam";
@@ -79,7 +80,7 @@ function topThree(items: { label: string; value: Decimal }[], byAbs = false): { 
 
 export async function getDashboard(userId: string, input: DashboardPeriod = {}) {
   const period = resolvePeriod(input);
-  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, latestTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals, periodForks] = await Promise.all([
+  const [accounts, frozenFunds, expectedMoney, allExpectedMoney, settings, recentTransactions, recentExpenses, latestTransactions, allTransactions, allFlips, rateData, steam, polyLocks, steamInvestments, steamRounds, steamWithdrawals, periodForks, debts, assets] = await Promise.all([
     prisma.account.findMany({ where: { userId, isActive: true }, include: { childAccounts: true }, orderBy: { createdAt: "asc" } }),
     prisma.frozenFund.findMany({ where: { userId, status: FrozenFundStatus.FROZEN } }),
     prisma.expectedMoney.findMany({
@@ -118,7 +119,9 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
     prisma.steamResaleInvestment.findMany({ where: { userId, archivedAt: null } }),
     prisma.steamArbitrageRound.findMany({ where: { userId, archivedAt: null } }),
     prisma.steamResaleWithdrawal.findMany({ where: { userId, archivedAt: null, transactionId: null } }),
-    prisma.forkTrade.findMany({ where: { userId, placedAt: { gte: period.from, lte: period.to } } })
+    prisma.forkTrade.findMany({ where: { userId, placedAt: { gte: period.from, lte: period.to } } }),
+    prisma.debt.findMany({ where: { userId, archivedAt: null, status: "OPEN" }, include: { transactions: { select: { type: true, amount: true, archivedAt: true, metadata: true } } } }),
+    prisma.asset.findMany({ where: { userId, archivedAt: null } })
   ]);
 
   const { rate, source } = rateData;
@@ -199,6 +202,13 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
   const potentialBankUsdt = availableBankUsdt.plus(savingsAsUsdt).plus(frozenCrypto).plus(potentialExpected).plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt).plus(polyPoolUsdt);
   const availableWithTurnoverUsdt = availableBankUsdt.plus(steamFrozenCapital).plus(brokerUsdt).plus(polyLockedUsdt).plus(polyPoolUsdt);
   const polyTurnoverUsdt = polyPoolUsdt.plus(polyLockedUsdt);
+  // Debts and property sit beside the bank: the bank keeps counting money in accounts, net capital adds what is owned and subtracts what is owed.
+  const debtSums = debtTotals(
+    debts.map((debt) => ({ direction: debt.direction, currency: debt.currency, left: debtBalance(debt, debt.transactions).left })),
+    rate
+  );
+  const assetsUsdt = assets.reduce((sum, asset) => sum.plus(toUsdt(asset.value.toString(), asset.currency, rate)), new Decimal(0));
+  const netCapitalUsdt = netCapital({ bankUsdt: potentialBankUsdt, assetsUsdt, owedUsdt: debtSums.owedUsdt, owedToMeUsdt: debtSums.owedToMeUsdt });
   const turnoverUsdt = steamFrozenCapital.plus(brokerUsdt).plus(polyTurnoverUsdt);
 
   const monthIncome = periodTransactions
@@ -510,6 +520,12 @@ export async function getDashboard(userId: string, input: DashboardPeriod = {}) 
       polyPoolUsdt: polyPoolUsdt.toString(),
       availableBankUsdt: availableBankUsdt.toString(),
       potentialBankUsdt: potentialBankUsdt.toString(),
+      debtsOwedUsdt: debtSums.owedUsdt.toString(),
+      debtsOwedToMeUsdt: debtSums.owedToMeUsdt.toString(),
+      assetsUsdt: assetsUsdt.toString(),
+      netCapitalUsdt: netCapitalUsdt.toString(),
+      openDebtsCount: debts.length,
+      assetsCount: assets.length,
       monthIncomeUsdt: monthIncome.toString(),
       monthExpenseUah: monthExpenseUah.toString(),
       netPnlUsdt: netPnlUsdt.toString(),

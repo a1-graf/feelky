@@ -20,7 +20,9 @@ export const TYPE_LABELS: Record<TransactionType, string> = {
   MANUAL_ADJUSTMENT: "Коригування балансу",
   EXPECTED_MONEY_RECEIVED: "Повернення очікуваних",
   FUNDS_FROZEN: "Заморожено",
-  FUNDS_RELEASED: "Розморожено"
+  FUNDS_RELEASED: "Розморожено",
+  DEBT_IN: "Борг: надходження",
+  DEBT_OUT: "Борг: виплата"
 };
 
 export function kyivStamp(date: Date): string {

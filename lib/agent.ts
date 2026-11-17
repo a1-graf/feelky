@@ -4,6 +4,8 @@ import { bearerToken, kyivStamp, TYPE_LABELS } from "@/lib/agent-query";
 import type { TransactionQuery } from "@/lib/agent-query";
 import { isValidSecretToken } from "@/lib/telegram/security";
 import { steamWallets } from "@/lib/steam-wallets";
+import { listAssets } from "@/lib/assets";
+import { listDebts } from "@/lib/debts";
 import { isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
 /**
@@ -69,6 +71,7 @@ export async function agentTransactions(userId: string, query: TransactionQuery)
 
 export async function agentSummary(userId: string, month?: string | null) {
   const [data, steam] = await Promise.all([getDashboard(userId, { month: month || undefined }), steamWallets(userId, { historyDays: 1 })]);
+  const [debts, assets] = await Promise.all([listDebts(userId, data.rate), listAssets(userId, data.rate)]);
   return {
     period: { month: data.period.monthKey, label: data.period.label, range: data.period.rangeLabel, isCurrentMonth: data.period.isCurrentMonth },
     // `uahPerUsdt` is the rate every figure below uses; `market` is the live market one, `myAverage` the user's last 10 P2P withdrawals.
@@ -103,6 +106,12 @@ export async function agentSummary(userId: string, month?: string | null) {
       polyLockedUsdt: data.totals.polyLockedUsdt,
       polyPoolUsdt: data.totals.polyPoolUsdt,
       cryptoUsdt: data.totals.cryptoTotal,
+      // Beside the bank, never inside it: debts the user owes, debts owed to the user, property, and
+      // netCapitalUsdt = potentialBankUsdt + assetsUsdt + debtsOwedToMeUsdt − debtsOwedUsdt.
+      debtsOwedUsdt: data.totals.debtsOwedUsdt,
+      debtsOwedToMeUsdt: data.totals.debtsOwedToMeUsdt,
+      assetsUsdt: data.totals.assetsUsdt,
+      netCapitalUsdt: data.totals.netCapitalUsdt,
       frozenTotalUsdt: data.totals.frozenTotalUsdt,
       netPnlUsdt: data.totals.netPnlUsdt,
       p2pWithdrawals: data.totals.p2pCount,
@@ -131,6 +140,30 @@ export async function agentSummary(userId: string, month?: string | null) {
         bonusPercent: wallet.bonusPercent,
         updatedAt: wallet.updatedAt ? kyivStamp(wallet.updatedAt) : null
       }))
+    },
+    // Open debts both ways (`left` is what is still owed, in the debt's currency) and their totals in USDT.
+    debts: {
+      owedUsdt: debts.totals.owedUsdt,
+      owedToMeUsdt: debts.totals.owedToMeUsdt,
+      open: debts.debts
+        .filter((debt) => debt.status === "OPEN")
+        .map((debt) => ({
+          id: debt.id,
+          direction: debt.direction,
+          counterparty: debt.counterparty,
+          amount: debt.amount,
+          repaid: debt.repaid,
+          left: debt.left,
+          currency: debt.currency,
+          startedAt: kyivStamp(debt.startedAt),
+          dueDate: debt.dueDate ? kyivStamp(debt.dueDate).slice(0, 10) : null,
+          overdue: debt.overdue,
+          note: debt.note
+        }))
+    },
+    assets: {
+      totalUsdt: assets.totals.totalUsdt,
+      items: assets.assets.map((asset) => ({ id: asset.id, name: asset.name, category: asset.category, value: asset.value, currency: asset.currency, valueUsdt: asset.valueUsdt, valuedAt: kyivStamp(asset.valuedAt), note: asset.note }))
     },
     expectedMoney: data.expectedMoney.map((item) => ({
       title: item.title,

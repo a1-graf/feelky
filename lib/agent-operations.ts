@@ -9,6 +9,8 @@ import { deleteFxTradeWithLedger } from "@/lib/fx";
 import { deletePolyTrade, lockPolyFunds, movePolyFunds, POLY_FLOW_SOURCE, POLY_LOCK_SOURCE, POLY_RELEASE_SOURCE, releasePolyLock } from "@/lib/poly";
 import { ACTIVE_EXPECTED_STATUSES, ledger } from "@/lib/ledger";
 import { savePushedRate } from "@/lib/market-rate";
+import { AssetError, createAsset, deleteAsset, findAsset, revalueAsset, updateAsset } from "@/lib/assets";
+import { createDebt, DebtError, deleteDebt, findDebt, repayDebt, updateDebt } from "@/lib/debts";
 import { steamArbitrage, steamResale } from "@/lib/steam";
 import { resolveReceivedAmount } from "@/lib/steam-wallet-math";
 import { deleteSteamRound, deleteSteamWithdrawal, findSteamAccount, undoSteamInvestment } from "@/lib/steam-wallets";
@@ -55,6 +57,10 @@ const date = z
   .refine(isValidDateKey, "Дата у форматі YYYY-MM-DD")
   .refine((value) => value <= kyivToday(), "Дата не може бути в майбутньому")
   .optional();
+
+/** A due date may lie ahead. */
+const anyDate = z.string().trim().refine(isValidDateKey, "Дата у форматі YYYY-MM-DD");
+const debtDirection = z.string().transform((value) => value.trim().toUpperCase()).pipe(z.enum(["BORROWED", "LENT"]));
 
 export const agentOperationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("expense"), amount: positive, currency: currency.optional(), account: name.optional(), category: name, note, date }),
@@ -116,6 +122,17 @@ export const agentOperationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("expected_delete"), entry: name }),
   // The market UAH/USDT rate from the OpenClaw server, for when Vercel cannot reach Binance P2P itself.
   z.object({ type: z.literal("rate_push"), rate: positive, fetchedAt: z.string().trim().datetime({ offset: true }).optional() }),
+  // Debts: BORROWED = the user owes, LENT = someone owes the user. With `account` the money really moves (neither income nor expense);
+  // without it the debt is only recorded. `debt` is the id or the counterparty's name.
+  z.object({ type: z.literal("debt_create"), direction: debtDirection, counterparty: name, amount: positive, currency: currency.optional(), account: name.optional(), date, dueDate: anyDate.optional().nullable(), note }),
+  z.object({ type: z.literal("debt_repay"), debt: name, amount: positive.optional(), account: name, date, note }),
+  z.object({ type: z.literal("debt_update"), debt: name, counterparty: name.optional(), dueDate: anyDate.optional().nullable(), note }),
+  z.object({ type: z.literal("debt_delete"), debt: name }),
+  // Property: counted only in net capital. `asset` is the id or the name.
+  z.object({ type: z.literal("asset_create"), name, category: name.optional(), value: nonNegative, currency: currency.optional(), date, note }),
+  z.object({ type: z.literal("asset_update_value"), asset: name, value: nonNegative, currency: currency.optional(), date, note }),
+  z.object({ type: z.literal("asset_update"), asset: name, name: name.optional(), category: name.optional(), note }),
+  z.object({ type: z.literal("asset_delete"), asset: name }),
   // Any row of any table, exactly as given - no balance is moved (see lib/agent-raw.ts).
   z.object({ type: z.literal("raw_create"), table: name, data: z.record(z.unknown()) }),
   z.object({ type: z.literal("raw_update"), table: name, id: recordId, data: z.record(z.unknown()) }),
@@ -197,6 +214,11 @@ async function deleteTransaction(userId: string, transactionId: string, permanen
   else if (!permanent) await ledger.archiveTransaction(userId, transaction.id);
   if (permanent) await ledger.deleteTransactionPermanently(userId, transaction.id);
   return done(permanent ? "Операцію видалено назавжди, баланс повернуто." : "Операцію перенесено в архів, баланс повернуто.");
+}
+
+/** Debt and property refusals (unknown name, more than is left, wrong currency) are for the agent to fix. */
+function debtRefusal(error: unknown): never {
+  throw error instanceof DebtError || error instanceof AssetError ? new AgentOperationError(error.message) : error;
 }
 
 function polyRefusal(error: unknown): never {
@@ -501,6 +523,63 @@ export async function runAgentOperation(userId: string, input: AgentOperation): 
       }
       await prisma.expectedMoney.delete({ where: { id: entry.id } });
       return done(`«${entry.title}» видалено.`);
+    }
+    case "debt_create": {
+      const code = (input.currency ?? "UAH") as "UAH" | "USDT" | "USD";
+      const to = input.account ? account(data, input.account) : null;
+      const debt = await createDebt(userId, {
+        direction: input.direction,
+        counterparty: input.counterparty,
+        amount: input.amount,
+        currency: code,
+        accountId: to?.id ?? null,
+        startedAt: transactionDate ?? new Date(),
+        dueDate: input.dueDate ? new Date(`${input.dueDate}T12:00:00.000Z`) : null,
+        note: input.note ?? null
+      }).catch(debtRefusal);
+      const what = input.direction === "BORROWED" ? `Борг перед «${debt.counterparty}»` : `«${debt.counterparty}» винен`;
+      const move = to ? (input.direction === "BORROWED" ? `, гроші зараховано на «${to.name}»` : `, гроші списано з «${to.name}»`) : ", без руху грошей";
+      return done(`${what}: ${debt.amount.toString()} ${debt.currency}${move}. id: ${debt.id}`);
+    }
+    case "debt_repay": {
+      const target = await findDebt(userId, input.debt).catch(debtRefusal);
+      const via = account(data, input.account);
+      const outcome = await repayDebt(userId, { debtId: target.id, amount: input.amount ?? null, accountId: via.id, date: transactionDate ?? new Date(), note: input.note ?? null }).catch(debtRefusal);
+      const left = outcome.left.lte(0) ? "борг закрито" : `лишилось ${outcome.left.toString()} ${target.currency}`;
+      return { receipt: `Погашення «${target.counterparty}»: ${outcome.transaction.amount.toString()} ${target.currency} (${target.direction === "BORROWED" ? "з" : "на"} «${via.name}»), ${left}.`, undo: `tx:${outcome.transaction.id}` };
+    }
+    case "debt_update": {
+      const target = await findDebt(userId, input.debt).catch(debtRefusal);
+      const updated = await updateDebt(userId, target.id, {
+        counterparty: input.counterparty,
+        dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(`${input.dueDate}T12:00:00.000Z`) : null,
+        note: input.note
+      }).catch(debtRefusal);
+      return done(`Борг «${updated.counterparty}» оновлено.`);
+    }
+    case "debt_delete": {
+      const target = await findDebt(userId, input.debt).catch(debtRefusal);
+      const outcome = await deleteDebt(userId, target.id).catch(debtRefusal);
+      return done(`Борг «${target.counterparty}» видалено${outcome.reversed ? `, ${outcome.reversed} рух(и) грошей скасовано й баланси повернуто` : ""}.`);
+    }
+    case "asset_create": {
+      const asset = await createAsset(userId, { name: input.name, category: input.category ?? null, value: input.value, currency: (input.currency ?? "USD") as "UAH" | "USDT" | "USD", valuedAt: transactionDate ?? new Date(), note: input.note ?? null }).catch(debtRefusal);
+      return done(`Майно «${asset.name}» (${asset.category}) додано з оцінкою ${asset.value.toString()} ${asset.currency}. id: ${asset.id}`);
+    }
+    case "asset_update_value": {
+      const target = await findAsset(userId, input.asset).catch(debtRefusal);
+      const asset = await revalueAsset(userId, { assetId: target.id, value: input.value, currency: (input.currency ?? null) as "UAH" | "USDT" | "USD" | null, valuedAt: transactionDate ?? new Date(), note: input.note ?? null }).catch(debtRefusal);
+      return done(`Оцінку «${asset.name}» записано: зараз ${asset.value.toString()} ${asset.currency}.`);
+    }
+    case "asset_update": {
+      const target = await findAsset(userId, input.asset).catch(debtRefusal);
+      const asset = await updateAsset(userId, { assetId: target.id, name: input.name, category: input.category, note: input.note }).catch(debtRefusal);
+      return done(`Майно «${asset.name}» оновлено.`);
+    }
+    case "asset_delete": {
+      const target = await findAsset(userId, input.asset).catch(debtRefusal);
+      await deleteAsset(userId, target.id);
+      return done(`Майно «${target.name}» прибрано зі списку (історія оцінок збережена в архіві).`);
     }
     case "rate_push": {
       const saved = await savePushedRate({ rate: input.rate, fetchedAt: input.fetchedAt ? new Date(input.fetchedAt) : undefined });

@@ -70,6 +70,13 @@ export function FeelkyHome({ data, expenses }: Props) {
     <div className="gh-categories">{expenses.byCategory.length ? expenses.byCategory.slice(0,6).map(c => <div className="gh-category" key={c.name}><div><span>{c.name}</span><b>{money(c.value)}</b></div><div className="gh-track"><span style={{width:`${maxCategory > 0 ? c.value/maxCategory*100 : 0}%`}} /></div></div>) : <p className="gh-muted">Цього місяця витрат ще немає</p>}</div>
   </section>;
   const Transactions = <section className="gh-panel gh-transactions"><div className="gh-heading"><div><span className="gh-eyebrow">РУХ КОШТІВ</span><h2>Останні транзакції</h2></div><span className="gh-muted gh-note">Усі типи операцій</span></div><TransactionList items={data.latestTransactions} compact hidden={hidden} /></section>;
+  const capital = [
+    { label: "Банк", value: data.totals.potentialBankUsdt, sign: "", href: "/overview" },
+    { label: "Майно", value: data.totals.assetsUsdt, sign: "+", href: "/assets" },
+    { label: "Мені винні", value: data.totals.debtsOwedToMeUsdt, sign: "+", href: "/debts" },
+    { label: "Борги", value: data.totals.debtsOwedUsdt, sign: "−", href: "/debts" }
+  ];
+  const Capital = <section className="gh-capital" aria-label="Чистий капітал"><div className="gh-capital-head"><span className="gh-eyebrow">ЧИСТИЙ КАПІТАЛ</span><b>{plain(data.totals.netCapitalUsdt)} <small>USDT</small></b></div><div className="gh-capital-rows">{capital.map(row => <Link key={row.label} href={row.href}><span>{row.label}</span><b>{row.sign && <i>{row.sign}</i>}{plain(row.value)}</b></Link>)}</div><p className="gh-muted gh-note">Банк + майно + що вам винні − борги.</p></section>;
   const Actions = <nav className="gh-actions" aria-label="Фінансові розділи"><Link href="/expenses"><Plus size={15} />Витрати</Link><Link href="/income"><ArrowUpRight size={15} />Доходи</Link><Link href="/withdrawals"><RefreshCw size={15} />Перекази</Link><Link href="/flips"><ArrowRight size={15} />Фліпи</Link></nav>;
   // ARCHIVE: «Наростаючий дохід» і «Що приносить дохід» → components/archive/home-b/income-charts.tsx.
   const flow = data.homeFlow;
@@ -86,5 +93,5 @@ export function FeelkyHome({ data, expenses }: Props) {
       <FlowDonut eyebrow={data.period.label.toUpperCase()} title="Куди йдуть витрати" items={costItems} total={flow.costsTotal} hidden={hidden} emptyLabel="За цей період витрат і мінусів немає" />
     </div>
   </div>;
-  return <div className="gh gh-b"><div className="gh-intro"><div><span className="gh-eyebrow">FEELKY / КОНТРОЛЬ КАПІТАЛУ</span><h1>Усе під контролем.</h1></div><span>01 — Огляд</span></div><div className="gh-bento">{Hero}<div className="gh-bento-chart">{Chart}</div><div className="gh-bento-action">{Actions}<p className="gh-muted gh-note">Капітал зараз — окремо.<br/>Результат періоду — нижче.</p></div></div>{Period}<div className="gh-bento-body"><div className="gh-bento-main">{Metrics}{Projects}</div>{Expenses}</div>{Income}{Transactions}</div>;
+  return <div className="gh gh-b"><div className="gh-intro"><div><span className="gh-eyebrow">FEELKY / КОНТРОЛЬ КАПІТАЛУ</span><h1>Усе під контролем.</h1></div><span>01 — Огляд</span></div><div className="gh-bento">{Hero}<div className="gh-bento-chart">{Chart}</div><div className="gh-bento-action">{Capital}{Actions}<p className="gh-muted gh-note">Капітал зараз — окремо.<br/>Результат періоду — нижче.</p></div></div>{Period}<div className="gh-bento-body"><div className="gh-bento-main">{Metrics}{Projects}</div>{Expenses}</div>{Income}{Transactions}</div>;
 }

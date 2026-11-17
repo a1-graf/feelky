@@ -20,7 +20,8 @@ export const revalidate = 0;
 const mobileMenuLinks = [
   { href: "/income", label: "Доходи" }, { href: "/expenses", label: "Витрати" },
   { href: "/withdrawals", label: "Виводи" }, { href: "/expected", label: "Заморожені" },
-  { href: "/savings", label: "Відкладення" }, { href: "/flips", label: "Фліпи" }, { href: "/archive", label: "Архів" }
+  { href: "/savings", label: "Відкладення" }, { href: "/debts", label: "Борги" }, { href: "/assets", label: "Майно" },
+  { href: "/flips", label: "Фліпи" }, { href: "/archive", label: "Архів" }
 ];
 const sections = [
   ["profile", "Профіль"], ["themes", "Теми"], ["money", "Баланс і валюти"],

@@ -20,7 +20,9 @@ const navSections: readonly NavSection[] = [
       { href: "/expenses", label: "Витрати", icon: "expenses" },
       { href: "/withdrawals", label: "Виводи", icon: "withdrawals" },
       { href: "/expected", label: "Заморожені", icon: "frozen" },
-      { href: "/savings", label: "Відкладення", icon: "savings" }
+      { href: "/savings", label: "Відкладення", icon: "savings" },
+      { href: "/debts", label: "Борги", icon: "debts" },
+      { href: "/assets", label: "Майно", icon: "assets" }
     ]
   },
   {

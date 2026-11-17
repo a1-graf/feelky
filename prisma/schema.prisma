@@ -74,6 +74,22 @@ enum TransactionType {
   EXPECTED_MONEY_RECEIVED
   FUNDS_FROZEN
   FUNDS_RELEASED
+  /// Money that came in because of a debt: borrowed, or a loan given out being paid back. Never income.
+  DEBT_IN
+  /// Money that went out because of a debt: repaying a borrowed one, or lending. Never an expense.
+  DEBT_OUT
+}
+
+enum DebtDirection {
+  /// The user borrowed and owes the counterparty.
+  BORROWED
+  /// The user lent and the counterparty owes the user.
+  LENT
+}
+
+enum DebtStatus {
+  OPEN
+  CLOSED
 }
 
 enum FrozenFundStatus {
@@ -155,6 +171,9 @@ model User {
   forkTrades                ForkTrade[]
   polyTrades                PolyTrade[]
   polyLocks                 PolyLock[]
+  debts                     Debt[]
+  assets                    Asset[]
+  assetValuations           AssetValuation[]
 }
 
 model Account {
@@ -264,10 +283,75 @@ model Transaction {
   steamResaleWithdrawal  SteamResaleWithdrawal?  @relation("SteamResaleWithdrawalTransaction")
   steamArbitrageRound    SteamArbitrageRound?    @relation("SteamArbitrageRoundTransaction")
   steamExpenseAllocation SteamExpenseAllocation? @relation("SteamExpenseAllocationTransaction")
+  /// Set on the money moves of a debt: taking or giving it and every repayment.
+  debtId                 String?
+  debt                   Debt?                   @relation(fields: [debtId], references: [id])
 
   @@index([userId, type])
   @@index([userId, transactionDate])
   @@index([userId, archivedAt])
+  @@index([debtId])
+}
+
+/// A debt either way. `amount` is the principal; what is left is the principal minus the active repayments
+/// (DEBT_OUT for a borrowed one, DEBT_IN for a lent one). It is neither income nor expense; it lowers or raises net capital.
+model Debt {
+  id           String        @id @default(cuid())
+  userId       String
+  direction    DebtDirection
+  counterparty String
+  amount       Decimal       @db.Decimal(18, 6)
+  currency     Currency
+  startedAt    DateTime
+  dueDate      DateTime?
+  status       DebtStatus    @default(OPEN)
+  closedAt     DateTime?
+  note         String?
+  archivedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId, status])
+  @@index([userId, archivedAt])
+}
+
+/// A thing the user owns (a car, a laptop). Counted only in net capital, never in the bank, income or expenses.
+model Asset {
+  id         String           @id @default(cuid())
+  userId     String
+  name       String
+  category   String
+  /// The current estimate.
+  value      Decimal          @db.Decimal(18, 6)
+  currency   Currency
+  valuedAt   DateTime
+  note       String?
+  archivedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valuations AssetValuation[]
+
+  @@index([userId, archivedAt])
+}
+
+/// Every estimate an asset ever had, the current one included.
+model AssetValuation {
+  id        String   @id @default(cuid())
+  userId    String
+  assetId   String
+  value     Decimal  @db.Decimal(18, 6)
+  currency  Currency
+  valuedAt  DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, valuedAt])
+  @@index([userId])
 }
 
 model FrozenFund {
