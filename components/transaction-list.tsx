@@ -1,5 +1,6 @@
 import { TransactionType } from "@prisma/client";
 import { ArchiveAction } from "@/components/archive-action";
+import { debtMoveLabel } from "@/lib/debt-math";
 import { formatMoney } from "@/lib/money";
 import { isOpeningBalanceTransaction, isSavingsDepositTransaction, isWorkExpenseTransaction } from "@/lib/transaction-utils";
 
@@ -30,7 +31,9 @@ const labels: Record<string, string> = {
   EXPECTED_MONEY_RECEIVED: "Отримано очікувані",
   FUNDS_FROZEN: "Заморожено",
   FUNDS_RELEASED: "Розморожено",
-  TRANSFER: "Переказ"
+  TRANSFER: "Переказ",
+  DEBT_IN: "Борг: надходження",
+  DEBT_OUT: "Борг: виплата"
 };
 
 export function TransactionList({ items, archiveMode = false, compact = false, hidden = false }: { items: TransactionItem[]; archiveMode?: boolean; compact?: boolean; hidden?: boolean }) {
@@ -47,7 +50,7 @@ export function TransactionList({ items, archiveMode = false, compact = false, h
         return (
         <div key={item.id} className={`grid border-b border-border last:border-b-0 ${compact ? "grid-cols-[1fr_auto] items-center gap-2 p-2.5" : "gap-2 p-4 md:grid-cols-[1fr_auto_auto] md:items-center"}`}>
           <div>
-            <div className={compact ? "text-sm font-medium leading-tight" : "font-medium"}>{isOpeningBalance ? "Початковий баланс" : isSavingsDeposit ? "Відкладення" : isWorkExpense ? "Робоча витрата" : labels[item.type] || item.type}</div>
+            <div className={compact ? "text-sm font-medium leading-tight" : "font-medium"}>{isOpeningBalance ? "Початковий баланс" : isSavingsDeposit ? "Відкладення" : isWorkExpense ? "Робоча витрата" : debtMoveLabel(item.type, item.metadata) || labels[item.type] || item.type}</div>
             <div className={`text-muted-foreground ${compact ? "text-xs leading-tight" : "text-sm"}`}>
               {isOpeningBalance ? "Без дати" : new Intl.DateTimeFormat("uk-UA").format(new Date(item.transactionDate))}
               {item.category?.name ? ` · ${item.category.name}` : ""}

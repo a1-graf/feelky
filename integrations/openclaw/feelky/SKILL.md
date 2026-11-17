@@ -267,6 +267,23 @@ it the operation is now. Without `account` the same default as the bot is used.
 | `raw_create` | `table`, `data` |
 | `raw_update` | `table`, `id`, `data` |
 | `raw_delete` | `table`, `id` |
+| `debt_create` | `direction` (`BORROWED` - the user owes, `LENT` - someone owes the user), `counterparty`, `amount`, `currency` (UAH by default), `account`, `date`, `dueDate` (may be ahead), `note` - with `account` the money really lands on it (borrowed) or leaves it (lent); without it the debt is only recorded. Never income or an expense |
+| `debt_repay` | `debt` (id or counterparty), `amount` (everything left by default, never more), `account` (same currency), `date`, `note` - out of the account for a borrowed debt, onto it for a lent one; `undo` takes it back |
+| `debt_update` | `debt`, `counterparty` (new), `dueDate` (`null` clears), `note` |
+| `debt_delete` | `debt` - every money move of the debt is reversed, then the debt is archived |
+| `asset_create` | `name`, `category` (`Транспорт`, `Техніка`, `Нерухомість`, `Цінні речі`, `Інше` or any), `value`, `currency` (USD by default), `date`, `note` - property: only in net capital |
+| `asset_update_value` | `asset` (id or name), `value`, `currency`, `date`, `note` - a new estimate; the newest one is the current value, all are kept |
+| `asset_update` | `asset`, `name` (new), `category`, `note` |
+| `asset_delete` | `asset` |
+| `rate_push` | `rate` (UAH per USDT), `fetchedAt` (ISO) - the Binance P2P rate from the server, used when Vercel cannot reach Binance |
+
+Debts and property never change income, expenses or the bank totals. `summary.totals`
+adds `debtsOwedUsdt`, `debtsOwedToMeUsdt`, `assetsUsdt` and
+`netCapitalUsdt` (= `potentialBankUsdt` + property + owed to the user − the user's debts);
+`summary.debts.open` and `summary.assets.items` list them, `references` has their ids.
+`summary.rate.uahPerUsdt` is the rate used; `rate.market` is the live market rate (Binance P2P,
+Monobank, deals from 1 000 UAH; then NBU) with `updatedAt`, `rate.myAverage` the average of the
+last 10 P2P withdrawals.
 
 A retried request is recorded again - if a request failed on the network, check
 `/api/agent/transactions` before sending it once more.

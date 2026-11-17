@@ -10,7 +10,9 @@ import {
   Banknote,
   BarChart3,
   CandlestickChart,
+  HandCoins,
   LayoutDashboard,
+  Package,
   PiggyBank,
   Settings,
   Snowflake,
@@ -30,6 +32,8 @@ export type NavIcon =
   | "wallet"
   | "frozen"
   | "savings"
+  | "debts"
+  | "assets"
   | "flips"
   | "fx"
   | "forks"
@@ -66,6 +70,8 @@ const icons: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
   wallet: Wallet,
   frozen: Snowflake,
   savings: PiggyBank,
+  debts: HandCoins,
+  assets: Package,
   flips: TrendingUp,
   fx: CandlestickChart,
   forks: Split,

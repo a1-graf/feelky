@@ -43,6 +43,9 @@ const TABLES: Record<string, Delegate> = {
   SteamArbitrageRound: delegate(prisma.steamArbitrageRound),
   SteamArbitrageResidual: delegate(prisma.steamArbitrageResidual),
   SteamExpenseAllocation: delegate(prisma.steamExpenseAllocation),
+  Debt: delegate(prisma.debt),
+  Asset: delegate(prisma.asset),
+  AssetValuation: delegate(prisma.assetValuation),
   AuditLog: delegate(prisma.auditLog)
 };
 

@@ -1,7 +1,8 @@
-import { AccountType, ExpectedMoneyStatus, FrozenFundStatus, Prisma, TransactionType } from "@prisma/client";
+import { AccountType, DebtStatus, ExpectedMoneyStatus, FrozenFundStatus, Prisma, TransactionType } from "@prisma/client";
 import type { Currency } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { debtBalance, debtRoleOf } from "@/lib/debt-math";
 import { calculateReceivedUsdt, calculateSpentUsdt, D, roundCurrency, toPrismaDecimal } from "@/lib/money";
 import { isPolyLedgerTransaction, OPENING_BALANCE_DATE } from "@/lib/transaction-utils";
 import { MAIN_WALLET_NAME, SAVINGS_ACCOUNT_NAME } from "@/lib/user-defaults";
@@ -44,13 +45,13 @@ export function accountEffect(transaction: {
     return new Decimal(0);
   }
   if (accountId === transaction.sourceAccountId) {
-    const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER];
+    const debitTypes: TransactionType[] = [TransactionType.EXPENSE, TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL, TransactionType.TRANSFER, TransactionType.DEBT_OUT];
     if (debitTypes.includes(transaction.type)) {
       return amount.negated();
     }
   }
   if (accountId === transaction.destinationAccountId) {
-    const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER];
+    const directCreditTypes: TransactionType[] = [TransactionType.INCOME, TransactionType.EXPECTED_MONEY_RECEIVED, TransactionType.MANUAL_ADJUSTMENT, TransactionType.TRANSFER, TransactionType.DEBT_IN];
     const convertedCreditTypes: TransactionType[] = [TransactionType.P2P_WITHDRAWAL, TransactionType.P2P_DEPOSIT, TransactionType.CASH_WITHDRAWAL];
     if (directCreditTypes.includes(transaction.type)) {
       return amount;
@@ -60,6 +61,16 @@ export function accountEffect(transaction: {
     }
   }
   return new Decimal(0);
+}
+
+/** Keeps a debt's stored status in step with its active repayments. */
+export async function syncDebtStatus(tx: Tx, debtId: string) {
+  const debt = await tx.debt.findUnique({ where: { id: debtId } });
+  if (!debt) return null;
+  const { closed } = debtBalance(debt, await tx.transaction.findMany({ where: { debtId } }));
+  const status = closed ? DebtStatus.CLOSED : DebtStatus.OPEN;
+  if (status === debt.status) return debt;
+  return tx.debt.update({ where: { id: debt.id }, data: { status, closedAt: closed ? new Date() : null } });
 }
 
 export class LedgerService {
@@ -605,18 +616,23 @@ export class LedgerService {
    * Same as archiveTransaction, but reuses an already open Prisma transaction so callers
    * can archive a ledger entry together with the domain record that produced it.
    */
-  async archiveTransactionWithin(tx: Tx, userId: string, transactionId: string) {
+  async archiveTransactionWithin(tx: Tx, userId: string, transactionId: string, options: { debtRemoval?: boolean } = {}) {
     const transaction = await tx.transaction.findFirst({ where: { id: transactionId, userId } });
     if (!transaction) throw new Error("Transaction not found");
     if (transaction.archivedAt) return transaction;
     // A Polymarket row belongs to a trade, a lock or a pool move; removing only the row would double count or lose money.
     if (isPolyLedgerTransaction(transaction)) throw new Error("Це операція Polymarket — зміни угоду або блокування, а не сам рядок");
+    // The money of taking or giving a debt goes with the debt itself; a repayment can be taken back on its own.
+    if (transaction.debtId && debtRoleOf(transaction.metadata) === "principal" && !options.debtRemoval) {
+      throw new Error("Це отримання або видача боргу — видали сам борг на сторінці «Борги»");
+    }
     await this.unwindFrozenEntry(tx, userId, transaction);
     await this.applyTransactionEffect(tx, transaction, "reverse");
     const archived = await tx.transaction.update({
       where: { id: transaction.id },
       data: { archivedAt: new Date() }
     });
+    if (transaction.debtId && !options.debtRemoval) await syncDebtStatus(tx, transaction.debtId);
     await this.audit(tx, userId, "Transaction", transaction.id, "ARCHIVE", transaction, archived);
     return archived;
   }
@@ -640,11 +656,18 @@ export class LedgerService {
       if (!transaction.archivedAt) return transaction;
       if (isPolyLedgerTransaction(transaction)) throw new Error("Операцію Polymarket не відновити — створи угоду заново");
       if (frozenMoveOf(transaction)) throw new Error("Заморозку не відновити — заморозь або розморозь заново");
+      if (transaction.debtId) {
+        const debt = await tx.debt.findFirst({ where: { id: transaction.debtId, userId } });
+        if (!debt || debt.archivedAt || debtRoleOf(transaction.metadata) !== "repayment") throw new Error("Операцію боргу не відновити — внеси борг або погашення заново");
+        const { left } = debtBalance(debt, await tx.transaction.findMany({ where: { debtId: debt.id } }));
+        if (D(transaction.amount).gt(left)) throw new Error(`Це погашення більше за залишок боргу (${left.toString()} ${debt.currency})`);
+      }
       await this.applyTransactionEffect(tx, transaction, "apply");
       const restored = await tx.transaction.update({
         where: { id: transaction.id },
         data: { archivedAt: null }
       });
+      if (transaction.debtId) await syncDebtStatus(tx, transaction.debtId);
       await this.audit(tx, userId, "Transaction", transaction.id, "RESTORE", transaction, restored);
       return restored;
     });
@@ -672,7 +695,8 @@ export class LedgerService {
     });
   }
 
-  private async adjustAccount(tx: Tx, userId: string, accountId: string, delta: Decimal.Value, allowNegative: boolean) {
+  /** Moves an account balance inside an open transaction; refuses to go below zero unless allowed. */
+  async adjustAccount(tx: Tx, userId: string, accountId: string, delta: Decimal.Value, allowNegative: boolean) {
     const account = await this.requireAccount(tx, userId, accountId);
     const next = D(account.currentBalance).plus(delta);
     if (!allowNegative && next.lt(0)) {
