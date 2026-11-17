@@ -23,13 +23,13 @@ function Leg({ leg, hidden }: { leg: ForkItem["legs"][number]; hidden: boolean }
   );
 }
 
-function ForkRow({ fork, hidden }: { fork: ForkItem; hidden: boolean }) {
+function ForkRow({ fork, hidden, compact = false }: { fork: ForkItem; hidden: boolean; compact?: boolean }) {
   const open = fork.status === "OPEN";
   return (
     <div className="min-w-0 rounded-lg bg-muted p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate font-semibold">{fork.match}</div>
+          <div className={compact ? "font-semibold" : "truncate font-semibold"}>{fork.match}</div>
           <div className="text-xs text-[hsl(var(--card-muted-foreground))]">
             {formatDate(fork.placedAt)}
             {fork.sport ? ` · ${fork.sport}` : ""}
@@ -50,11 +50,24 @@ function ForkRow({ fork, hidden }: { fork: ForkItem; hidden: boolean }) {
           )}
         </div>
       </div>
-      <div className="mt-2 grid gap-0.5 border-t border-border/60 pt-2 text-xs">
-        {fork.legs.map((leg) => (
-          <Leg key={leg.book + leg.pick} leg={leg} hidden={hidden} />
-        ))}
-      </div>
+      {compact ? (
+        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs tabular-nums">
+          {fork.legs.map((leg) => (
+            <span key={leg.book + leg.pick}>
+              <span className="font-medium">{leg.book}</span>{" "}
+              <span className="text-[hsl(var(--card-muted-foreground))]">
+                @{formatPlain(leg.odds)} · {formatMoney(leg.stake, "USD", hidden)}
+              </span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-0.5 border-t border-border/60 pt-2 text-xs">
+          {fork.legs.map((leg) => (
+            <Leg key={leg.book + leg.pick} leg={leg} hidden={hidden} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -71,7 +84,7 @@ export function ForksOpen({ items, stake, guaranteed, hidden = false }: { items:
       {items.length ? (
         <div className="grid gap-2">
           {items.map((fork) => (
-            <ForkRow key={fork.id} fork={fork} hidden={hidden} />
+            <ForkRow key={fork.id} fork={fork} hidden={hidden} compact />
           ))}
         </div>
       ) : (
