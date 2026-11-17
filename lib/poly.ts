@@ -1,3 +1,4 @@
+import { polyDays } from "@/lib/poly-calendar";
 import { AccountType, PolyLockStatus, PolySection, PolyTradeStatus, Prisma, TransactionType } from "@prisma/client";
 import type { Account, PolyLock, PolyTrade } from "@prisma/client";
 import type Decimal from "decimal.js";
@@ -471,6 +472,43 @@ export async function reconcilePolyPool(userId: string) {
   };
 }
 
+/** Free pool balance over time, rebuilt from the pool's ledger rows the same way reconcilePolyPool adds them up. */
+export async function polyBalanceSeries(userId: string) {
+  const pool = await prisma.account.findFirst({ where: { id: `${userId}-polymarket`, userId } });
+  if (!pool) return [];
+  const rows = await prisma.transaction.findMany({
+    where: { userId, archivedAt: null, OR: [{ sourceAccountId: pool.id }, { destinationAccountId: pool.id }] },
+    select: { type: true, amount: true, sourceAccountId: true, destinationAccountId: true, transactionDate: true, metadata: true },
+    orderBy: { transactionDate: "asc" }
+  });
+  const labels: Record<string, string> = {
+    [POLY_PNL_SOURCE]: "Угода",
+    [POLY_LOCK_SOURCE]: "Блокування в AI-агенті",
+    [POLY_RELEASE_SOURCE]: "Повернення з AI-агента",
+    [POLY_UNATTRIBUTED_SOURCE]: "Коригування"
+  };
+  let running = D(pool.initialBalance.toString());
+  const points: Array<{ t: number; total: number; delta: number; label: string }> = [];
+  for (const row of rows) {
+    const amount = D(row.amount.toString());
+    let delta = D(0);
+    if (row.type === TransactionType.TRANSFER) {
+      if (row.sourceAccountId === pool.id) delta = delta.minus(amount);
+      if (row.destinationAccountId === pool.id) delta = delta.plus(amount);
+    } else if (row.destinationAccountId === pool.id) {
+      delta = amount;
+    } else if (row.sourceAccountId === pool.id && row.type === TransactionType.EXPENSE) {
+      delta = amount.negated();
+    }
+    if (delta.isZero()) continue;
+    running = running.plus(delta);
+    const meta = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? (row.metadata as Record<string, unknown>) : {};
+    const label = row.type === TransactionType.TRANSFER ? (delta.gt(0) ? "Поповнення" : "Виведення") : (labels[String(meta.source)] ?? "");
+    points.push({ t: row.transactionDate.getTime(), total: running.toNumber(), delta: delta.toNumber(), label });
+  }
+  return points;
+}
+
 export async function getPolyOverview(userId: string, inputOrNow: PeriodInput | Date = {}, now: Date = new Date()) {
   const effectiveNow = inputOrNow instanceof Date ? inputOrNow : now;
   const period = resolvePeriod(inputOrNow instanceof Date ? {} : inputOrNow, effectiveNow);
@@ -509,6 +547,8 @@ export async function getPolyOverview(userId: string, inputOrNow: PeriodInput | 
     lockedByAgent: Array.from(lockedByAgent.entries()).map(([agentName, amount]) => ({ agentName, amountUsd: amount.toString() })),
     releasedResult: releasedResult.toString(),
     reconcile,
+    // Day buckets use every loaded trade (up to 5000), not the 2000-row slice sent to the table.
+    days: polyDays(trades.map((trade) => ({ status: trade.status, pnlUsd: trade.pnlUsd.toString(), openedAt: trade.openedAt.toISOString(), resolvedAt: trade.resolvedAt?.toISOString() ?? null }))),
     trades: trades.slice(0, 2000).map((trade) => ({
       id: trade.id,
       externalId: trade.externalId,

@@ -1,9 +1,10 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { formatMoney, formatSigned } from "@/lib/money";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { formatMoney, formatPlain, formatSigned } from "@/lib/money";
 import { LOSS_COLOR, PROFIT_COLOR } from "@/lib/chart-colors";
+import { cn } from "@/lib/ui";
 
 type Point = { t: number; balance: number; total: number; delta: number; kind: "trade" | "deposit" | "withdraw"; label: string };
 
@@ -17,10 +18,25 @@ const PRESETS = [
 ] as const;
 type PresetKey = (typeof PRESETS)[number]["key"];
 
+/** A window picked outside the chart; `start: -Infinity` means from the first point (all time). */
+export type ChartRange = { start: number; end: number };
+
 const dayStart = (value: string) => (value ? new Date(`${value}T00:00:00`).getTime() : NaN);
 const dayEnd = (value: string) => (value ? new Date(`${value}T23:59:59.999`).getTime() : NaN);
+const TICK = { fontSize: 9, fill: "hsl(var(--card-muted-foreground) / 0.7)" };
+const shortDate = (t: number) => new Date(t).toLocaleDateString("uk-UA", { timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit" });
 
-function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number }) {
+/** First and last date labels hug the plot edges so a narrow tile never clips them. */
+function DateTick({ x, y, payload, index, count }: { x?: number; y?: number; payload?: { value: number }; index?: number; count: number }) {
+  const anchor = index === 0 ? "start" : index === count - 1 ? "end" : "middle";
+  return (
+    <text x={x} y={y} dy="0.71em" textAnchor={anchor} {...TICK}>
+      {payload ? shortDate(payload.value) : ""}
+    </text>
+  );
+}
+
+function BalanceTooltip({ active, payload, hidden, currency, oneR, showTotal }: { active?: boolean; payload?: Array<{ payload: Point }>; hidden: boolean; currency: string; oneR: number; showTotal: boolean }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
   return (
@@ -33,10 +49,12 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: 
           {point.delta !== 0 && <span className={point.delta > 0 ? "text-success" : "text-danger"}>{hidden ? "••••" : formatSigned(point.delta)}</span>}
         </div>
       )}
-      <div className="text-[hsl(var(--card-muted-foreground))]">
-        Total ${" "}
-        <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
-      </div>
+      {showTotal && (
+        <div className="text-[hsl(var(--card-muted-foreground))]">
+          Total ${" "}
+          <span className={point.total > 0 ? "text-success" : point.total < 0 ? "text-danger" : undefined}>{hidden ? "••••" : formatSigned(point.total)}</span>
+        </div>
+      )}
       {oneR > 0 && (
         <div className="text-[hsl(var(--card-muted-foreground))]">
           Total R{" "}
@@ -47,7 +65,12 @@ function BalanceTooltip({ active, payload, hidden, currency, oneR }: { active?: 
   );
 }
 
-export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data: Point[]; currency: string; oneR: number; hidden?: boolean }) {
+/**
+ * `title` names the line when the tile is not the balance (Poly reuses it for PnL); `showTotal` drops the Total $ row when it would repeat the line itself.
+ * `range` hands the window to a switcher outside the chart: the chart then draws no presets of its own.
+ * `ticks` adds faint scale marks (three hairlines with their values inside the plot, three dates under it); /fx leaves them off.
+ */
+export function FxBalanceChart({ data, currency, oneR, hidden = false, title, showTotal = true, range, ticks = false, className, style }: { data: Point[]; currency: string; oneR: number; hidden?: boolean; title?: string; showTotal?: boolean; range?: ChartRange; ticks?: boolean; className?: string; style?: React.CSSProperties }) {
   const gradientId = useId().replace(/:/g, "");
   const [preset, setPreset] = useState<PresetKey>("1m");
   const [from, setFrom] = useState("");
@@ -58,7 +81,10 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
     if (!data.length) return [];
     let start: number;
     let end = now;
-    if (preset === "cd") {
+    if (range) {
+      start = Math.max(range.start, data[0].t);
+      end = range.end;
+    } else if (preset === "cd") {
       start = Number.isNaN(dayStart(from)) ? data[0].t : dayStart(from);
       if (!Number.isNaN(dayEnd(to))) end = dayEnd(to);
     } else start = now - PRESETS.find((item) => item.key === preset)!.span;
@@ -78,29 +104,34 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
       ...inside,
       { t: Math.min(end, Math.max(now, inside[inside.length - 1]?.t ?? windowStart)), balance: last, total: lastTotal, delta: 0, kind: "trade", label: "" }
     ];
-  }, [data, preset, from, to, now]);
+  }, [data, range, preset, from, to, now]);
 
   const values = points.map((point) => point.balance);
   const color = points.length && points[points.length - 1].balance < points[0].balance ? LOSS_COLOR : PROFIT_COLOR;
   const low = values.length ? Math.min(...values) : 0;
   const high = values.length ? Math.max(...values) : 0;
   const pad = (high - low) * 0.1 || Math.max(1, Math.abs(high) * 0.02);
+  // Points are spaced by index, not time (as without ticks), so the date marks are the first, middle and last point.
+  const levels = high > low ? [low, (low + high) / 2, high] : [low];
+  const dates = points.length ? [...new Set([points[0].t, points[Math.floor((points.length - 1) / 2)].t, points[points.length - 1].t])] : [];
 
   return (
-    <div className="flex min-h-44 flex-col rounded-lg bg-muted p-2">
-      <div className="flex flex-wrap gap-0.5 sm:gap-1">
-        {PRESETS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setPreset(item.key)}
-            className={`rounded-md px-1 py-0.5 text-[11px] font-semibold leading-4 transition-colors sm:px-1.5 ${preset === item.key ? "bg-foreground text-background" : "bg-background/70 text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      {preset === "cd" && (
+    <div className={cn("flex min-h-44 flex-col rounded-lg bg-muted p-2", className)} style={style}>
+      {!range && (
+        <div className="flex flex-wrap gap-0.5 sm:gap-1">
+          {PRESETS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setPreset(item.key)}
+              className={`rounded-md px-1 py-0.5 text-[11px] font-semibold leading-4 transition-colors sm:px-1.5 ${preset === item.key ? "bg-foreground text-background" : "bg-background/70 text-[hsl(var(--card-muted-foreground))] hover:text-foreground"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!range && preset === "cd" && (
         <div className="mt-1.5 grid grid-cols-1 gap-1 sm:grid-cols-2">
           <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-label="Від" className="min-w-0 rounded-md border border-border bg-background px-1 py-0.5 text-[11px] sm:px-1.5 sm:text-xs" />
           <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-label="До" className="min-w-0 rounded-md border border-border bg-background px-1 py-0.5 text-[11px] sm:px-1.5 sm:text-xs" />
@@ -109,7 +140,9 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
       {points.length < 2 ? (
         <div className="flex flex-1 items-center justify-center text-center text-sm text-[hsl(var(--card-muted-foreground))]">Немає угод за період</div>
       ) : (
-        <div className="relative mt-1 min-h-28 flex-1">
+        <div className={cn("relative min-h-28 flex-1", !range && "mt-1")}>
+          {/* A pill over the plot: a label beside the presets wraps to its own line on a phone. */}
+          {title && <span className="pointer-events-none absolute right-0 top-0 z-10 rounded bg-muted/80 px-1 text-[11px] font-medium text-[hsl(var(--card-muted-foreground))]">{title}</span>}
           <div className="absolute inset-0">
             <ResponsiveContainer>
               <AreaChart data={points} margin={{ left: 0, right: 0, top: 6, bottom: 0 }}>
@@ -119,9 +152,21 @@ export function FxBalanceChart({ data, currency, oneR, hidden = false }: { data:
                     <stop offset="1" stopColor={color} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <YAxis hide domain={[low - pad, high + pad]} />
-                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
-                <Area type="monotone" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />
+                {ticks && <CartesianGrid vertical={false} horizontalValues={levels} stroke="hsl(var(--foreground) / 0.08)" strokeDasharray="2 3" />}
+                {ticks && <XAxis dataKey="t" ticks={dates} interval={0} height={13} tickSize={0} tickMargin={3} axisLine={false} tickLine={false} tick={<DateTick count={dates.length} />} />}
+                <YAxis
+                  hide={!ticks}
+                  domain={[low - pad, high + pad]}
+                  ticks={levels}
+                  mirror
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ ...TICK, dy: -5, stroke: "hsl(var(--muted))", strokeWidth: 3, paintOrder: "stroke" }}
+                  tickFormatter={(value: number) => (hidden ? "" : formatPlain(value))}
+                />
+                <Tooltip content={<BalanceTooltip hidden={hidden} currency={currency} oneR={oneR} showTotal={showTotal} />} cursor={{ stroke: "hsl(var(--foreground) / 0.3)" }} />
+                {/* Fill down to the bottom of the plot: by default recharts fills towards zero, i.e. upwards for an all-negative PnL line. */}
+                <Area type="monotone" baseValue="dataMin" dataKey="balance" stroke={color} strokeWidth={2.5} fill={`url(#${gradientId})`} isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: color, stroke: "hsl(var(--card))", strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
