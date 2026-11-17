@@ -143,7 +143,7 @@ export function PolyDayCalendar({
             hidden ? "" : tone(monthSum.toNumber()),
           )}
         >
-          {money(monthSum)}
+          {hidden ? "••••" : `${formatSigned(monthSum)} $`}
         </div>
       </div>
 
@@ -192,7 +192,7 @@ export function PolyDayCalendar({
                     title={label}
                     aria-label={label}
                     className={cn(
-                      "relative flex h-12 flex-col rounded-md px-1 py-0.5 text-left text-[10px] tabular-nums sm:h-16 sm:px-2 sm:py-1.5 sm:text-xs",
+                      "relative flex h-12 flex-col rounded-md px-1 py-0.5 text-left text-[10px] tabular-nums sm:h-20 sm:px-2.5 sm:py-1.5 sm:text-xs",
                       day &&
                         "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/60",
                       selected === key && "ring-2 ring-foreground/70",
@@ -212,7 +212,7 @@ export function PolyDayCalendar({
                   >
                     <span>{Number(key.slice(8))}</span>
                     {day && (
-                      <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 whitespace-nowrap text-center text-[10px] font-bold tracking-tighter sm:static sm:mt-auto sm:translate-y-0 sm:truncate sm:font-semibold sm:tracking-normal">
+                      <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 whitespace-nowrap text-center text-[10px] font-bold tracking-tighter sm:text-lg sm:tracking-normal">
                         {hidden ? "••••" : formatSigned(day.pnl)}
                       </span>
                     )}
