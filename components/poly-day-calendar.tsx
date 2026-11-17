@@ -30,10 +30,7 @@ const MONTHS = [
   "Листопад",
   "Грудень",
 ];
-const LEGEND_STEPS = Array.from(
-  { length: SHADE_STEPS },
-  (_, index) => index + 1,
-);
+const LEGEND_STEPS = [4, 10];
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const dm = (date: string) => `${date.slice(8, 10)}.${date.slice(5, 7)}`;
@@ -255,33 +252,27 @@ export function PolyDayCalendar({
             : "Торкнись дня, щоб побачити результат"}
         </div>
 
-        <div
-          className={`mt-2 flex items-center justify-end gap-1.5 whitespace-nowrap text-[10px] sm:text-xs ${muted}`}
-        >
-          <span>−{SHADE_CAP}</span>
-          <div className="flex gap-0.5">
-            {[...LEGEND_STEPS].reverse().map((step) => (
-              <i
-                key={`r${step}`}
-                title={`до −${step * (SHADE_CAP / SHADE_STEPS)}`}
-                className="size-2.5 rounded-[3px] sm:size-3.5"
-                style={{ backgroundColor: shadeColor(step, false) }}
-              />
-            ))}
+        <div className="mt-2 flex items-center justify-center gap-0.5">
+          {[...LEGEND_STEPS].reverse().map((step) => (
             <i
-              className="mx-0.5 size-2.5 rounded-[3px] bg-foreground/10 sm:size-3.5"
-              title="0"
+              key={`r${step}`}
+              title={`до −${step * (SHADE_CAP / SHADE_STEPS)}`}
+              className="size-2.5 rounded-[3px] sm:size-3.5"
+              style={{ backgroundColor: shadeColor(step, false) }}
             />
-            {LEGEND_STEPS.map((step) => (
-              <i
-                key={`g${step}`}
-                title={`до +${step * (SHADE_CAP / SHADE_STEPS)}`}
-                className="size-2.5 rounded-[3px] sm:size-3.5"
-                style={{ backgroundColor: shadeColor(step, true) }}
-              />
-            ))}
-          </div>
-          <span>+{SHADE_CAP}</span>
+          ))}
+          <i
+            className="mx-0.5 size-2.5 rounded-[3px] bg-foreground/10 sm:size-3.5"
+            title="0"
+          />
+          {LEGEND_STEPS.map((step) => (
+            <i
+              key={`g${step}`}
+              title={`до +${step * (SHADE_CAP / SHADE_STEPS)}`}
+              className="size-2.5 rounded-[3px] sm:size-3.5"
+              style={{ backgroundColor: shadeColor(step, true) }}
+            />
+          ))}
         </div>
       </div>
 
